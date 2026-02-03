@@ -1,0 +1,37 @@
+{
+  "scripts": {
+    "dev": "nodemon src/cli/index.ts",
+    "start": "ts-node src/cli/index.ts",
+    "build": "tsc",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@octokit/rest": "^21.0.0",
+    "@prisma/client": "^5.10.0",
+    "axios": "^1.6.0",
+    "chalk": "^5.3.0",
+    "cheerio": "^1.0.0-rc.12",
+    "cli-table3": "^0.6.3",
+    "commander": "^12.0.0",
+    "date-fns": "^3.0.0",
+    "docx": "^8.5.0",
+    "dotenv": "^16.4.0",
+    "inquirer": "^9.2.0",
+    "langchain": "^0.2.0",
+    "ora": "^8.0.0",
+    "pdf-lib": "^1.17.1",
+    "puppeteer": "latest",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.11.0",
+    "nodemon": "^3.1.0",
+    "prisma": "^5.10.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.4.0"
+  }
+}
