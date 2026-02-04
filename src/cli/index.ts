@@ -14,6 +14,12 @@ import { applyCommand } from "./commands/apply";
 import { statusCommand } from "./commands/status";
 import { researchCommand } from "./commands/research";
 import { creditsCommand } from "./commands/credits";
+import { uploadCommand } from "./commands/upload";
+import { uploadAllCommand } from "./commands/upload-all";
+import { uploadAllFixedCommand } from "./commands/upload-all-fixed";
+import { resetCommand } from "./commands/reset";
+import { exportCommand } from "./commands/export";
+import { githubCommand } from "./commands/github";
 
 const program = new Command();
 
@@ -52,10 +58,16 @@ async function main() {
     // Register commands
     program.addCommand(initCommand);
     program.addCommand(resumeCommand);
+    program.addCommand(uploadCommand);
+    program.addCommand(uploadAllCommand);
+    program.addCommand(uploadAllFixedCommand);
+    program.addCommand(resetCommand);
+    program.addCommand(exportCommand);
     program.addCommand(applyCommand);
     program.addCommand(statusCommand);
     program.addCommand(researchCommand);
     program.addCommand(creditsCommand);
+    program.addCommand(githubCommand);
 
     // Global error handler
     program.exitOverride((err) => {

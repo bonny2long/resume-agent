@@ -1,0 +1,103 @@
+{
+  "id": "master_v1_example",
+  "version": 1,
+  "lastUpdated": "2026-02-03T00:00:00.000Z",
+  "personalInfo": {
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+1-555-0123",
+    "location": "San Francisco, CA",
+    "linkedin": "https://linkedin.com/in/johndoe",
+    "github": "https://github.com/johndoe",
+    "portfolio": "https://johndoe.dev"
+  },
+  "summary": {
+    "short": "Senior Software Engineer with 5+ years of experience building scalable web applications.",
+    "long": "Results-driven Senior Software Engineer with over 5 years of experience developing robust, scalable web applications and leading cross-functional teams. Expertise in full-stack development, cloud architecture, and agile methodologies with a track record of delivering high-impact solutions that drive business growth.",
+    "keywords": [
+      "Software Engineering",
+      "Full-Stack",
+      "React",
+      "Node.js",
+      "Cloud",
+      "Leadership"
+    ]
+  },
+  "experiences": [
+    {
+      "id": "exp_1",
+      "company": "Tech Corp",
+      "title": "Senior Software Engineer",
+      "startDate": "2021-06-01",
+      "endDate": null,
+      "location": "San Francisco, CA",
+      "current": true,
+      "achievements": [
+        {
+          "id": "ach_1",
+          "description": "Led development of microservices architecture that reduced server costs by 40%",
+          "metrics": "40% cost reduction",
+          "keywords": ["microservices", "cost optimization", "architecture"],
+          "impact": "high"
+        }
+      ],
+      "technologies": ["React", "Node.js", "AWS", "PostgreSQL"],
+      "keywords": ["leadership", "architecture", "optimization"]
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj_1",
+      "name": "E-commerce Platform",
+      "description": "Full-stack e-commerce solution with real-time inventory management",
+      "githubUrl": "https://github.com/johndoe/ecommerce",
+      "liveUrl": "https://ecommerce-demo.com",
+      "technologies": ["React", "Node.js", "MongoDB", "Stripe"],
+      "role": "Lead Developer",
+      "achievements": [
+        "Implemented real-time inventory sync",
+        "Built responsive checkout flow"
+      ],
+      "dateRange": { "start": "2023-01-01", "end": "2023-06-01" },
+      "featured": true
+    }
+  ],
+  "skills": {
+    "technical": {
+      "languages": ["JavaScript", "TypeScript", "Python", "Java"],
+      "frameworks": ["React", "Node.js", "Express", "Django"],
+      "tools": ["Git", "Docker", "Jenkins", "VS Code"],
+      "databases": ["PostgreSQL", "MongoDB", "Redis"],
+      "cloud": ["AWS", "Google Cloud", "Azure"]
+    },
+    "soft": [
+      "Leadership",
+      "Communication",
+      "Problem Solving",
+      "Team Collaboration"
+    ],
+    "certifications": ["AWS Certified Developer", "Google Cloud Professional"]
+  },
+  "education": [
+    {
+      "id": "edu_1",
+      "institution": "University of California, Berkeley",
+      "degree": "Bachelor of Science",
+      "field": "Computer Science",
+      "startDate": "2017-09-01",
+      "endDate": "2021-05-31",
+      "gpa": "3.8"
+    }
+  ],
+  "certifications": [
+    {
+      "id": "cert_1",
+      "name": "AWS Certified Developer - Associate",
+      "issuer": "Amazon Web Services",
+      "issueDate": "2022-03-15",
+      "expiryDate": "2025-03-15",
+      "credentialId": "AWS-ADA-123456",
+      "url": "https://aws.amazon.com/certification/"
+    }
+  ]
+}
