@@ -162,8 +162,55 @@ export class EmbeddingsService {
         }),
       );
 
+      // Boost tech roles and sort by relevance
+      const techKeywords = [
+        "software",
+        "developer",
+        "engineer",
+        "programmer",
+        "full stack",
+        "frontend",
+        "backend",
+        "web",
+        "mobile",
+        "data",
+        "ai",
+        "machine learning",
+        "devops",
+        "qa",
+        "test",
+        "technical",
+        "architect",
+      ];
+
       const sortedSimilarities = similarities
-        .sort((a, b) => b.similarity - a.similarity)
+        .map(({ experience, similarity }) => {
+          // Boost similarity for tech roles
+          const title = (experience.title || "").toLowerCase();
+          const isTechRole = techKeywords.some((keyword) =>
+            title.includes(keyword),
+          );
+          const boostedSimilarity = isTechRole ? similarity + 0.3 : similarity;
+
+          return { experience, similarity: boostedSimilarity };
+        })
+        .sort((a, b) => {
+          // Primary sort: by boosted similarity score (descending)
+          const similarityDiff = b.similarity - a.similarity;
+          if (Math.abs(similarityDiff) > 0.1) {
+            return similarityDiff;
+          }
+
+          // Secondary sort: by start date (most recent first)
+          const dateA = new Date(a.experience.startDate);
+          const dateB = new Date(b.experience.startDate);
+
+          // Handle current jobs (no endDate) - put them first
+          if (!a.experience.endDate && b.experience.endDate) return -1;
+          if (a.experience.endDate && !b.experience.endDate) return 1;
+
+          return dateB.getTime() - dateA.getTime();
+        })
         .slice(0, limit);
 
       logger.info("Found relevant experiences", {
@@ -204,8 +251,25 @@ export class EmbeddingsService {
         }),
       );
 
+      // Sort by relevance first, then by recency (most recent first)
       const sortedSimilarities = similarities
-        .sort((a, b) => b.similarity - a.similarity)
+        .sort((a, b) => {
+          // Primary sort: by similarity score (descending)
+          const similarityDiff = b.similarity - a.similarity;
+          if (Math.abs(similarityDiff) > 0.1) {
+            return similarityDiff;
+          }
+
+          // Secondary sort: by start date (most recent first)
+          const dateA = new Date(a.project.startDate);
+          const dateB = new Date(b.project.startDate);
+
+          // Handle current projects (no endDate) - put them first
+          if (!a.project.endDate && b.project.endDate) return -1;
+          if (a.project.endDate && !b.project.endDate) return 1;
+
+          return dateB.getTime() - dateA.getTime();
+        })
         .slice(0, limit);
 
       logger.info("Found relevant projects", {
@@ -305,6 +369,33 @@ export class EmbeddingsService {
       experience.company,
       experience.description || "",
     ];
+
+    // Boost tech roles with keywords
+    const title = (experience.title || "").toLowerCase();
+    const techKeywords = [
+      "software",
+      "developer",
+      "engineer",
+      "programmer",
+      "full stack",
+      "frontend",
+      "backend",
+      "web",
+      "mobile",
+      "data",
+      "ai",
+      "machine learning",
+      "devops",
+      "qa",
+      "test",
+      "technical",
+      "architect",
+    ];
+
+    const isTechRole = techKeywords.some((keyword) => title.includes(keyword));
+    if (isTechRole) {
+      parts.push("software engineering technology development programming");
+    }
 
     if (experience.achievements?.length > 0) {
       parts.push(...experience.achievements.map((a: any) => a.description));

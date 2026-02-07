@@ -12,15 +12,20 @@ import path from "path";
 export const generateCommand = new Command("generate")
   .description("Generate resume document (PDF or DOCX)")
   .argument("[job-id]", "ID of the job to generate resume for")
+  .argument("[template]", "Template style (modern|traditional|minimal)", "modern")
   .option("--format <format>", "Output format (docx|pdf)", "docx")
   .option(
     "--template <template>",
     "Template style (modern|traditional|minimal)",
     "modern",
   )
-  .action(async (jobId?: string, options?: any) => {
+.action(async (jobId?: string, templateArg?: string, options?: any) => {
     try {
       const prisma = getPrismaClient();
+
+      // Handle template from both option and positional argument
+      const template = templateArg || options.template || "modern";
+      options.template = template;
 
       // If no job ID provided, show recent jobs
       if (!jobId) {

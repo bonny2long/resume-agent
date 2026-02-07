@@ -12,6 +12,7 @@ import fs from "fs";
 import path from "path";
 import { logger } from "@/utils/logger";
 import { TailoredResume } from "@/agents/resume-tailor.agent";
+import { CoverLetter } from "@/agents/cover-letter-generator";
 
 export interface DocumentGenerationOptions {
   format: "docx" | "pdf";
@@ -21,6 +22,201 @@ export interface DocumentGenerationOptions {
 }
 
 export class DocumentGeneratorService {
+  /**
+   * Helper method to truncate summary to target word count
+   * FIXED: Better sentence boundary detection and ellipsis handling
+   */
+  private truncateSummary(summary: string, targetWords: number): string {
+    const words = summary.split(" ");
+    if (words.length <= targetWords) {
+      return summary;
+    }
+
+    // Truncate to target words
+    const truncated = words.slice(0, targetWords).join(" ");
+
+    // Try to end at a complete sentence
+    const lastPeriod = truncated.lastIndexOf(".");
+    const lastExclamation = truncated.lastIndexOf("!");
+    const lastQuestion = truncated.lastIndexOf("?");
+
+    const lastSentenceEnd = Math.max(lastPeriod, lastExclamation, lastQuestion);
+
+    // If we can end at a sentence boundary without losing too much content (70% threshold)
+    if (lastSentenceEnd > targetWords * 0.7) {
+      return truncated.substring(0, lastSentenceEnd + 1);
+    }
+
+    // Otherwise, truncate at word boundary and add ellipsis
+    // Clean up any trailing punctuation except period
+    let cleaned = truncated.replace(/[,;:]$/, "");
+
+    // If it already ends with punctuation, keep it
+    if (cleaned.match(/[.!?]$/)) {
+      return cleaned;
+    }
+
+    // Add ellipsis with proper spacing
+    return cleaned + "...";
+  }
+
+  /**
+   * Get summary length appropriate for template type
+   * FIXED: Adjusted word counts for better sentence completion
+   */
+  private getTemplateSummary(summary: string, template: string): string {
+    switch (template) {
+      case "minimal":
+        // Target: 25-30 words (shortest)
+        return this.truncateSummary(summary, 28);
+      case "modern":
+        // Target: 40-45 words (medium)
+        return this.truncateSummary(summary, 42);
+      case "traditional":
+        // Target: 55-65 words (longest)
+        return this.truncateSummary(summary, 65);
+      default:
+        return summary;
+    }
+  }
+
+  /**
+   * Remove duplicate experiences based on company and title similarity
+   */
+  private deduplicateExperiences(experiences: any[]): any[] {
+    const seen = new Set();
+    const deduplicated = [];
+
+    for (const exp of experiences) {
+      // Create a unique key based on company and title (case-insensitive)
+      const key = `${exp.company?.toLowerCase().trim()}_${exp.title?.toLowerCase().trim()}`;
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduplicated.push(exp);
+      } else {
+        // Log warning about duplicate found
+        logger.warn(
+          `Duplicate experience removed: ${exp.title} at ${exp.company}`,
+        );
+      }
+    }
+
+    return deduplicated;
+  }
+
+  /**
+   * Group skills by category for modern template
+   */
+  private groupSkillsByCategory(skills: string[]): {
+    [category: string]: string[];
+  } {
+    const categories = {
+      Languages: [
+        "javascript",
+        "python",
+        "typescript",
+        "java",
+        "c++",
+        "c#",
+        "php",
+        "ruby",
+        "go",
+        "rust",
+        "swift",
+        "kotlin",
+      ],
+      Frameworks: [
+        "react",
+        "vue",
+        "angular",
+        "node",
+        "express",
+        "django",
+        "flask",
+        "spring",
+        "laravel",
+        "rails",
+        "next",
+        "nuxt",
+      ],
+      Databases: [
+        "sql",
+        "mysql",
+        "postgresql",
+        "mongodb",
+        "redis",
+        "sqlite",
+        "oracle",
+        "elasticsearch",
+        "cassandra",
+      ],
+      Cloud: [
+        "aws",
+        "azure",
+        "gcp",
+        "digitalocean",
+        "heroku",
+        "vercel",
+        "netlify",
+        "cloudflare",
+        "docker",
+        "kubernetes",
+      ],
+      Tools: [
+        "git",
+        "github",
+        "gitlab",
+        "vscode",
+        "vim",
+        "linux",
+        "bash",
+        "powershell",
+        "npm",
+        "yarn",
+        "webpack",
+        "babel",
+      ],
+      Other: [],
+    };
+
+    const grouped: { [category: string]: string[] } = {};
+
+    // Initialize categories
+    Object.keys(categories).forEach((cat) => {
+      grouped[cat] = [];
+    });
+
+    // Group skills
+    skills.forEach((skill) => {
+      const skillLower = skill.toLowerCase();
+      let categorized = false;
+
+      for (const [category, keywords] of Object.entries(categories)) {
+        if (category === "Other") continue;
+
+        if (keywords.some((keyword) => skillLower.includes(keyword))) {
+          grouped[category].push(skill);
+          categorized = true;
+          break;
+        }
+      }
+
+      if (!categorized) {
+        grouped["Other"].push(skill);
+      }
+    });
+
+    // Remove empty categories
+    Object.keys(grouped).forEach((category) => {
+      if (grouped[category].length === 0) {
+        delete grouped[category];
+      }
+    });
+
+    return grouped;
+  }
+
   /**
    * Generate a resume document from tailored data
    */
@@ -78,7 +274,7 @@ export class DocumentGeneratorService {
     const sanitizedCompany = tailored.company
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "-");
-    const filename = `resume_${sanitizedCompany}_${timestamp}.docx`;
+    const filename = `resume_${sanitizedCompany}_${template}_${timestamp}.docx`;
 
     const outputDir = path.join(process.cwd(), "data", "outputs");
     if (!fs.existsSync(outputDir)) {
@@ -117,6 +313,23 @@ export class DocumentGeneratorService {
       }),
     );
 
+    // Accent line under name
+    sections.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 120 },
+        border: {
+          bottom: {
+            color: "2C5F8D", // Professional blue
+            space: 1,
+            style: "single",
+            size: 6,
+          },
+        },
+        children: [],
+      }),
+    );
+
     // Contact Info
     const contactParts: string[] = [];
     if (tailored.personalInfo.email)
@@ -147,9 +360,28 @@ export class DocumentGeneratorService {
       tailored.personalInfo.portfolioUrl
     ) {
       const linkParts: string[] = [];
-      if (tailored.personalInfo.linkedInUrl) linkParts.push("LinkedIn");
-      if (tailored.personalInfo.githubUrl) linkParts.push("GitHub");
-      if (tailored.personalInfo.portfolioUrl) linkParts.push("Portfolio");
+      if (tailored.personalInfo.linkedInUrl) {
+        // Extract clean URL (remove https://)
+        const cleanUrl = tailored.personalInfo.linkedInUrl.replace(
+          /^https?:\/\//,
+          "",
+        );
+        linkParts.push(cleanUrl);
+      }
+      if (tailored.personalInfo.githubUrl) {
+        const cleanUrl = tailored.personalInfo.githubUrl.replace(
+          /^https?:\/\//,
+          "",
+        );
+        linkParts.push(cleanUrl);
+      }
+      if (tailored.personalInfo.portfolioUrl) {
+        const cleanUrl = tailored.personalInfo.portfolioUrl.replace(
+          /^https?:\/\//,
+          "",
+        );
+        linkParts.push(cleanUrl);
+      }
 
       sections.push(
         new Paragraph({
@@ -178,17 +410,19 @@ export class DocumentGeneratorService {
             bold: true,
             size: 26, // 13pt
             font: "Arial",
+            color: "2C5F8D", // Professional blue
           }),
         ],
       }),
     );
 
+    // Enhanced summary with career story (template-specific length)
     sections.push(
       new Paragraph({
         spacing: { after: 240 },
         children: [
           new TextRun({
-            text: tailored.summary,
+            text: this.getTemplateSummary(tailored.summary, "modern"),
             size: 22,
             font: "Arial",
           }),
@@ -211,6 +445,7 @@ export class DocumentGeneratorService {
               bold: true,
               size: 26,
               font: "Arial",
+              color: "2C5F8D", // Professional blue
             }),
           ],
         }),
@@ -221,22 +456,46 @@ export class DocumentGeneratorService {
         ...tailored.skills.relevant,
       ].slice(0, 20); // Limit to top 20
 
+      // Group skills by category
+      const groupedSkills = this.groupSkillsByCategory(allSkills);
+
+      // Display grouped skills
+      Object.entries(groupedSkills).forEach(([category, skills], index) => {
+        sections.push(
+          new Paragraph({
+            spacing: { before: index > 0 ? 120 : 0, after: 60 },
+            children: [
+              new TextRun({
+                text: `${category}: `,
+                bold: true,
+                size: 22,
+                font: "Arial",
+                color: "2C5F8D",
+              }),
+              new TextRun({
+                text: skills.join(" • "),
+                size: 22,
+                font: "Arial",
+              }),
+            ],
+          }),
+        );
+      });
+
+      // Add spacing after skills section
       sections.push(
         new Paragraph({
           spacing: { after: 240 },
-          children: [
-            new TextRun({
-              text: allSkills.join(" • "),
-              size: 22,
-              font: "Arial",
-            }),
-          ],
+          children: [],
         }),
       );
     }
 
     // Experience
-    if (tailored.experiences.length > 0) {
+    const deduplicatedExperiences = this.deduplicateExperiences(
+      tailored.experiences,
+    );
+    if (deduplicatedExperiences.length > 0) {
       sections.push(
         new Paragraph({
           heading: HeadingLevel.HEADING_1,
@@ -247,12 +506,13 @@ export class DocumentGeneratorService {
               bold: true,
               size: 26,
               font: "Arial",
+              color: "2C5F8D", // Professional blue
             }),
           ],
         }),
       );
 
-      tailored.experiences.forEach((exp, index) => {
+      deduplicatedExperiences.forEach((exp, index) => {
         // Job Title & Company
         sections.push(
           new Paragraph({
@@ -283,12 +543,15 @@ export class DocumentGeneratorService {
             `${exp.endDate?.toLocaleString("default", { month: "short" })} ${exp.endDate?.getFullYear()}`
           );
 
+        // FIXED: Added location fallback
+        const locationText = exp.location ? `${exp.location} | ` : "";
+
         sections.push(
           new Paragraph({
             spacing: { after: 120 },
             children: [
               new TextRun({
-                text: `${exp.location} | ${startMonth} ${startYear} - ${endDate}`,
+                text: `${locationText}${startMonth} ${startYear} - ${endDate}`,
                 size: 22,
                 font: "Arial",
                 italics: true,
@@ -299,27 +562,33 @@ export class DocumentGeneratorService {
         );
 
         // Achievements (bullets)
-        exp.achievements.forEach((achievement) => {
-          sections.push(
-            new Paragraph({
-              numbering: {
-                reference: "bullets",
-                level: 0,
-              },
-              spacing: { after: 80 },
-              children: [
-                new TextRun({
-                  text: achievement.description,
-                  size: 22,
-                  font: "Arial",
-                }),
-              ],
-            }),
-          );
-        });
+        exp.achievements.forEach(
+          (achievement: {
+            description: string;
+            metrics?: string;
+            impact: string;
+          }) => {
+            sections.push(
+              new Paragraph({
+                numbering: {
+                  reference: "bullets",
+                  level: 0,
+                },
+                spacing: { after: 80 },
+                children: [
+                  new TextRun({
+                    text: achievement.description,
+                    size: 22,
+                    font: "Arial",
+                  }),
+                ],
+              }),
+            );
+          },
+        );
 
         // Add spacing between experiences
-        if (index < tailored.experiences.length - 1) {
+        if (index < deduplicatedExperiences.length - 1) {
           sections.push(
             new Paragraph({
               spacing: { after: 120 },
@@ -342,6 +611,7 @@ export class DocumentGeneratorService {
               bold: true,
               size: 26,
               font: "Arial",
+              color: "2C5F8D", // Professional blue
             }),
           ],
         }),
@@ -429,6 +699,7 @@ export class DocumentGeneratorService {
               bold: true,
               size: 26,
               font: "Arial",
+              color: "2C5F8D", // Professional blue
             }),
           ],
         }),
@@ -528,18 +799,974 @@ export class DocumentGeneratorService {
    * Traditional template (conservative, for corporate roles)
    */
   private createTraditionalTemplate(tailored: TailoredResume): Document {
-    // Similar structure but with more conservative styling
-    // Will implement if needed
-    return this.createModernTemplate(tailored);
+    const sections: any[] = [];
+
+    // Name (left-aligned, ALL CAPS)
+    sections.push(
+      new Paragraph({
+        spacing: { after: 80 },
+        children: [
+          new TextRun({
+            text: tailored.personalInfo.fullName.toUpperCase(),
+            bold: true,
+            size: 28, // 14pt - more conservative
+            font: "Times New Roman", // Traditional serif font
+          }),
+        ],
+      }),
+    );
+
+    // Contact Info (left-aligned, single line)
+    const contactParts: string[] = [];
+    if (tailored.personalInfo.email)
+      contactParts.push(tailored.personalInfo.email);
+    if (tailored.personalInfo.phone)
+      contactParts.push(tailored.personalInfo.phone);
+    if (tailored.personalInfo.location)
+      contactParts.push(tailored.personalInfo.location);
+
+    sections.push(
+      new Paragraph({
+        spacing: { after: 120 },
+        children: [
+          new TextRun({
+            text: contactParts.join(" | "),
+            size: 20,
+            font: "Times New Roman",
+          }),
+        ],
+      }),
+    );
+
+    // Horizontal line separator
+    sections.push(
+      new Paragraph({
+        spacing: { after: 240 },
+        border: {
+          bottom: {
+            color: "000000",
+            space: 1,
+            style: "single",
+            size: 6,
+          },
+        },
+        children: [],
+      }),
+    );
+
+    // Professional Summary (no all-caps header)
+    sections.push(
+      new Paragraph({
+        spacing: { after: 80 },
+        children: [
+          new TextRun({
+            text: "Professional Summary",
+            bold: true,
+            size: 24,
+            font: "Times New Roman",
+          }),
+        ],
+      }),
+    );
+
+    sections.push(
+      new Paragraph({
+        spacing: { after: 240 },
+        children: [
+          new TextRun({
+            text: this.getTemplateSummary(tailored.summary, "traditional"),
+            size: 22,
+            font: "Times New Roman",
+          }),
+        ],
+      }),
+    );
+
+    // Technical Skills
+    if (
+      tailored.skills.matched.length > 0 ||
+      tailored.skills.relevant.length > 0
+    ) {
+      sections.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: "Technical Skills",
+              bold: true,
+              size: 24,
+              font: "Times New Roman",
+            }),
+          ],
+        }),
+      );
+
+      const allSkills = [
+        ...tailored.skills.matched,
+        ...tailored.skills.relevant,
+      ].slice(0, 20);
+
+      sections.push(
+        new Paragraph({
+          spacing: { after: 240 },
+          children: [
+            new TextRun({
+              text: allSkills.join(", "), // Comma-separated, more traditional
+              size: 22,
+              font: "Times New Roman",
+            }),
+          ],
+        }),
+      );
+    }
+
+    // Professional Experience
+    const deduplicatedExperiences = this.deduplicateExperiences(
+      tailored.experiences,
+    );
+    if (deduplicatedExperiences.length > 0) {
+      sections.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: "Professional Experience",
+              bold: true,
+              size: 24,
+              font: "Times New Roman",
+            }),
+          ],
+        }),
+      );
+
+      deduplicatedExperiences.forEach((exp, index) => {
+        // Company & Title (company first - traditional order)
+        sections.push(
+          new Paragraph({
+            spacing: { after: 40 },
+            children: [
+              new TextRun({
+                text: exp.company,
+                bold: true,
+                size: 22,
+                font: "Times New Roman",
+              }),
+              new TextRun({
+                // FIXED: Added conditional for location
+                text: exp.location ? `, ${exp.location}` : "",
+                size: 22,
+                font: "Times New Roman",
+              }),
+            ],
+          }),
+        );
+
+        // Title & Dates
+        const startYear = exp.startDate.getFullYear();
+        const startMonth = exp.startDate.toLocaleString("default", {
+          month: "short",
+        });
+        const endDate =
+          exp.current ? "Present" : (
+            `${exp.endDate?.toLocaleString("default", { month: "short" })} ${exp.endDate?.getFullYear()}`
+          );
+
+        sections.push(
+          new Paragraph({
+            spacing: { after: 80 },
+            children: [
+              new TextRun({
+                text: exp.title,
+                italics: true,
+                size: 22,
+                font: "Times New Roman",
+              }),
+              new TextRun({
+                text: ` (${startMonth} ${startYear} - ${endDate})`,
+                size: 22,
+                font: "Times New Roman",
+              }),
+            ],
+          }),
+        );
+
+        // Achievements (bullets)
+        exp.achievements.forEach(
+          (achievement: {
+            description: string;
+            metrics?: string;
+            impact: string;
+          }) => {
+            sections.push(
+              new Paragraph({
+                numbering: {
+                  reference: "bullets",
+                  level: 0,
+                },
+                spacing: { after: 60 },
+                children: [
+                  new TextRun({
+                    text: achievement.description,
+                    size: 22,
+                    font: "Times New Roman",
+                  }),
+                ],
+              }),
+            );
+          },
+        );
+
+        // Add spacing between experiences
+        if (index < deduplicatedExperiences.length - 1) {
+          sections.push(
+            new Paragraph({
+              spacing: { after: 120 },
+              children: [],
+            }),
+          );
+        }
+      });
+    }
+
+    // Education (before projects - traditional order)
+    if (tailored.education.length > 0) {
+      sections.push(
+        new Paragraph({
+          spacing: { before: 240, after: 80 },
+          children: [
+            new TextRun({
+              text: "Education",
+              bold: true,
+              size: 24,
+              font: "Times New Roman",
+            }),
+          ],
+        }),
+      );
+
+      tailored.education.forEach((edu) => {
+        const endYear = edu.endDate ? edu.endDate.getFullYear() : "Present";
+
+        sections.push(
+          new Paragraph({
+            spacing: { after: 40 },
+            children: [
+              new TextRun({
+                text: edu.institution,
+                bold: true,
+                size: 22,
+                font: "Times New Roman",
+              }),
+            ],
+          }),
+        );
+
+        sections.push(
+          new Paragraph({
+            spacing: { after: 120 },
+            children: [
+              new TextRun({
+                text: `${edu.degree} in ${edu.field}, ${endYear}${edu.gpa ? ` | GPA: ${edu.gpa}` : ""}`,
+                size: 22,
+                font: "Times New Roman",
+              }),
+            ],
+          }),
+        );
+      });
+    }
+
+    // Projects (if space allows)
+    if (tailored.projects.length > 0) {
+      sections.push(
+        new Paragraph({
+          spacing: { before: 240, after: 80 },
+          children: [
+            new TextRun({
+              text: "Projects",
+              bold: true,
+              size: 24,
+              font: "Times New Roman",
+            }),
+          ],
+        }),
+      );
+
+      tailored.projects.forEach((project, index) => {
+        sections.push(
+          new Paragraph({
+            spacing: { after: 40 },
+            children: [
+              new TextRun({
+                text: project.name,
+                bold: true,
+                size: 22,
+                font: "Times New Roman",
+              }),
+            ],
+          }),
+        );
+
+        sections.push(
+          new Paragraph({
+            spacing: { after: index < tailored.projects.length - 1 ? 120 : 60 },
+            children: [
+              new TextRun({
+                text: `${project.description} Technologies: ${project.technologies.join(", ")}`,
+                size: 22,
+                font: "Times New Roman",
+              }),
+            ],
+          }),
+        );
+      });
+    }
+
+    // Create document
+    const doc = new Document({
+      numbering: {
+        config: [
+          {
+            reference: "bullets",
+            levels: [
+              {
+                level: 0,
+                format: LevelFormat.BULLET,
+                text: "•",
+                alignment: AlignmentType.LEFT,
+                style: {
+                  paragraph: {
+                    indent: { left: 720, hanging: 360 },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      styles: {
+        default: {
+          document: {
+            run: {
+              font: "Times New Roman",
+              size: 22,
+            },
+          },
+        },
+      },
+      sections: [
+        {
+          properties: {
+            page: {
+              size: {
+                width: 12240,
+                height: 15840,
+              },
+              margin: {
+                top: 1440,
+                right: 1440,
+                bottom: 1440,
+                left: 1440,
+              },
+            },
+          },
+          children: sections,
+        },
+      ],
+    });
+
+    return doc;
   }
 
   /**
    * Minimal template (clean, for design/creative roles)
    */
   private createMinimalTemplate(tailored: TailoredResume): Document {
-    // Simplified version with minimal formatting
-    // Will implement if needed
-    return this.createModernTemplate(tailored);
+    const sections: any[] = [];
+
+    // Name (large, centered, minimal)
+    sections.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 60 },
+        children: [
+          new TextRun({
+            text: tailored.personalInfo.fullName,
+            size: 44, // 22pt - larger for impact
+            font: "Helvetica", // Clean sans-serif (falls back to Arial)
+          }),
+        ],
+      }),
+    );
+
+    // Contact (centered, minimal - email only for truly minimal look)
+    sections.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 480 }, // Extra space for breathing room
+        children: [
+          new TextRun({
+            text: tailored.personalInfo.email,
+            size: 18,
+            font: "Helvetica",
+            color: "888888", // Lighter gray
+          }),
+        ],
+      }),
+    );
+
+    // Summary (no header, just text - shortest for minimal)
+    sections.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 360 },
+        children: [
+          new TextRun({
+            text: this.getTemplateSummary(tailored.summary, "minimal"),
+            size: 22,
+            font: "Helvetica",
+          }),
+        ],
+      }),
+    );
+
+    // Skills (minimal header)
+    if (
+      tailored.skills.matched.length > 0 ||
+      tailored.skills.relevant.length > 0
+    ) {
+      sections.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: "Skills",
+              size: 22,
+              font: "Helvetica",
+              color: "333333",
+            }),
+          ],
+        }),
+      );
+
+      const allSkills = [
+        ...tailored.skills.matched,
+        ...tailored.skills.relevant,
+      ].slice(0, 10); // FIXED: Reduced from 15 to 10 for more minimal
+
+      sections.push(
+        new Paragraph({
+          spacing: { after: 360 },
+          children: [
+            new TextRun({
+              text: allSkills.join("  ·  "), // Spaced dots
+              size: 20,
+              font: "Helvetica",
+              color: "666666",
+            }),
+          ],
+        }),
+      );
+    }
+
+    // Experience (minimal headers)
+    const deduplicatedExperiences = this.deduplicateExperiences(
+      tailored.experiences,
+    );
+    if (deduplicatedExperiences.length > 0) {
+      sections.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: "Experience",
+              size: 22,
+              font: "Helvetica",
+              color: "333333",
+            }),
+          ],
+        }),
+      );
+
+      deduplicatedExperiences.forEach((exp, index) => {
+        // Title & Company (single line)
+        const startYear = exp.startDate.getFullYear();
+        const endYear = exp.current ? "Present" : exp.endDate?.getFullYear();
+
+        sections.push(
+          new Paragraph({
+            spacing: { after: 40 },
+            children: [
+              new TextRun({
+                text: exp.title,
+                size: 22,
+                font: "Helvetica",
+              }),
+              new TextRun({
+                text: `  ·  ${exp.company}  ·  ${startYear}–${endYear}`,
+                size: 20,
+                font: "Helvetica",
+                color: "666666",
+              }),
+            ],
+          }),
+        );
+
+        // Achievements (no bullets, just dashes) - limit to 3
+        exp.achievements
+          .slice(0, 3)
+          .forEach(
+            (achievement: {
+              description: string;
+              metrics?: string;
+              impact: string;
+            }) => {
+              sections.push(
+                new Paragraph({
+                  spacing: { after: 40 },
+                  children: [
+                    new TextRun({
+                      text: `– ${achievement.description}`,
+                      size: 20,
+                      font: "Helvetica",
+                    }),
+                  ],
+                }),
+              );
+            },
+          );
+
+        // Add spacing between experiences
+        if (index < deduplicatedExperiences.length - 1) {
+          sections.push(
+            new Paragraph({
+              spacing: { after: 240 },
+              children: [],
+            }),
+          );
+        }
+      });
+
+      sections.push(
+        new Paragraph({
+          spacing: { after: 360 },
+          children: [],
+        }),
+      );
+    }
+
+    // Projects (minimal)
+    if (tailored.projects.length > 0) {
+      sections.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: "Projects",
+              size: 22,
+              font: "Helvetica",
+              color: "333333",
+            }),
+          ],
+        }),
+      );
+
+      tailored.projects.forEach((project, index) => {
+        sections.push(
+          new Paragraph({
+            spacing: { after: 40 },
+            children: [
+              new TextRun({
+                text: project.name,
+                size: 22,
+                font: "Helvetica",
+              }),
+              new TextRun({
+                text: `  ·  ${project.technologies.slice(0, 3).join(", ")}`,
+                size: 20,
+                font: "Helvetica",
+                color: "666666",
+              }),
+            ],
+          }),
+        );
+
+        // FIXED: Shorter descriptions for minimal template
+        const shortDescription =
+          project.description.length > 80 ?
+            project.description.substring(0, 77) + "..."
+          : project.description;
+
+        sections.push(
+          new Paragraph({
+            spacing: {
+              after: index < tailored.projects.length - 1 ? 240 : 120,
+            },
+            children: [
+              new TextRun({
+                text: shortDescription,
+                size: 20,
+                font: "Helvetica",
+              }),
+            ],
+          }),
+        );
+      });
+
+      sections.push(
+        new Paragraph({
+          spacing: { after: 360 },
+          children: [],
+        }),
+      );
+    }
+
+    // Education (very minimal)
+    if (tailored.education.length > 0) {
+      sections.push(
+        new Paragraph({
+          spacing: { after: 80 },
+          children: [
+            new TextRun({
+              text: "Education",
+              size: 22,
+              font: "Helvetica",
+              color: "333333",
+            }),
+          ],
+        }),
+      );
+
+      tailored.education.forEach((edu) => {
+        const endYear = edu.endDate ? edu.endDate.getFullYear() : "Present";
+
+        sections.push(
+          new Paragraph({
+            spacing: { after: 120 },
+            children: [
+              new TextRun({
+                text: `${edu.degree}, ${edu.institution}  ·  ${endYear}`,
+                size: 20,
+                font: "Helvetica",
+              }),
+            ],
+          }),
+        );
+      });
+    }
+
+    // Create document (no bullet numbering - using dashes instead)
+    const doc = new Document({
+      styles: {
+        default: {
+          document: {
+            run: {
+              font: "Helvetica",
+              size: 22,
+            },
+          },
+        },
+      },
+      sections: [
+        {
+          properties: {
+            page: {
+              size: {
+                width: 12240,
+                height: 15840,
+              },
+              margin: {
+                top: 2160, // 1.5 inches for minimal look
+                right: 2160,
+                bottom: 2160,
+                left: 2160,
+              },
+            },
+          },
+          children: sections,
+        },
+      ],
+    });
+
+    return doc;
+  }
+
+  /**
+   * Generate a cover letter DOCX
+   */
+  async generateCoverLetter(
+    coverLetter: CoverLetter,
+    _options: { format: "docx" | "pdf" } = { format: "docx" },
+  ): Promise<{ success: boolean; filepath?: string; error?: string }> {
+    try {
+      logger.info("Generating cover letter document");
+
+      // Create cover letter DOCX
+      const sections: any[] = [];
+
+      // Your contact info (top right or left, depending on preference)
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: coverLetter.yourName,
+              size: 24,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: coverLetter.yourAddress,
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `${coverLetter.yourEmail} | ${coverLetter.yourPhone}`,
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      // Spacing
+      sections.push(
+        new Paragraph({
+          spacing: { after: 240 },
+          children: [],
+        }),
+      );
+
+      // Date
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: coverLetter.date,
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      // Spacing
+      sections.push(
+        new Paragraph({
+          spacing: { after: 240 },
+          children: [],
+        }),
+      );
+
+      // Recipient info (if available)
+      if (coverLetter.hiringManager) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: coverLetter.hiringManager,
+                size: 22,
+                font: "Arial",
+              }),
+            ],
+          }),
+        );
+      }
+
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: coverLetter.companyName,
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      if (coverLetter.companyAddress) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: coverLetter.companyAddress,
+                size: 22,
+                font: "Arial",
+              }),
+            ],
+          }),
+        );
+      }
+
+      // Spacing
+      sections.push(
+        new Paragraph({
+          spacing: { after: 240 },
+          children: [],
+        }),
+      );
+
+      // Greeting
+      sections.push(
+        new Paragraph({
+          spacing: { after: 240 },
+          children: [
+            new TextRun({
+              text: coverLetter.greeting,
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      // Opening paragraph
+      sections.push(
+        new Paragraph({
+          spacing: { after: 240 },
+          children: [
+            new TextRun({
+              text: coverLetter.opening,
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      // Body paragraphs
+      coverLetter.body.forEach((paragraph: string) => {
+        sections.push(
+          new Paragraph({
+            spacing: { after: 240 },
+            children: [
+              new TextRun({
+                text: paragraph,
+                size: 22,
+                font: "Arial",
+              }),
+            ],
+          }),
+        );
+      });
+
+      // Closing paragraph
+      sections.push(
+        new Paragraph({
+          spacing: { after: 240 },
+          children: [
+            new TextRun({
+              text: coverLetter.closing,
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      // Signature
+      sections.push(
+        new Paragraph({
+          spacing: { after: 120 },
+          children: [
+            new TextRun({
+              text: "Sincerely,",
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      sections.push(
+        new Paragraph({
+          spacing: { after: 360 }, // Extra space for signature
+          children: [],
+        }),
+      );
+
+      sections.push(
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: coverLetter.signature,
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+
+      // Create document
+      const doc = new Document({
+        styles: {
+          default: {
+            document: {
+              run: {
+                font: "Arial",
+                size: 22,
+              },
+            },
+          },
+        },
+        sections: [
+          {
+            properties: {
+              page: {
+                size: {
+                  width: 12240,
+                  height: 15840,
+                },
+                margin: {
+                  top: 1440,
+                  right: 1440,
+                  bottom: 1440,
+                  left: 1440,
+                },
+              },
+            },
+            children: sections,
+          },
+        ],
+      });
+
+      // Generate filename
+      const timestamp = new Date().toISOString().split("T")[0];
+      const sanitizedCompany = coverLetter.companyName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "-");
+      const filename = `cover-letter_${sanitizedCompany}_${timestamp}.docx`;
+
+      const outputDir = path.join(process.cwd(), "data", "outputs");
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+
+      const filepath = path.join(outputDir, filename);
+
+      // Generate document
+      const buffer = await Packer.toBuffer(doc);
+      fs.writeFileSync(filepath, buffer);
+
+      logger.success(`Cover letter generated: ${filename}`);
+      return { success: true, filepath };
+    } catch (error: any) {
+      logger.error("Cover letter generation failed", error);
+      return { success: false, error: error.message };
+    }
   }
 
   /**

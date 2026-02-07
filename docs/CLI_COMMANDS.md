@@ -70,18 +70,24 @@ A concise reference for all available commands, grouped by category.
 
 ## 📄 Document Generation
 
-**Purpose:** Generate professional ATS-friendly resume documents from tailored data.
+**Purpose:** Generate professional ATS-friendly resume documents and cover letters from tailored data.
 
-| Command                                                | Description                                                    |
-| ------------------------------------------------------ | -------------------------------------------------------------- |
-| `npm run dev -- generate [job-id]`                      | Generate resume document (interactive job selection if no ID).  |
-| `npm run dev -- generate <job-id> --format docx`       | Generate DOCX resume for a specific job.                       |
-| `npm run dev -- generate <job-id> --format pdf`         | Generate PDF resume (not yet implemented, returns DOCX).        |
-| `npm run dev -- generate <job-id> --template modern`   | Generate using modern template (default, ATS-friendly).        |
-| `npm run dev -- generate <job-id> --template traditional` | Generate using traditional template (conservative style).      |
-| `npm run dev -- generate <job-id> --template minimal`  | Generate using minimal template (simple, clean).               |
+| Command                                                      | Description                                                    |
+| ------------------------------------------------------------ | -------------------------------------------------------------- |
+| `npm run dev -- generate [job-id]`                            | Generate resume document (interactive job selection if no ID).  |
+| `npm run dev -- generate <job-id> --format docx`             | Generate DOCX resume for a specific job.                       |
+| `npm run dev -- generate <job-id> --format pdf`               | Generate PDF resume (not yet implemented, returns DOCX).        |
+| `npm run dev -- generate <job-id> --template modern`         | Generate using modern template (default, ATS-friendly).        |
+| `npm run dev -- generate <job-id> --template traditional`     | Generate using traditional template (conservative style).      |
+| `npm run dev -- generate <job-id> --template minimal`        | Generate using minimal template (simple, clean).               |
+| `npm run dev -- cover-letter [job-id]`                       | Generate cover letter (interactive job selection if no ID).     |
+| `npm run dev -- cover-letter <job-id> --format docx`         | Generate DOCX cover letter for a specific job.                 |
+| `npm run dev -- cover-letter <job-id> --format pdf`           | Generate PDF cover letter (not yet implemented, returns DOCX).  |
+| `npm run dev -- cover-letter <job-id> --tone professional`   | Generate with professional tone (default).                    |
+| `npm run dev -- cover-letter <job-id> --tone enthusiastic`  | Generate with enthusiastic tone.                               |
+| `npm run dev -- cover-letter <job-id> --tone friendly`      | Generate with friendly tone.                                   |
 
-**Usage Examples:**
+**Resume Generation Examples:**
 ```bash
 # Interactive job selection
 npm run dev generate
@@ -91,6 +97,15 @@ npm run dev generate 507ce59b-70be-478f-8789-ca3c45347ac4 --format docx --templa
 
 # Try different templates
 npm run dev generate <job-id> --template traditional
+```
+
+**Cover Letter Generation Examples:**
+```bash
+# Interactive cover letter generation
+npm run dev cover-letter
+
+# Generate cover letter with specific tone
+npm run dev cover-letter <job-id> --tone enthusiastic --format docx
 ```
 
 ---

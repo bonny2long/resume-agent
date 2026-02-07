@@ -151,6 +151,75 @@ export class ResumeTailorAgent {
 
       logger.success(`Selected ${relevantExperiences.length} experiences`);
 
+      // 🔴 CRITICAL FIX: Deduplicate experiences by company + title
+      // This handles multiple master resumes with same jobs but different descriptions
+      const experienceMap = new Map<string, any>();
+      
+      // Group similar experiences together
+      relevantExperiences.forEach(({ experience, similarity }) => {
+        const key = `${experience.company?.toLowerCase().trim()}_${experience.title?.toLowerCase().trim()}`;
+        
+        if (!experienceMap.has(key)) {
+          experienceMap.set(key, { experience, similarity });
+        } else {
+          // Keep the one with higher similarity score (more relevant to current job)
+          const existing = experienceMap.get(key);
+          if (similarity > existing.similarity) {
+            logger.info(`Replacing with higher relevance version: ${experience.title} at ${experience.company} (${Math.round(similarity * 100)}% vs ${Math.round(existing.similarity * 100)}%)`);
+            experienceMap.set(key, { experience, similarity });
+          } else {
+            logger.warn(`Duplicate experience filtered: ${experience.title} at ${experience.company} (keeping higher relevance version)`);
+          }
+        }
+      });
+      
+      // 🚨 ADDITIONAL CHECK: Look for very similar jobs (same company + time + overlapping keywords)
+      const deduplicatedList = Array.from(experienceMap.values());
+      const finalExperiences: any[] = [];
+      
+      deduplicatedList.forEach(({ experience, similarity }) => {
+        let isDuplicate = false;
+        
+        // Check against already accepted experiences
+        for (const existing of finalExperiences) {
+          const existingExp = existing.experience;
+          
+          // Check for same company AND overlapping time period
+          const sameCompany = experience.company?.toLowerCase().trim() === existingExp.company?.toLowerCase().trim();
+          const overlappingTime = this.checkTimeOverlap(experience.startDate, experience.endDate, existingExp.startDate, existingExp.endDate);
+          
+          if (sameCompany && overlappingTime) {
+            // Check for similar project/achievement keywords
+            const currentKeywords = this.extractKeywords(experience.achievements);
+            const existingKeywords = this.extractKeywords(existingExp.achievements);
+            const similarity = this.calculateKeywordSimilarity(currentKeywords, existingKeywords);
+            
+            if (similarity > 0.6) { // 60% keyword similarity threshold
+              logger.warn(`Filtered duplicate job: ${experience.title} at ${experience.company} (${Math.round(similarity * 100)}% similar to ${existingExp.title})`);
+              isDuplicate = true;
+              break;
+            }
+          }
+        }
+        
+        if (!isDuplicate) {
+          finalExperiences.push({ experience, similarity });
+        }
+      });
+      
+      const deduplicatedExperiences = finalExperiences;
+
+      logger.success(`After deduplication: ${deduplicatedExperiences.length} unique experiences`);
+
+      // 🔴 CRITICAL FIX: Sort experiences by date (most recent first)
+      deduplicatedExperiences.sort((a, b) => {
+        const dateA = new Date(a.experience.startDate).getTime();
+        const dateB = new Date(b.experience.startDate).getTime();
+        return dateB - dateA; // Descending (most recent first)
+      });
+
+      logger.info(`Experiences sorted by date (most recent first)`);
+
       // Step 4: Find most relevant projects using RAG
       logger.step(4, 5, "Selecting relevant projects (RAG)...");
       const relevantProjects = await this.embeddings.findRelevantProjects(
@@ -165,7 +234,7 @@ export class ResumeTailorAgent {
       const tailored = await this.optimizeWithAI(
         job,
         masterResume,
-        relevantExperiences,
+        deduplicatedExperiences,
         relevantProjects,
       );
 
@@ -196,21 +265,33 @@ export class ResumeTailorAgent {
     // Generate tailored summary
     const summary = await this.generateTailoredSummary(job, masterResume);
 
-    // Optimize achievements for ATS
+    // Optimize achievements for ATS and enhance with stories
     const optimizedExperiences = await Promise.all(
       relevantExperiences.map(async ({ experience, similarity }) => {
-        const optimizedAchievements = await this.optimizeAchievements(
+        let optimizedAchievements = await this.optimizeAchievements(
           experience.achievements,
           job.requiredSkills,
           job.keywords,
         );
 
+        // Enhance trades experience with tech relevance
+        if (
+          experience.title &&
+          (experience.title.toLowerCase().includes("insulator") ||
+            experience.title.toLowerCase().includes("electrical"))
+        ) {
+          optimizedAchievements = await this.enhanceTradesExperience(
+            optimizedAchievements,
+            job.requiredSkills,
+          );
+        }
+
         // Handle technologies array properly
         let technologies: string[] = [];
         if (Array.isArray(experience.technologies)) {
-          technologies = experience.technologies.map((t: any) =>
-            typeof t === "string" ? t : (t.name || t),
-          ).filter(Boolean);
+          technologies = experience.technologies
+            .map((t: any) => (typeof t === "string" ? t : t.name || t))
+            .filter(Boolean);
         }
 
         return {
@@ -229,33 +310,40 @@ export class ResumeTailorAgent {
     );
 
     // Optimize projects
-    const optimizedProjects = relevantProjects.map(({ project, similarity }) => {
-      // Handle technologies array properly
-      let technologies: string[] = [];
-      if (Array.isArray(project.technologies)) {
-        technologies = project.technologies.map((t: any) =>
-          typeof t === "string" ? t : (t.name || t),
-        ).filter(Boolean);
-      }
+    const optimizedProjects = relevantProjects.map(
+      ({ project, similarity }) => {
+        // Handle technologies array properly
+        let technologies: string[] = [];
+        if (Array.isArray(project.technologies)) {
+          technologies = project.technologies
+            .map((t: any) => (typeof t === "string" ? t : t.name || t))
+            .filter(Boolean);
+        }
 
-      return {
-        id: project.id,
-        name: project.name,
-        description: project.description,
-        role: project.role,
-        technologies,
-        achievements: project.achievements,
-        githubUrl: project.githubUrl,
-        liveUrl: project.liveUrl,
-        relevanceScore: Math.round(similarity * 100),
-      };
-    });
+        return {
+          id: project.id,
+          name: project.name,
+          description: project.description,
+          role: project.role,
+          technologies,
+          achievements: project.achievements,
+          githubUrl: project.githubUrl,
+          liveUrl: project.liveUrl,
+          relevanceScore: Math.round(similarity * 100),
+        };
+      },
+    );
 
-    // Filter and order skills
+    // Filter and order skills - check if skills exist
+    let allSkills = [];
+    if (masterResume.skills && Array.isArray(masterResume.skills)) {
+      allSkills = masterResume.skills;
+    }
+
     const skills = this.filterAndOrderSkills(
-      masterResume.skills,
-      job.requiredSkills,
-      job.preferredSkills,
+      allSkills,
+      job.requiredSkills || [],
+      job.preferredSkills || [],
     );
 
     return {
@@ -264,9 +352,16 @@ export class ResumeTailorAgent {
         email: masterResume.email,
         phone: masterResume.phone,
         location: masterResume.location,
-        linkedInUrl: masterResume.linkedInUrl,
-        githubUrl: masterResume.githubUrl,
-        portfolioUrl: masterResume.portfolioUrl,
+        // 🔴 CRITICAL FIX: Validate URLs - only include if they're actual URLs
+        linkedInUrl: masterResume.linkedInUrl?.includes('linkedin.com') 
+          ? masterResume.linkedInUrl 
+          : undefined,
+        githubUrl: masterResume.githubUrl?.includes('github.com') 
+          ? masterResume.githubUrl 
+          : undefined,
+        portfolioUrl: masterResume.portfolioUrl?.includes('http') 
+          ? masterResume.portfolioUrl 
+          : undefined,
       },
       summary,
       experiences: optimizedExperiences,
@@ -296,42 +391,159 @@ export class ResumeTailorAgent {
   }
 
   /**
+   * Enhance trades experience with tech relevance
+   */
+  private async enhanceTradesExperience(
+    achievements: any[],
+    requiredSkills: string[],
+  ): Promise<Array<{ description: string; metrics?: string; impact: string }>> {
+    if (!achievements || achievements.length === 0) {
+      return [];
+    }
+
+    const prompt = `You are enhancing trades experience for a tech resume. The candidate transitioned from electrical technician/insulator to software engineering.
+
+Original Achievements:
+${achievements
+  .slice(0, 2)
+  .map(
+    (a, i) => `${i + 1}. ${a.description}${a.metrics ? ` (${a.metrics})` : ""}`,
+  )
+  .join("\n")}
+
+Target Tech Skills: ${requiredSkills.slice(0, 5).join(", ")}
+
+Reframe achievements to highlight transferable skills for tech roles:
+- Systems analysis and troubleshooting
+- Project management and leadership
+- Technical documentation and precision
+- Quality control and attention to detail
+- Cross-functional collaboration
+
+Return exactly 2 enhanced achievements in JSON format:
+[
+  {"description": "enhanced achievement", "metrics": "original metrics", "impact": "high/medium"}
+]`;
+
+    try {
+      const response = await this.llm.complete(prompt, {
+        temperature: 0.3,
+        maxTokens: 250,
+      });
+
+      if (response.success && response.data) {
+        let jsonStr = response.data.trim();
+        if (jsonStr.startsWith("```json")) {
+          jsonStr = jsonStr.replace(/```json\n?/g, "").replace(/```\n?$/g, "");
+        }
+
+        const jsonMatch = jsonStr.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          jsonStr = jsonMatch[0];
+        }
+
+        const parsed = JSON.parse(jsonStr);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((item, index) => ({
+            description:
+              item.description || achievements[index]?.description || "",
+            metrics: item.metrics || achievements[index]?.metrics || "",
+            impact: item.impact || "medium",
+          }));
+        }
+      }
+    } catch (error) {
+      logger.warn("Failed to enhance trades experience", error);
+    }
+
+    // Fallback to original achievements
+    return achievements.slice(0, 2).map((a) => ({
+      description: a.description || "",
+      metrics: a.metrics || "",
+      impact: a.impact || "medium",
+    }));
+  }
+
+  /**
+   * Load career transition story for context
+   */
+  private async loadCareerStory(): Promise<string> {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+
+      const storyPath = path.join(
+        process.cwd(),
+        "data",
+        "resumes",
+        "career-transition-story.md",
+      );
+      if (fs.existsSync(storyPath)) {
+        const content = fs.readFileSync(storyPath, "utf-8");
+        // Extract key points from the story
+        return (
+            content.includes(
+              "After 6+ years working as an Electrical Technician",
+            )
+          ) ?
+            "Transitioned from electrical technician and heat & frost insulator to software engineering, bringing unique problem-solving perspective from both physical and digital systems."
+          : "Made career transition to technology with strong background in technical problem-solving and project management.";
+      }
+    } catch (error) {
+      logger.warn("Could not load career story", error);
+    }
+    return "Career transition to technology with strong technical background.";
+  }
+
+  /**
    * Generate a tailored professional summary
    */
   private async generateTailoredSummary(
     job: any,
     masterResume: any,
   ): Promise<string> {
-    const calculatedYears = this.calculateYearsExperience(masterResume.experiences);
-    const prompt = `You are tailoring a resume summary. Be extremely precise and truthful.
+    const calculatedYears = this.calculateYearsExperience(
+      masterResume.experiences,
+    );
+
+    // Load career transition story
+    const storyContext = await this.loadCareerStory();
+
+    const prompt = `You are writing a POWERFUL resume summary for a career transition candidate. Make it compelling and memorable.
 
 Job Title: ${job.title}
 Company: ${job.company?.name || "Company"}
 Required Skills: ${job.requiredSkills.slice(0, 10).join(", ")}
 Experience Level: ${job.experienceLevel}
 
-Candidate Background:
+Candidate's EXTRAORDINARY Background:
 Name: ${masterResume.fullName}
-Current Summary: ${masterResume.summaryLong || masterResume.summaryShort}
 ACTUAL Years of Tech Experience: ${calculatedYears} years
+Career Story: ${storyContext}
 Top Skills: ${masterResume.skills
       .slice(0, 10)
       .map((s: any) => s.name)
       .join(", ")}
 
-Write a professional summary (max 3 sentences) that:
-1. Uses the candidate's ACTUAL experience: exactly ${calculatedYears} years
-2. Incorporates 2-3 job keywords ONLY if they match the candidate's actual skills
-3. Maintains the candidate's actual role and experience level
-4. NEVER fabricates experience, years, or titles
+Write a POWERFUL, MEMORABLE professional summary (max 3 sentences) that:
 
-Rules:
-- If candidate has < 2 years experience, say "emerging" or "junior developer"
-- If internships only, say "intern" or "junior"
-- Use the exact years calculated: ${calculatedYears}
-- Preserve the original summary's core achievements
+1. **LEADS with the career transition** - "After 6+ years as an electrical technician and heat & frost insulator..." 
+2. **Shows the WHY** - What drove the transition to tech
+3. **Highlights the UNIQUE ADVANTAGE** - How trades background makes thFem a better developer
+4. **Incorporates job-specific skills** - 2-3 keywords from required skills
+5. **Uses strong, active language** - No passive or weak phrases
 
-Return ONLY the summary text.`;
+CAREER TRANSITION STORY TO INTEGRATE:
+- Spent 6+ years in trades (electrical technician + heat & frost insulator)
+- Discovered passion for solving problems through technology
+- Troubleshooting complex electrical systems → Debugging code
+- Reading schematics → Understanding system architecture
+- Managing trade projects → Leading software development
+- Methodical, safety-first approach → Quality code practices
+
+POWER WORDS TO USE: "transitioned", "discovered", "leveraged", "bridged", "unique", "perspective", "methodical", "systematic"
+
+Return ONLY the powerful summary text.`;
 
     const response = await this.llm.complete(prompt, {
       temperature: 0.5,
@@ -341,20 +553,29 @@ Return ONLY the summary text.`;
     if (response.success && response.data) {
       const summary = response.data.trim();
       // Validate that the summary doesn't contain fabricated experience
-      if (!summary.includes("1.2 years") && !summary.includes("years of full-stack")) {
+      if (
+        !summary.includes("1.2 years") &&
+        !summary.includes("years of full-stack")
+      ) {
         return summary;
       }
     }
 
     // Fallback to original summary with minimal tailoring
-    const originalSummary = masterResume.summaryShort || masterResume.summaryLong || "";
+    const originalSummary =
+      masterResume.summaryShort || masterResume.summaryLong || "";
     if (originalSummary) {
       // Add 1-2 relevant keywords if they fit naturally
-      const relevantKeywords = job.requiredSkills.filter((skill: string) => 
-        originalSummary.toLowerCase().includes(skill.toLowerCase()) ||
-        masterResume.skills.some((s: any) => s.name.toLowerCase().includes(skill.toLowerCase()))
-      ).slice(0, 2);
-      
+      const relevantKeywords = job.requiredSkills
+        .filter(
+          (skill: string) =>
+            originalSummary.toLowerCase().includes(skill.toLowerCase()) ||
+            masterResume.skills.some((s: any) =>
+              s.name.toLowerCase().includes(skill.toLowerCase()),
+            ),
+        )
+        .slice(0, 2);
+
       if (relevantKeywords.length > 0) {
         return `${originalSummary.replace(/\.$/, "")} with expertise in ${relevantKeywords.join(", ")}.`;
       }
@@ -381,7 +602,12 @@ Return ONLY the summary text.`;
     const prompt = `You are optimizing resume achievements for ATS systems. Be extremely careful to maintain accuracy.
 
 Original Achievements:
-${achievements.slice(0, 3).map((a, i) => `${i + 1}. ${a.description}${a.metrics ? ` (${a.metrics})` : ""}`).join("\n")}
+${achievements
+  .slice(0, 3)
+  .map(
+    (a, i) => `${i + 1}. ${a.description}${a.metrics ? ` (${a.metrics})` : ""}`,
+  )
+  .join("\n")}
 
 Relevant Keywords (use ONLY if they naturally apply): ${[...requiredSkills, ...keywords].slice(0, 8).join(", ")}
 
@@ -406,12 +632,12 @@ Response format (strict JSON):
       try {
         // Try to parse as JSON
         let jsonStr = response.data.trim();
-        
+
         // Remove markdown if present
-        if (jsonStr.startsWith('```json')) {
-          jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?$/g, '');
-        } else if (jsonStr.startsWith('```')) {
-          jsonStr = jsonStr.replace(/```\n?/g, '').replace(/```\n?$/g, '');
+        if (jsonStr.startsWith("```json")) {
+          jsonStr = jsonStr.replace(/```json\n?/g, "").replace(/```\n?$/g, "");
+        } else if (jsonStr.startsWith("```")) {
+          jsonStr = jsonStr.replace(/```\n?/g, "").replace(/```\n?$/g, "");
         }
 
         // Look for JSON array in the response
@@ -421,18 +647,19 @@ Response format (strict JSON):
         }
 
         const parsed = JSON.parse(jsonStr);
-        
+
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((item, index) => ({
-            description: item.description || achievements[index]?.description || "",
+            description:
+              item.description || achievements[index]?.description || "",
             metrics: item.metrics || achievements[index]?.metrics || "",
-            impact: item.impact || achievements[index]?.impact || "medium"
+            impact: item.impact || achievements[index]?.impact || "medium",
           }));
         }
       } catch (parseError: any) {
-        logger.warn("Failed to parse optimized achievements", { 
-          error: parseError?.message || 'Unknown error',
-          response: response.data?.substring(0, 200) || ''
+        logger.warn("Failed to parse optimized achievements", {
+          error: parseError?.message || "Unknown error",
+          response: response.data?.substring(0, 200) || "",
         });
       }
     }
@@ -469,16 +696,18 @@ Response format (strict JSON):
     // Handle both flat skills array and nested skills structure
     const extractSkillNames = (skills: any): string[] => {
       if (!skills) return [];
-      
+
       if (Array.isArray(skills)) {
-        return skills.map((s: any) => {
-          if (typeof s === 'string') return s;
-          if (s && s.name) return s.name;
-          return '';
-        }).filter(Boolean);
+        return skills
+          .map((s: any) => {
+            if (typeof s === "string") return s;
+            if (s && s.name) return s.name;
+            return "";
+          })
+          .filter(Boolean);
       }
-      
-      if (typeof skills === 'object') {
+
+      if (typeof skills === "object") {
         const names: string[] = [];
         Object.values(skills).forEach((category) => {
           if (Array.isArray(category)) {
@@ -487,7 +716,7 @@ Response format (strict JSON):
         });
         return names;
       }
-      
+
       return [];
     };
 
@@ -534,23 +763,37 @@ Response format (strict JSON):
     if (experiences.length === 0) return 0;
 
     let totalMonths = 0;
-    
+
     // Keywords that indicate tech/software roles
     const techKeywords = [
-      'software', 'developer', 'engineer', 'programmer', 'full stack', 
-      'frontend', 'backend', 'web', 'mobile', 'data', 'ai', 'machine learning',
-      'devops', 'qa', 'test', 'technical', 'architect'
+      "software",
+      "developer",
+      "engineer",
+      "programmer",
+      "full stack",
+      "frontend",
+      "backend",
+      "web",
+      "mobile",
+      "data",
+      "ai",
+      "machine learning",
+      "devops",
+      "qa",
+      "test",
+      "technical",
+      "architect",
     ];
 
     experiences.forEach((exp) => {
       // Only count tech/software roles
-      const title = (exp.title || '').toLowerCase();
-      const company = (exp.company || '').toLowerCase();
-      
-      const isTechRole = techKeywords.some(keyword => 
-        title.includes(keyword) || company.includes(keyword)
+      const title = (exp.title || "").toLowerCase();
+      const company = (exp.company || "").toLowerCase();
+
+      const isTechRole = techKeywords.some(
+        (keyword) => title.includes(keyword) || company.includes(keyword),
       );
-      
+
       if (isTechRole) {
         const start = new Date(exp.startDate);
         const end = exp.endDate ? new Date(exp.endDate) : new Date();
@@ -570,7 +813,7 @@ Response format (strict JSON):
     });
 
     const years = totalMonths / 12;
-    
+
     // Return 0 for less than 6 months, otherwise round to nearest 0.5
     if (years < 0.5) return 0;
     return Math.round(years * 2) / 2;
@@ -646,6 +889,58 @@ Response format (strict JSON):
     ];
 
     return parts.join(" ");
+  }
+
+  /**
+   * Check if two time periods overlap
+   */
+  private checkTimeOverlap(start1: Date, end1: Date | null, start2: Date, end2: Date | null): boolean {
+    const s1 = new Date(start1);
+    const e1 = end1 ? new Date(end1) : new Date();
+    const s2 = new Date(start2);
+    const e2 = end2 ? new Date(end2) : new Date();
+    
+    return s1 <= e2 && s2 <= e1;
+  }
+
+  /**
+   * Extract keywords from achievements
+   */
+  private extractKeywords(achievements: any[]): string[] {
+    if (!achievements || achievements.length === 0) return [];
+    
+    const text = achievements
+      .map((a: any) => a.description || '')
+      .join(' ')
+      .toLowerCase();
+    
+    // Extract important keywords (companies, technologies, project names)
+    const keywords = [];
+    
+    // Company/project names (capitalized words)
+    const capitalizedWords = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g) || [];
+    keywords.push(...capitalizedWords);
+    
+    // Tech keywords
+    const techKeywords = ['ai', 'api', 'dashboard', 'platform', 'python', 'llm', 'rbac', 'backend', 'frontend', 'full stack'];
+    techKeywords.forEach(keyword => {
+      if (text.includes(keyword)) keywords.push(keyword);
+    });
+    
+    return [...new Set(keywords)];
+  }
+
+  /**
+   * Calculate keyword similarity between two sets
+   */
+  private calculateKeywordSimilarity(keywords1: string[], keywords2: string[]): number {
+    const set1 = new Set(keywords1.map(k => k.toLowerCase()));
+    const set2 = new Set(keywords2.map(k => k.toLowerCase()));
+    
+    const intersection = new Set([...set1].filter(k => set2.has(k)));
+    const union = new Set([...set1, ...set2]);
+    
+    return union.size > 0 ? intersection.size / union.size : 0;
   }
 
   /**

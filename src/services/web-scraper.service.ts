@@ -60,6 +60,8 @@ export class WebScraperService {
         "jobvite.com",
         "smartrecruiters.com",
         "microsoft.com",
+        "united.com",
+        "phenompeople.com",
       ].some((domain) => url.includes(domain));
 
       if (needsPuppeteer) {
@@ -146,10 +148,11 @@ export class WebScraperService {
       let finalContent = content;
       if (content.length < 50) {
         // Try to extract job info from URL and title
-        const urlParams = new URLSearchParams(url.split('?')[1] || '');
-        const jobTitle = urlParams.get('jobTitle') || title || 'Software Engineer';
-        const location = urlParams.get('location') || 'Remote';
-        
+        const urlParams = new URLSearchParams(url.split("?")[1] || "");
+        const jobTitle =
+          urlParams.get("jobTitle") || title || "Software Engineer";
+        const location = urlParams.get("location") || "Remote";
+
         // Create a basic job description with common tech keywords
         finalContent = `Job posting for ${jobTitle} at ${location}. 
 This position appears to be a software engineering role requiring skills in software development, web technologies, and programming languages. 
@@ -161,7 +164,7 @@ Common requirements for this type of position typically include:
 - Software engineering best practices and methodologies
 
 Please visit the original URL for complete details: ${url}`;
-        
+
         logger.warn("Using enhanced fallback content for ATS systems");
       }
 
@@ -212,13 +215,16 @@ Please visit the original URL for complete details: ${url}`;
 
       // Navigate and wait for networking to idle (SPA loading)
       await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
-      
+
       // Additional wait for ATS/Workday systems that load content slowly
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
       // Try to wait for specific job content elements
       try {
-        await page.waitForSelector('.job-description, .description, [data-automation-id="jobDescription"], .jobdetails', { timeout: 10000 });
+        await page.waitForSelector(
+          '.job-description, .description, [data-automation-id="jobDescription"], .jobdetails',
+          { timeout: 10000 },
+        );
       } catch (e) {
         // If specific selectors not found, just continue
       }
@@ -273,6 +279,12 @@ Please visit the original URL for complete details: ${url}`;
    * Extract main text content from page
    */
   private extractMainContent($: cheerio.CheerioAPI): string {
+    // First, try to extract from structured data (JSON-LD)
+    const structuredData = this.extractStructuredJobData($);
+    if (structuredData && structuredData.length > 100) {
+      return structuredData;
+    }
+
     // Try to find main content area - Enhanced for ATS/Workday systems
     const mainSelectors = [
       "main",
@@ -288,6 +300,10 @@ Please visit the original URL for complete details: ${url}`;
       ".jobdetails",
       "[data-automation-id='jobDescription']",
       "[data-automation-id='descriptionSection']",
+      // Phenom-specific selectors
+      ".job-description-text",
+      ".description-text",
+      ".job-details",
       // Fallbacks
       "body",
     ];
@@ -305,32 +321,88 @@ Please visit the original URL for complete details: ${url}`;
     if (!content) {
       content = $("body").text();
     }
-    
+
     // If still no meaningful content, try extracting from common ATS structures
     if (content.length < 100) {
       // Try to find any div with substantial text
       const allDivs = $("div");
       let bestContent = content;
-      
+
       allDivs.each((_, elem) => {
         const text = $(elem).text().trim();
         // Look for content with job-related keywords
-        if (text.length > bestContent.length && 
-            (text.toLowerCase().includes('require') || 
-             text.toLowerCase().includes('responsib') || 
-             text.toLowerCase().includes('skill') || 
-             text.toLowerCase().includes('qualif') ||
-             text.toLowerCase().includes('experience') ||
-             text.length > 200)) {
+        if (
+          text.length > bestContent.length &&
+          (text.toLowerCase().includes("require") ||
+            text.toLowerCase().includes("responsib") ||
+            text.toLowerCase().includes("skill") ||
+            text.toLowerCase().includes("qualif") ||
+            text.toLowerCase().includes("experience") ||
+            text.length > 200)
+        ) {
           bestContent = text;
         }
       });
-      
+
       content = bestContent;
     }
 
     // Clean up whitespace
     return content.replace(/\s+/g, " ").replace(/\n+/g, "\n").trim();
+  }
+
+  /**
+   * Extract job description from structured data (JSON-LD)
+   */
+  private extractStructuredJobData($: cheerio.CheerioAPI): string {
+    try {
+      // Look for JSON-LD structured data
+      const jsonLdScripts = $('script[type="application/ld+json"]');
+
+      for (let i = 0; i < jsonLdScripts.length; i++) {
+        const script = jsonLdScripts.eq(i);
+        const jsonText = script.html();
+
+        if (jsonText) {
+          try {
+            const data = JSON.parse(jsonText);
+
+            // Look for JobPosting structured data
+            if (data["@type"] === "JobPosting" && data.description) {
+              let description = data.description;
+
+              // Decode HTML entities if present
+              description = description
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&amp;/g, "&")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'");
+
+              // Remove HTML tags but preserve line breaks for structure
+              description = description
+                .replace(/<br\s*\/?>/gi, "\n")
+                .replace(/<\/p>/gi, "\n\n")
+                .replace(/<[^>]*>/g, "")
+                .replace(/\n+/g, "\n")
+                .trim();
+
+              // Clean up excessive whitespace
+              description = description.replace(/\s+/g, " ");
+
+              return description;
+            }
+          } catch (e) {
+            // Skip invalid JSON
+            continue;
+          }
+        }
+      }
+    } catch (e) {
+      // If anything fails, return empty string
+    }
+
+    return "";
   }
 
   /**
@@ -412,6 +484,7 @@ Please visit the original URL for complete details: ${url}`;
   // Helper methods for extraction
   private extractCompanyFromUrl(url: string): string | undefined {
     if (url.includes("temporaltechnologies")) return "Temporal Technologies";
+    if (url.includes("united.com")) return "United Airlines";
     if (url.includes("greenhouse.io")) {
       const match = url.match(/greenhouse\.io\/([^\/]+)/);
       if (match) {
@@ -425,56 +498,79 @@ Please visit the original URL for complete details: ${url}`;
       if (match) {
         const company = match[1];
         // Special case for IAT Insurance
-        if (url.toLowerCase().includes('iatinsurance')) {
-          logger.info("Extracted IAT Insurance from Workday URL in scraper", { url, company: "IAT Insurance Group" });
+        if (url.toLowerCase().includes("iatinsurance")) {
+          logger.info("Extracted IAT Insurance from Workday URL in scraper", {
+            url,
+            company: "IAT Insurance Group",
+          });
           return "IAT Insurance Group";
         }
-        logger.info("Extracted company from Workday URL in scraper", { url, company: company.charAt(0).toUpperCase() + company.slice(1) });
+        logger.info("Extracted company from Workday URL in scraper", {
+          url,
+          company: company.charAt(0).toUpperCase() + company.slice(1),
+        });
         return company.charAt(0).toUpperCase() + company.slice(1);
       }
     }
-    
+
     // Extract company from domain name
     try {
       const urlObj = new URL(url);
       const hostname = urlObj.hostname;
-      
+
       // Extract company name from domain (excluding www, tlds, and common subdomains)
-      const domainParts = hostname.split('.');
-      
+      const domainParts = hostname.split(".");
+
       // Find the main domain part (excluding www and tlds)
-      let mainDomain = '';
+      let mainDomain = "";
       for (let i = 0; i < domainParts.length; i++) {
         const part = domainParts[i];
-        if (part !== 'www' && part !== 'com' && part !== 'net' && part !== 'io' && 
-            part !== 'org' && part !== 'co' && !part.match(/^\d+$/)) {
+        if (
+          part !== "www" &&
+          part !== "com" &&
+          part !== "net" &&
+          part !== "io" &&
+          part !== "org" &&
+          part !== "co" &&
+          !part.match(/^\d+$/)
+        ) {
           mainDomain = part;
           break;
         }
       }
-      
+
       if (mainDomain) {
         // Convert domain name to proper company name
         let companyName = mainDomain;
-        
+
         // Handle common patterns
-        companyName = companyName.replace(/-/g, ' ');
-        companyName = companyName.replace(/(\w)/g, (match, p1) => 
-          p1.toUpperCase() + (companyName.indexOf(match) === 0 ? '' : '')
+        companyName = companyName.replace(/-/g, " ");
+        companyName = companyName.replace(
+          /(\w)/g,
+          (match, p1) =>
+            p1.toUpperCase() + (companyName.indexOf(match) === 0 ? "" : ""),
         );
-        
+
         // Fix capitalization for multi-word names
-        companyName = companyName.split(' ').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-        ).join(' ');
-        
-        logger.info("Extracted company from domain", { url, domain: hostname, company: companyName });
+        companyName = companyName
+          .split(" ")
+          .map(
+            (word) =>
+              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+          )
+          .join(" ");
+
+        logger.info("Extracted company from domain", {
+          url,
+          domain: hostname,
+          company: companyName,
+        });
         return companyName;
       }
     } catch (e) {
       logger.warn("Failed to extract company from URL", { url, error: e });
     }
-    
+
     return undefined;
   }
 

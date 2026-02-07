@@ -21,8 +21,7 @@ import { jobsCommand } from "./commands/jobs";
 import { githubCommand } from "./commands/github";
 import { listCommand } from "./commands/list";
 import { generateCommand } from "./commands/generate"; // ← PHASE 3: Document generation
-import { importCommand } from "./commands/import";
-import { exportCommand } from "./commands/export";
+import { coverLetterCommand } from "./commands/cover-letter"; // ← PHASE 4: Cover letters
 
 const program = new Command();
 
@@ -66,14 +65,13 @@ async function main() {
     program.addCommand(jobsCommand);
     program.addCommand(tailorCommand);
     program.addCommand(generateCommand); // ← PHASE 3: Generate DOCX/PDF
+    program.addCommand(coverLetterCommand); // ← PHASE 4: Cover letters
     program.addCommand(applyCommand);
     program.addCommand(statusCommand);
     program.addCommand(researchCommand);
     program.addCommand(creditsCommand);
     program.addCommand(githubCommand);
     program.addCommand(listCommand);
-    program.addCommand(importCommand);
-    program.addCommand(exportCommand);
 
     // Global error handler
     program.exitOverride((err) => {
