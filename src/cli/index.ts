@@ -15,11 +15,14 @@ import { statusCommand } from "./commands/status";
 import { researchCommand } from "./commands/research";
 import { creditsCommand } from "./commands/credits";
 import { uploadCommand } from "./commands/upload";
-import { uploadAllCommand } from "./commands/upload-all";
-import { uploadAllFixedCommand } from "./commands/upload-all-fixed";
-import { resetCommand } from "./commands/reset";
-import { exportCommand } from "./commands/export";
+import { analyzeCommand } from "./commands/analyze";
+import { tailorCommand } from "./commands/tailor";
+import { jobsCommand } from "./commands/jobs";
 import { githubCommand } from "./commands/github";
+import { listCommand } from "./commands/list";
+import { generateCommand } from "./commands/generate"; // ← PHASE 3: Document generation
+import { importCommand } from "./commands/import";
+import { exportCommand } from "./commands/export";
 
 const program = new Command();
 
@@ -34,7 +37,7 @@ const banner = `
   ║  ██║ ╚═╝ ██║███████╗   ██║   ██║███████║██████╔╝╚██████╔╝   ██║      ║
   ║                                                                      ║
   ║            AI-Powered Resume & Application Agent                     ║
-  ║                                                                      ║ 
+  ║                                                                      ║
   ╚══════════════════════════════════════════════════════════════════════╝
 `;
 
@@ -59,15 +62,18 @@ async function main() {
     program.addCommand(initCommand);
     program.addCommand(resumeCommand);
     program.addCommand(uploadCommand);
-    program.addCommand(uploadAllCommand);
-    program.addCommand(uploadAllFixedCommand);
-    program.addCommand(resetCommand);
-    program.addCommand(exportCommand);
+    program.addCommand(analyzeCommand);
+    program.addCommand(jobsCommand);
+    program.addCommand(tailorCommand);
+    program.addCommand(generateCommand); // ← PHASE 3: Generate DOCX/PDF
     program.addCommand(applyCommand);
     program.addCommand(statusCommand);
     program.addCommand(researchCommand);
     program.addCommand(creditsCommand);
     program.addCommand(githubCommand);
+    program.addCommand(listCommand);
+    program.addCommand(importCommand);
+    program.addCommand(exportCommand);
 
     // Global error handler
     program.exitOverride((err) => {

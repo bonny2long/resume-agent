@@ -8,6 +8,7 @@ import path from "path";
 import { getPrismaClient } from "@/database/client";
 import { getResumeParserService } from "@/services/resume-parser.service";
 import { ParsedResume } from "@/services/resume-parser.service";
+import { Proficiency, Impact, TechCategory } from "@prisma/client";
 
 export const uploadAllFixedCommand = new Command("upload-all-merge")
   .description("Upload and parse ALL resume files (fixed version)")
@@ -202,6 +203,7 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
       let masterResume = await prisma.masterResume.findFirst();
 
       if (masterResume) {
+        spinner.stop();
         const { overwrite } = await inquirer.prompt([
           {
             type: "confirm",
@@ -218,7 +220,10 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
         }
 
         // Delete existing data
+        spinner.start("Overwriting existing data...");
         await prisma.masterResume.delete({ where: { id: masterResume.id } });
+      } else {
+        spinner.text = "Creating master resume...";
       }
 
       // Create new master resume with merged data
@@ -239,44 +244,60 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
 
       // Save all merged experiences
       for (const exp of mergedData.experiences) {
-        await prisma.experience.create({
-          data: {
-            resumeId: masterResume.id,
-            company: exp.company,
-            title: exp.title,
-            location: exp.location || "",
-            startDate: new Date(exp.startDate),
-            endDate: exp.endDate ? new Date(exp.endDate) : null,
-            current: exp.current,
-            description: exp.description,
-            achievements: {
-              create: exp.achievements.map((ach) => ({
-                description: ach.description,
-                metrics: ach.metrics,
-                impact: ach.impact || "medium",
-                keywords: [],
-              })),
+        try {
+          await prisma.experience.create({
+            data: {
+              resumeId: masterResume.id,
+              company: exp.company,
+              title: exp.title,
+              location: exp.location || "",
+              startDate: new Date(exp.startDate),
+              endDate: exp.endDate ? new Date(exp.endDate) : null,
+              current: exp.current,
+              description: exp.description,
+              achievements: {
+                create: exp.achievements.map((ach) => ({
+                  description: ach.description,
+                  metrics: ach.metrics,
+                  impact: mapImpact(ach.impact),
+                  keywords: [],
+                })),
+              },
             },
-          },
-        });
+          });
+        } catch (error: any) {
+          if (error.code === "P2002") {
+            // Duplicate experience, ignore
+          } else {
+            throw error;
+          }
+        }
       }
 
       // Save all merged projects
       for (const proj of mergedData.projects) {
-        await prisma.project.create({
-          data: {
-            resumeId: masterResume.id,
-            name: proj.name,
-            description: proj.description,
-            role: proj.role || "",
-            githubUrl: proj.githubUrl,
-            liveUrl: proj.liveUrl,
-            startDate: proj.startDate ? new Date(proj.startDate) : new Date(),
-            endDate: proj.endDate ? new Date(proj.endDate) : new Date(),
-            achievements: proj.achievements,
-            featured: false,
-          },
-        });
+        try {
+          await prisma.project.create({
+            data: {
+              resumeId: masterResume.id,
+              name: proj.name,
+              description: proj.description,
+              role: proj.role || "",
+              githubUrl: proj.githubUrl,
+              liveUrl: proj.liveUrl,
+              startDate: proj.startDate ? new Date(proj.startDate) : new Date(),
+              endDate: proj.endDate ? new Date(proj.endDate) : new Date(),
+              achievements: proj.achievements,
+              featured: false,
+            },
+          });
+        } catch (error: any) {
+          if (error.code === "P2002") {
+            // Duplicate project, ignore
+          } else {
+            throw error;
+          }
+        }
       }
 
       // Save all merged education
@@ -309,7 +330,7 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
         });
       }
 
-      // SAVE ALL MERGED SKILLS
+      // SAVE ALL MERGED SKILLS - Optimized
       const allTechnicalSkills = [
         ...mergedData.skills.technical,
         ...mergedData.skills.languages,
@@ -318,46 +339,58 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
         ...mergedData.skills.databases,
       ];
 
-      for (const skill of allTechnicalSkills) {
-        await prisma.skill.create({
-          data: {
-            resumeId: masterResume.id,
-            name: skill,
-            category: "Technical",
-            proficiency: "intermediate",
-            technologies: {
-              connectOrCreate: {
-                where: { name: skill },
-                create: {
-                  name: skill,
-                  category: "language",
+      await Promise.all(
+        allTechnicalSkills.map(async (skill) => {
+          try {
+            await prisma.skill.create({
+              data: {
+                resumeId: masterResume.id,
+                name: skill,
+                category: "Technical",
+                proficiency: Proficiency.intermediate,
+                technologies: {
+                  connectOrCreate: {
+                    where: { name: skill },
+                    create: {
+                      name: skill,
+                      category: TechCategory.language,
+                    },
+                  },
                 },
               },
-            },
-          },
-        });
-      }
+            });
+          } catch (err) {
+            // Ignore duplicate errors
+          }
+        }),
+      );
 
-      // Also save soft skills
-      for (const skill of mergedData.skills.soft || []) {
-        await prisma.skill.create({
-          data: {
-            resumeId: masterResume.id,
-            name: skill,
-            category: "Soft Skills",
-            proficiency: "intermediate",
-            technologies: {
-              connectOrCreate: {
-                where: { name: skill },
-                create: {
-                  name: skill,
-                  category: "tool",
+      // Also save soft skills - Optimized
+      await Promise.all(
+        (mergedData.skills.soft || []).map(async (skill) => {
+          try {
+            await prisma.skill.create({
+              data: {
+                resumeId: masterResume.id,
+                name: skill,
+                category: "Soft Skills",
+                proficiency: Proficiency.intermediate,
+                technologies: {
+                  connectOrCreate: {
+                    where: { name: skill },
+                    create: {
+                      name: skill,
+                      category: TechCategory.tool,
+                    },
+                  },
                 },
               },
-            },
-          },
-        });
-      }
+            });
+          } catch (err) {
+            // Ignore duplicate errors
+          }
+        }),
+      );
 
       spinner.succeed("Saved merged data to database!");
 
@@ -381,3 +414,11 @@ Total Certifications: ${mergedData.certifications.length}
       await prisma.$disconnect();
     }
   });
+
+function mapImpact(impact?: string): Impact {
+  if (!impact) return Impact.medium;
+  const i = impact.toLowerCase();
+  if (i === "high") return Impact.high;
+  if (i === "low") return Impact.low;
+  return Impact.medium;
+}

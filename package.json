@@ -7,7 +7,7 @@
     "resume-agent": "./dist/cli/index.js"
   },
   "scripts": {
-    "dev": "nodemon src/cli/index.ts",
+    "dev": "nodemon --exec \"ts-node -r tsconfig-paths/register\" src/cli/index.ts",
     "build": "tsc",
     "start": "node dist/cli/index.js",
     "prisma:generate": "prisma generate",
@@ -30,6 +30,7 @@
     "cheerio": "^1.0.0-rc.12",
     "cli-progress": "^3.12.0",
     "cli-table3": "^0.6.3",
+    "cohere-ai": "^7.20.0",
     "commander": "^12.0.0",
     "date-fns": "^3.0.0",
     "docx": "^8.5.0",

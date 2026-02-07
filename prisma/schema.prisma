@@ -1,342 +1,293 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  extensions = [vector]
 }
 
-// Core Models
-
 model MasterResume {
-  id          String   @id @default(uuid())
-  version     Int      @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Personal Info
-  fullName    String
-  email       String
-  phone       String
-  location    String
-  linkedInUrl String?
-  githubUrl   String?
-  portfolioUrl String?
-  
-  // Summary
-  summaryShort String
-  summaryLong  String
-  
-  // Relations
-  experiences     Experience[]
-  projects        Project[]
-  skills          Skill[]
-  education       Education[]
-  certifications  Certification[]
-  
+  id             String          @id @default(uuid())
+  version        Int             @default(1)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  fullName       String
+  email          String
+  phone          String
+  location       String
+  linkedInUrl    String?
+  githubUrl      String?
+  portfolioUrl   String?
+  summaryShort   String
+  summaryLong    String
+  certifications Certification[]
+  education      Education[]
+  experiences    Experience[]
+  projects       Project[]
+  skills         Skill[]
+
   @@map("master_resumes")
 }
 
 model Experience {
-  id              String   @id @default(uuid())
-  resumeId        String
-  resume          MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-  
-  company         String
-  title           String
-  location        String
-  startDate       DateTime
-  endDate         DateTime?
-  current         Boolean  @default(false)
-  
-  description     String?
-  
-  // Relations
-  achievements    Achievement[]
-  technologies    TechStack[]
-  
-  // For RAG
-  embedding       Unsupported("vector(1536)")?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  id           String        @id @default(uuid())
+  resumeId     String
+  company      String
+  title        String
+  location     String
+  startDate    DateTime
+  endDate      DateTime?
+  current      Boolean       @default(false)
+  description  String?
+  embedding    Float[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  achievements Achievement[]
+  resume       MasterResume  @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  technologies TechStack[]   @relation("ExperienceToTechStack")
+
+  @@unique([resumeId, company, title, startDate])
   @@map("experiences")
 }
 
 model Achievement {
-  id              String   @id @default(uuid())
-  experienceId    String
-  experience      Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
-  
-  description     String
-  metrics         String?  // "Increased by 40%", "$2M revenue"
-  impact          String   // 'high' | 'medium' | 'low'
-  
-  // Keywords for matching
-  keywords        String[]
-  
-  // For RAG
-  embedding       Unsupported("vector(1536)")?
-  
-  createdAt       DateTime @default(now())
-  
+  id           String     @id @default(uuid())
+  experienceId String
+  description  String
+  metrics      String?
+  keywords     String[]
+  embedding    Float[]
+  createdAt    DateTime   @default(now())
+  impact       Impact     @default(medium)
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+
   @@map("achievements")
 }
 
 model Project {
-  id              String   @id @default(uuid())
-  resumeId        String
-  resume          MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-  
-  name            String
-  description     String
-  role            String
-  githubUrl       String?
-  liveUrl         String?
-  featured        Boolean  @default(false)
-  
-  startDate       DateTime
-  endDate         DateTime
-  
-  technologies    TechStack[]
-  achievements    String[]
-  
-  // For RAG
-  embedding       Unsupported("vector(1536)")?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  id           String       @id @default(uuid())
+  resumeId     String
+  name         String
+  description  String
+  role         String
+  githubUrl    String?
+  liveUrl      String?
+  featured     Boolean      @default(false)
+  startDate    DateTime
+  endDate      DateTime
+  achievements String[]
+  embedding    Float[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  resume       MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  technologies TechStack[]  @relation("ProjectToTechStack")
+
+  @@unique([resumeId, name])
   @@map("projects")
 }
 
 model TechStack {
-  id          String @id @default(uuid())
-  name        String @unique
-  category    String // 'language' | 'framework' | 'tool' | 'database' | 'cloud'
-  
-  experiences Experience[]
-  projects    Project[]
-  skills      Skill[]
-  
+  id          String       @id @default(uuid())
+  name        String       @unique
+  category    TechCategory @default(tool)
+  experiences Experience[] @relation("ExperienceToTechStack")
+  projects    Project[]    @relation("ProjectToTechStack")
+  skills      Skill[]      @relation("SkillToTechStack")
+
   @@map("tech_stack")
 }
 
 model Skill {
-  id              String   @id @default(uuid())
-  resumeId        String
-  resume          MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-  
-  name            String
-  category        String   // 'technical' | 'soft'
-  proficiency     String?  // 'beginner' | 'intermediate' | 'advanced' | 'expert'
-  
-  technologies    TechStack[]
-  
+  id           String       @id @default(uuid())
+  resumeId     String
+  name         String
+  category     String
+  proficiency  Proficiency  @default(intermediate)
+  resume       MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  technologies TechStack[]  @relation("SkillToTechStack")
+
+  @@unique([resumeId, name])
   @@map("skills")
 }
 
 model Education {
-  id          String   @id @default(uuid())
+  id          String       @id @default(uuid())
   resumeId    String
-  resume      MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-  
   institution String
   degree      String
   field       String
   startDate   DateTime
   endDate     DateTime?
   gpa         String?
-  
+  resume      MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
   @@map("education")
 }
 
 model Certification {
-  id          String   @id @default(uuid())
-  resumeId    String
-  resume      MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
-  
-  name        String
-  issuer      String
-  issueDate   DateTime
-  expiryDate  DateTime?
+  id           String       @id @default(uuid())
+  resumeId     String
+  name         String
+  issuer       String
+  issueDate    DateTime
+  expiryDate   DateTime?
   credentialId String?
-  url         String?
-  
+  url          String?
+  resume       MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
   @@map("certifications")
 }
 
-// Job Application Models
-
 model Company {
-  id              String   @id @default(uuid())
-  name            String   @unique
-  domain          String?
-  industry        String?
-  size            String?
-  founded         Int?
-  headquarters    String?
-  
-  // Research data
-  values          String[]
-  workStyle       String[]
-  benefits        String[]
-  techStack       String[]
-  recentNews      Json?
-  
-  lastResearched  DateTime @updatedAt
-  createdAt       DateTime @default(now())
-  
-  jobs            Job[]
-  
+  id             String   @id @default(uuid())
+  name           String   @unique
+  domain         String?
+  industry       String?
+  size           String?
+  founded        Int?
+  headquarters   String?
+  values         String[]
+  workStyle      String[]
+  benefits       String[]
+  techStack      String[]
+  recentNews     Json?
+  lastResearched DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  jobs           Job[]
+
   @@map("companies")
 }
 
 model Job {
-  id                  String   @id @default(uuid())
-  companyId           String
-  company             Company  @relation(fields: [companyId], references: [id])
-  
-  title               String
-  url                 String?
-  location            String
-  salary              String?
-  postedDate          DateTime?
-  
-  rawDescription      String   @db.Text
-  
-  // Parsed data
-  requiredSkills      String[]
-  preferredSkills     String[]
-  responsibilities    String[]
-  qualifications      String[]
-  keywords            String[]
-  
-  // AI Analysis
-  skillsMatch         Int?     // 0-100
-  experienceLevel     String?  // 'junior' | 'mid' | 'senior' | 'staff'
-  
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-  
-  applications        Application[]
-  hiringManagers      HiringManager[]
-  
+  id               String          @id @default(uuid())
+  companyId        String
+  title            String
+  url              String?
+  location         String
+  salary           String?
+  postedDate       DateTime?
+  rawDescription   String
+  requiredSkills   String[]
+  preferredSkills  String[]
+  responsibilities String[]
+  qualifications   String[]
+  keywords         String[]
+  skillsMatch      Int?
+  experienceLevel  String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  applications     Application[]
+  hiringManagers   HiringManager[]
+  company          Company         @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, title])
   @@map("jobs")
 }
 
 model HiringManager {
-  id              String   @id @default(uuid())
-  jobId           String
-  job             Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  
-  name            String
-  title           String
-  department      String?
-  
-  linkedInUrl     String?
-  email           String?
-  phone           String?
-  
-  // Profile snapshot (JSON for flexibility)
-  profileData     Json?
-  
-  confidence      Int      // 0-100
-  sources         String[] // 'linkedin' | 'job_posting' | 'company_website' | 'api'
-  
-  foundAt         DateTime @default(now())
-  lastUpdated     DateTime @updatedAt
-  verified        Boolean  @default(false)
-  
-  messages        LinkedInMessage[]
-  
+  id          String            @id @default(uuid())
+  jobId       String
+  name        String
+  title       String
+  department  String?
+  linkedInUrl String?
+  email       String?
+  phone       String?
+  profileData Json?
+  confidence  Int
+  sources     String[]
+  foundAt     DateTime          @default(now())
+  lastUpdated DateTime          @updatedAt
+  verified    Boolean           @default(false)
+  job         Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  messages    LinkedInMessage[]
+
   @@map("hiring_managers")
 }
 
 model LinkedInMessage {
-  id                  String   @id @default(uuid())
+  id                  String        @id @default(uuid())
   hiringManagerId     String
-  hiringManager       HiringManager @relation(fields: [hiringManagerId], references: [id], onDelete: Cascade)
-  
-  type                String   // 'connection_request' | 'initial_message' | 'follow_up'
-  
+  type                String
   subject             String?
-  body                String   @db.Text
+  body                String
   characterCount      Int
-  
-  // Personalization used
   personalizationTags String[]
-  
-  tone                String   // 'professional' | 'friendly' | 'casual'
-  
-  status              String   @default("draft") // 'draft' | 'sent' | 'accepted' | 'replied'
-  
-  createdAt           DateTime @default(now())
+  tone                String
+  status              String        @default("draft")
+  createdAt           DateTime      @default(now())
   sentAt              DateTime?
   responseAt          DateTime?
-  
+  hiringManager       HiringManager @relation(fields: [hiringManagerId], references: [id], onDelete: Cascade)
+
   @@map("linkedin_messages")
 }
 
 model Application {
-  id              String   @id @default(uuid())
+  id              String    @id @default(uuid())
   jobId           String
-  job             Job      @relation(fields: [jobId], references: [id])
-  
-  // Generated documents
   resumePath      String?
   coverLetterPath String?
-  
-  // Metadata
   atsScore        Int?
   keywordMatch    Int?
-  
-  // Application strategy
   channels        String[]
   timeline        Json?
-  
-  status          String   @default("draft") // 'draft' | 'ready' | 'submitted' | 'interview' | 'offer' | 'rejected'
-  
+  status          String    @default("draft")
   appliedAt       DateTime?
-  
-  notes           String?  @db.Text
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  job             Job       @relation(fields: [jobId], references: [id])
+
   @@map("applications")
 }
 
-// GitHub Integration
-
 model GitHubRepo {
-  id              String   @id @default(uuid())
-  
-  name            String
-  fullName        String   @unique
-  description     String?
-  url             String
-  
-  languages       String[]
-  topics          String[]
-  stars           Int
-  forks           Int
-  
-  lastCommit      DateTime?
-  createdAt       DateTime
-  updatedAt       DateTime
-  
-  isPrivate       Boolean  @default(false)
-  isFork          Boolean  @default(false)
-  
-  // Cached data
-  readmeContent   String?  @db.Text
-  
-  lastSynced      DateTime @updatedAt
-  
+  id            String    @id @default(uuid())
+  name          String
+  fullName      String    @unique
+  description   String?
+  url           String
+  languages     String[]
+  topics        String[]
+  stars         Int
+  forks         Int
+  lastCommit    DateTime?
+  createdAt     DateTime
+  updatedAt     DateTime
+  isPrivate     Boolean   @default(false)
+  isFork        Boolean   @default(false)
+  readmeContent String?
+  lastSynced    DateTime  @updatedAt
+
   @@map("github_repos")
+}
+
+enum Proficiency {
+  beginner
+  intermediate
+  advanced
+  expert
+}
+
+enum Impact {
+  high
+  medium
+  low
+}
+
+enum SkillCategory {
+  technical
+  soft
+}
+
+enum TechCategory {
+  language
+  framework
+  tool
+  database
+  cloud
+  other
 }

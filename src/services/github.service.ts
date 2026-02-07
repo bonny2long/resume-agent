@@ -53,9 +53,13 @@ export class GitHubService {
   }
 
   private async fetchFromGitHub(url: string): Promise<any> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
     try {
       const response = await fetch(url, {
         headers: this.getHeaders(),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -75,11 +79,21 @@ export class GitHubService {
       }
 
       return await response.json();
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        throw new Error(`GitHub API request timed out: ${url}`);
+      }
+
       if (error instanceof Error) {
+        // Log the cause for better debugging (network issues like DNS, connection reset)
+        if ((error as any).cause) {
+          logger.error(`Fetch error cause for ${url}`, (error as any).cause);
+        }
         throw error;
       }
       throw new Error(`Failed to fetch from GitHub: ${url}`);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

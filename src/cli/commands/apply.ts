@@ -10,9 +10,21 @@ export const applyCommand = new Command("apply")
     logger.header("Job Application Workflow");
 
     if (!jobUrl) {
-      console.log(chalk.yellow("Please provide a job URL"));
-      console.log(chalk.gray("Usage: resume-agent apply <job-url>"));
-      return;
+      const inquirer = (await import("inquirer")).default;
+      const { url } = await inquirer.prompt([
+        {
+          type: "input",
+          name: "url",
+          message: "Enter job posting URL:",
+          validate: (input) => {
+            if (!input) return "URL is required";
+            if (!input.startsWith("http"))
+              return "URL must start with http:// or https://";
+            return true;
+          },
+        },
+      ]);
+      jobUrl = url;
     }
 
     logger.info("Apply command - Coming in Week 8");

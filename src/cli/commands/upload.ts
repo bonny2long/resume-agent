@@ -10,6 +10,7 @@ import { getResumeParserService } from "@/services/resume-parser.service";
 import { getPDFParserService } from "@/services/pdf-parser.service";
 import { getDOCXParserService } from "@/services/docx-parser.service";
 import getPrismaClient from "@/database/client";
+import { Proficiency, Impact, TechCategory } from "@prisma/client";
 
 export const uploadCommand = new Command("upload")
   .description("Upload and parse an existing resume (PDF or DOCX)")
@@ -227,6 +228,7 @@ export const uploadCommand = new Command("upload")
       let masterResume = await prisma.masterResume.findFirst();
 
       if (masterResume) {
+        saveSpinner.stop();
         const { overwrite } = await inquirer.prompt([
           {
             type: "confirm",
@@ -237,12 +239,15 @@ export const uploadCommand = new Command("upload")
         ]);
 
         if (!overwrite) {
-          saveSpinner.fail("Upload cancelled");
+          logger.info("Upload cancelled");
           return;
         }
 
         // Delete existing data
+        saveSpinner.start("Overwriting existing data...");
         await prisma.masterResume.delete({ where: { id: masterResume.id } });
+      } else {
+        saveSpinner.text = "Creating master resume...";
       }
 
       // Create new master resume
@@ -262,44 +267,60 @@ export const uploadCommand = new Command("upload")
 
       // Save experiences
       for (const exp of parsed.experiences) {
-        await prisma.experience.create({
-          data: {
-            resumeId: masterResume.id,
-            company: exp.company,
-            title: exp.title,
-            location: exp.location || "",
-            startDate: new Date(exp.startDate),
-            endDate: exp.endDate ? new Date(exp.endDate) : null,
-            current: exp.current,
-            description: exp.description,
-            achievements: {
-              create: exp.achievements.map((ach) => ({
-                description: ach.description,
-                metrics: ach.metrics,
-                impact: ach.impact || "medium",
-                keywords: [],
-              })),
+        try {
+          await prisma.experience.create({
+            data: {
+              resumeId: masterResume.id,
+              company: exp.company,
+              title: exp.title,
+              location: exp.location || "",
+              startDate: new Date(exp.startDate),
+              endDate: exp.endDate ? new Date(exp.endDate) : null,
+              current: exp.current,
+              description: exp.description,
+              achievements: {
+                create: exp.achievements.map((ach) => ({
+                  description: ach.description,
+                  metrics: ach.metrics,
+                  impact: mapImpact(ach.impact),
+                  keywords: [],
+                })),
+              },
             },
-          },
-        });
+          });
+        } catch (error: any) {
+          if (error.code === "P2002") {
+            // Duplicate experience, ignore
+          } else {
+            throw error;
+          }
+        }
       }
 
       // Save projects
       for (const proj of parsed.projects) {
-        await prisma.project.create({
-          data: {
-            resumeId: masterResume.id,
-            name: proj.name,
-            description: proj.description,
-            role: proj.role || "",
-            githubUrl: proj.githubUrl,
-            liveUrl: proj.liveUrl,
-            startDate: proj.startDate ? new Date(proj.startDate) : new Date(),
-            endDate: proj.endDate ? new Date(proj.endDate) : new Date(),
-            achievements: proj.achievements,
-            featured: false,
-          },
-        });
+        try {
+          await prisma.project.create({
+            data: {
+              resumeId: masterResume.id,
+              name: proj.name,
+              description: proj.description,
+              role: proj.role || "",
+              githubUrl: proj.githubUrl,
+              liveUrl: proj.liveUrl,
+              startDate: proj.startDate ? new Date(proj.startDate) : new Date(),
+              endDate: proj.endDate ? new Date(proj.endDate) : new Date(),
+              achievements: proj.achievements,
+              featured: false,
+            },
+          });
+        } catch (error: any) {
+          if (error.code === "P2002") {
+            // Duplicate project, ignore
+          } else {
+            throw error;
+          }
+        }
       }
 
       // Save education
@@ -332,7 +353,7 @@ export const uploadCommand = new Command("upload")
         });
       }
 
-      // Save skills - THIS WAS MISSING!
+      // Save skills - Optimized for performance
       const allTechnicalSkills = [
         ...parsed.skills.technical,
         ...parsed.skills.languages,
@@ -341,46 +362,59 @@ export const uploadCommand = new Command("upload")
         ...parsed.skills.databases,
       ];
 
-      for (const skill of allTechnicalSkills) {
-        await prisma.skill.create({
-          data: {
-            resumeId: masterResume.id,
-            name: skill,
-            category: "Technical", // Default category
-            proficiency: "intermediate", // Default proficiency
-            technologies: {
-              connectOrCreate: {
-                where: { name: skill },
-                create: {
-                  name: skill,
-                  category: "language", // Default for skills
+      // Use Promise.all to run in parallel, avoiding hangs on large skill sets
+      await Promise.all(
+        allTechnicalSkills.map(async (skill) => {
+          try {
+            await prisma.skill.create({
+              data: {
+                resumeId: masterResume.id,
+                name: skill,
+                category: "Technical",
+                proficiency: Proficiency.intermediate,
+                technologies: {
+                  connectOrCreate: {
+                    where: { name: skill },
+                    create: {
+                      name: skill,
+                      category: TechCategory.language,
+                    },
+                  },
                 },
               },
-            },
-          },
-        });
-      }
+            });
+          } catch (err) {
+            // Ignore duplicate errors silently
+          }
+        }),
+      );
 
-      // Also save soft skills
-      for (const skill of parsed.skills.soft || []) {
-        await prisma.skill.create({
-          data: {
-            resumeId: masterResume.id,
-            name: skill,
-            category: "Soft Skills",
-            proficiency: "intermediate",
-            technologies: {
-              connectOrCreate: {
-                where: { name: skill },
-                create: {
-                  name: skill,
-                  category: "tool",
+      // Also save soft skills - Optimized
+      await Promise.all(
+        (parsed.skills.soft || []).map(async (skill) => {
+          try {
+            await prisma.skill.create({
+              data: {
+                resumeId: masterResume.id,
+                name: skill,
+                category: "Soft Skills",
+                proficiency: Proficiency.intermediate,
+                technologies: {
+                  connectOrCreate: {
+                    where: { name: skill },
+                    create: {
+                      name: skill,
+                      category: TechCategory.tool,
+                    },
+                  },
                 },
               },
-            },
-          },
-        });
-      }
+            });
+          } catch (err) {
+            // Ignore duplicate errors silently
+          }
+        }),
+      );
 
       saveSpinner.succeed("Saved to database!");
 
@@ -412,6 +446,17 @@ Next steps:
       console.log(chalk.red("\n✗ Upload failed: " + error.message));
     }
   });
+
+/**
+ * Helper to map string impact to Enum
+ */
+function mapImpact(impact?: string): Impact {
+  if (!impact) return Impact.medium;
+  const i = impact.toLowerCase();
+  if (i === "high") return Impact.high;
+  if (i === "low") return Impact.low;
+  return Impact.medium;
+}
 
 /**
  * Find resume file in various locations

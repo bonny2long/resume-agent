@@ -17,6 +17,11 @@ export interface Config {
     maxTokens: number;
     temperature: number;
   };
+  embeddings?: {
+    provider: "anthropic" | "openai" | "cohere";
+    apiKey: string;
+    model: string;
+  };
   github: {
     token?: string;
     enabled: boolean;

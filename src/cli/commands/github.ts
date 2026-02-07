@@ -128,10 +128,17 @@ githubCommand
   .description("Show details for a specific repository")
   .action(async (name: string) => {
     try {
-      console.log(chalk.bold.cyan(`📄 Repository: ${name}`));
+      // Extract repository name from URL if URL is provided
+      let repoName = name;
+      if (name.startsWith("https://github.com/")) {
+        const parts = name.split("/");
+        repoName = parts[parts.length - 1];
+      }
+
+      console.log(chalk.bold.cyan(`📄 Repository: ${repoName}`));
       console.log(chalk.gray("─".repeat(50)));
 
-      const repo = await githubService.getRepositoryByName(name);
+      const repo = await githubService.getRepositoryByName(repoName);
 
       if (!repo) {
         console.log(chalk.red(`❌ Repository '${name}' not found`));
@@ -199,3 +206,7 @@ githubCommand
       logger.error("Failed to show repository", error);
     }
   });
+
+// Import the extract skills command and add it as a subcommand
+import { extractSkillsCommand } from "./extract-skills";
+githubCommand.addCommand(extractSkillsCommand);

@@ -17,6 +17,11 @@ const config: Config = {
     maxTokens: parseInt(process.env.DEFAULT_MAX_TOKENS || "4000"),
     temperature: parseFloat(process.env.DEFAULT_TEMPERATURE || "0.7"),
   },
+  embeddings: {
+    provider: "cohere",
+    apiKey: process.env.COHERE_API_KEY || "",
+    model: process.env.COHERE_EMBEDDING_MODEL || "embed-english-v3.0",
+  },
   github: {
     token: process.env.GITHUB_TOKEN,
     enabled: process.env.ENABLE_GITHUB_SYNC === "true",
