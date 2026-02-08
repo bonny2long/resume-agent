@@ -68,6 +68,26 @@ A concise reference for all available commands, grouped by category.
 
 ---
 
+## 🔍 Hiring Manager & LinkedIn
+
+**Purpose:** Find and connect with hiring managers for your job applications.
+
+| Command                                                | Description                                                    |
+| ------------------------------------------------------ | -------------------------------------------------------------- |
+| `npm run dev -- find-manager [job-id]`                  | Find hiring manager for a specific job (interactive if no ID). |
+| `npm run dev -- find-manager <job-id> --save`          | Find and save hiring manager to database.                     |
+| `npm run dev -- linkedin-message [job-id]`              | Generate LinkedIn message for hiring manager.                 |
+| `npm run dev -- linkedin-message <job-id> --type connection_request` | Generate connection request message (default).                |
+| `npm run dev -- linkedin-message <job-id> --type initial_message` | Generate initial message after connecting.                     |
+| `npm run dev -- linkedin-message <job-id> --type follow_up` | Generate follow-up message.                                    |
+| `npm run dev -- linkedin-message <job-id> --tone professional` | Use professional tone (default).                               |
+| `npm run dev -- linkedin-message <job-id> --tone enthusiastic` | Use enthusiastic tone.                                         |
+| `npm run dev -- linkedin-message <job-id> --tone friendly` | Use friendly tone.                                             |
+| `npm run dev -- linkedin-message <job-id> --no-story` | Exclude career transition story from message.                  |
+| `npm run dev -- linkedin-message <job-id> --save`      | Save generated message to database.                            |
+
+---
+
 ## 📄 Document Generation
 
 **Purpose:** Generate professional ATS-friendly resume documents and cover letters from tailored data.
@@ -114,8 +134,12 @@ npm run dev cover-letter <job-id> --tone enthusiastic --format docx
 
 **Purpose:** Setup, reset, and system monitoring.
 
-| Command                  | Description                                                         |
-| ------------------------ | ------------------------------------------------------------------- |
-| `npm run dev -- init`    | Initialize the database and set up your profile for the first time. |
-| `npm run dev -- reset`   | Clear the database (options to clear only data or everything).      |
-| `npm run dev -- credits` | View remaining API credits for third-party services.                |
+| Command                           | Description                                                         |
+| --------------------------------- | ------------------------------------------------------------------- |
+| `npm run dev -- init`             | Initialize the database and set up your profile for the first time. |
+| `npm run dev -- reset`            | Clear the database (options to clear only data or everything).      |
+| `npm run dev -- reset-jobs`       | Delete all saved jobs and companies.                                |
+| `npm run dev -- reset-jobs --force` | Delete jobs without confirmation prompt.                           |
+| `npm run dev -- upload-all-fixed` | Upload and parse all resume files (fixed version).                  |
+| `npm run dev -- upload-all-fixed --confirm` | Upload resumes without confirmation prompt.                       |
+| `npm run dev -- credits`          | View remaining API credits for third-party services.                |
