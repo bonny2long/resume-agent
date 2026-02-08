@@ -64,6 +64,7 @@ export interface AgentResponse<T> {
     tokensUsed?: number;
     duration?: number;
     confidence?: number;
+    provider?: string;
   };
 }
 

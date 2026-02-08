@@ -63,12 +63,12 @@ export class JobAnalyzerAgent {
 
       // Step 2: Analyze with AI
       logger.step(2, 3, "Extracting job details with AI...");
-      
+
       logger.info("Scraped data received", {
         title: scrapedData.title,
-        company: scrapedData.company
+        company: scrapedData.company,
       });
-      
+
       const analysis = await this.analyzeJobWithAI(scrapedData, url);
 
       logger.success("Job details extracted!");
@@ -106,12 +106,12 @@ export class JobAnalyzerAgent {
 SCRAPED CONTENT:
 ${content}
 
-EXTRACTED COMPANY: ${scrapedData.company || 'Unknown'}
+EXTRACTED COMPANY: ${scrapedData.company || "Unknown"}
 
 Extract this exact JSON structure:
 {
   "title": "job title",
-  "company": "${scrapedData.company || 'Unknown'}", 
+  "company": "${scrapedData.company || "Unknown"}", 
   "location": "location",
   "salary": "salary range or null",
   "jobType": "Full-time or Part-time or Contract",
@@ -132,7 +132,7 @@ RULES:
 - No explanations, no markdown, no code blocks
 - Use null for missing fields
 - Extract actual technologies mentioned
-- Company name is already extracted as "${scrapedData.company || 'Unknown'}" - do NOT change it
+- Company name is already extracted as "${scrapedData.company || "Unknown"}" - do NOT change it
 - Do NOT extract company from location information like "Remote" or "Remote-United States"
 
 JSON:`;
@@ -318,7 +318,7 @@ JSON:`;
    */
   extractSalary(text: string): string | null {
     if (!text) return null;
-    
+
     const patterns = [
       /\$(\d{2,3}k?-\d{2,3}k?)/i,
       /(\d{2,3},\d{3}-\d{2,3},\d{3})/,
@@ -339,7 +339,7 @@ JSON:`;
   // Fallback extraction methods
   private extractTitleFromContent(content: string): string | null {
     if (!content) return null;
-    
+
     const lines = content.split("\n");
     for (const line of lines) {
       const trimmed = line.trim();
@@ -362,59 +362,90 @@ JSON:`;
       if (match) {
         const company = match[1];
         // Special case for IAT Insurance
-        if (url.toLowerCase().includes('iatinsurance')) {
-          logger.info("Extracted IAT Insurance from Workday URL", { url, company: "IAT Insurance Group" });
+        if (url.toLowerCase().includes("iatinsurance")) {
+          logger.info("Extracted IAT Insurance from Workday URL", {
+            url,
+            company: "IAT Insurance Group",
+          });
           return "IAT Insurance Group";
         }
-        logger.info("Extracted company from Workday URL", { url, company: company.charAt(0).toUpperCase() + company.slice(1) });
+        logger.info("Extracted company from Workday URL", {
+          url,
+          company: company.charAt(0).toUpperCase() + company.slice(1),
+        });
         return company.charAt(0).toUpperCase() + company.slice(1);
       }
     }
-    
+
     // Extract company from domain name
     try {
       const urlObj = new URL(url);
       const hostname = urlObj.hostname;
-      
+
       // Extract company name from domain (excluding www, tlds, and common subdomains)
-      const domainParts = hostname.split('.');
-      
-      // Find the main domain part (excluding www and tlds)
-      let mainDomain = '';
+      const domainParts = hostname.split(".");
+
+      // Find the main domain part (excluding www, careers, tlds, and common subdomains)
+      let mainDomain = "";
       for (let i = 0; i < domainParts.length; i++) {
         const part = domainParts[i];
-        if (part !== 'www' && part !== 'com' && part !== 'net' && part !== 'io' && 
-            part !== 'org' && part !== 'co' && !part.match(/^\d+$/)) {
+        if (
+          part !== "www" &&
+          part !== "careers" &&
+          part !== "jobs" &&
+          part !== "recruiting" &&
+          part !== "com" &&
+          part !== "net" &&
+          part !== "io" &&
+          part !== "org" &&
+          part !== "co" &&
+          !part.match(/^\d+$/)
+        ) {
           mainDomain = part;
           break;
         }
       }
-      
+
       if (mainDomain) {
         // Convert domain name to proper company name
         let companyName = mainDomain;
-        
+
         // Handle common patterns
-        companyName = companyName.replace(/-/g, ' ');
-        
+        companyName = companyName.replace(/-/g, " ");
+
         // Fix capitalization - special case for numeric patterns like "7seventy"
         if (companyName.match(/^\d/)) {
-          companyName = companyName.replace(/(\d+)([a-zA-Z]+)/, (_, numbers, letters) => 
-            numbers + letters.charAt(0).toUpperCase() + letters.slice(1).toLowerCase()
+          companyName = companyName.replace(
+            /(\d+)([a-zA-Z]+)/,
+            (_, numbers, letters) =>
+              numbers +
+              letters.charAt(0).toUpperCase() +
+              letters.slice(1).toLowerCase(),
           );
         } else {
-          companyName = companyName.split(' ').map(word => 
-            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-          ).join(' ');
+          companyName = companyName
+            .split(" ")
+            .map(
+              (word) =>
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+            )
+            .join(" ");
         }
-        
-        logger.info("Extracted company from domain in job analyzer", { url, domain: hostname, company: companyName });
+
+        logger.info("Extracted company from domain in job analyzer", {
+          url,
+          domain: hostname,
+          company: companyName,
+        });
         return companyName;
       }
     } catch (e) {
-      logger.warn("Failed to extract company from URL in job analyzer", { url, error: e });
+      logger.warn("Failed to extract company from URL in job analyzer", {
+        url,
+        error: e,
+      });
     }
-    
+
     return null;
   }
 
@@ -424,7 +455,7 @@ JSON:`;
 
   private extractSkillsFromContent(content: string): string[] {
     if (!content) return [];
-    
+
     const skills = [];
     const techStack = [
       "Go",
@@ -451,7 +482,7 @@ JSON:`;
 
   private extractResponsibilitiesFromContent(content: string): string[] {
     if (!content) return [];
-    
+
     const responsibilities = [];
     const lines = content.split("\n");
 
@@ -476,7 +507,7 @@ JSON:`;
 
   private extractQualificationsFromContent(content: string): string[] {
     if (!content) return [];
-    
+
     const qualifications = [];
     const lines = content.split("\n");
 
@@ -498,7 +529,7 @@ JSON:`;
 
   private extractKeywordsFromContent(content: string): string[] {
     if (!content) return [];
-    
+
     const keywords = [];
     const commonKeywords = [
       "cloud",

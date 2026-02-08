@@ -1,5 +1,6 @@
 // src/services/llm.service.ts
 import Anthropic from "@anthropic-ai/sdk";
+import { CohereClient, CohereClientV2 } from "cohere-ai";
 import config from "@/config";
 import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
@@ -21,33 +22,65 @@ export interface ChatOptions extends CompletionOptions {
 }
 
 export class LLMService {
-  private client: Anthropic;
+  private anthropicClient?: Anthropic;
+  private cohereClient?: CohereClient;
+  private cohereClientV2?: CohereClientV2;
+  private provider: "anthropic" | "cohere";
   private model: string;
   private defaultMaxTokens: number;
   private defaultTemperature: number;
 
   constructor() {
-    if (!config.llm.apiKey) {
-      throw new Error("ANTHROPIC_API_KEY is required");
-    }
-
-    this.client = new Anthropic({
-      apiKey: config.llm.apiKey,
-    });
-
+    this.provider = this.detectProvider();
+    this.initializeClients();
     this.model = config.llm.model;
     this.defaultMaxTokens = config.llm.maxTokens;
     this.defaultTemperature = config.llm.temperature;
 
     logger.debug("LLM Service initialized", {
+      provider: this.provider,
       model: this.model,
       maxTokens: this.defaultMaxTokens,
       temperature: this.defaultTemperature,
     });
   }
 
+  private detectProvider(): "anthropic" | "cohere" {
+    // Prefer Anthropic if available
+    if (config.llm.apiKey || process.env.ANTHROPIC_API_KEY) {
+      return "anthropic";
+    }
+    // Fallback to Cohere
+    if (process.env.COHERE_API_KEY) {
+      return "cohere";
+    }
+
+    throw new Error(
+      "No LLM API key found. Please set ANTHROPIC_API_KEY or COHERE_API_KEY",
+    );
+  }
+
+  private initializeClients(): void {
+    // Initialize Anthropic if key is available
+    const anthropicKey = config.llm.apiKey || process.env.ANTHROPIC_API_KEY;
+    if (anthropicKey) {
+      this.anthropicClient = new Anthropic({ apiKey: anthropicKey });
+    }
+
+    // Initialize Cohere if key is available
+    const cohereKey = process.env.COHERE_API_KEY;
+    if (cohereKey) {
+      this.cohereClient = new CohereClient({
+        token: cohereKey,
+      });
+      this.cohereClientV2 = new CohereClientV2({
+        token: cohereKey,
+      });
+    }
+  }
+
   /**
-   * Simple completion with a single prompt
+   * Simple completion with fallback
    */
   async complete(
     prompt: string,
@@ -58,48 +91,158 @@ export class LLMService {
     try {
       logger.debug("Sending completion request", {
         promptLength: prompt.length,
+        provider: this.provider,
         ...options,
       });
 
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: options.maxTokens || this.defaultMaxTokens,
-        temperature: options.temperature || this.defaultTemperature,
-        system: options.systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        stop_sequences: options.stopSequences,
-      });
+      let response: any;
+      let content: string;
+      let tokensUsed = 0;
+
+      // Try primary provider first
+      if (this.provider === "anthropic" && this.anthropicClient) {
+        response = await this.anthropicClient.messages.create({
+          model: this.model,
+          max_tokens: options.maxTokens || this.defaultMaxTokens,
+          temperature: options.temperature || this.defaultTemperature,
+          system: options.systemPrompt,
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          stop_sequences: options.stopSequences,
+        });
+
+        content = this.extractTextContent(response);
+        tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
+      }
+      // Try Cohere
+      else if (this.provider === "cohere" && this.cohereClientV2) {
+        const chatMessages: any[] = [];
+        if (options.systemPrompt) {
+          chatMessages.push({ role: "system", content: options.systemPrompt });
+        }
+        chatMessages.push({ role: "user", content: prompt });
+
+        response = await this.cohereClientV2.chat({
+          model: "command-a-03-2025",
+          messages: chatMessages,
+          maxTokens: options.maxTokens || this.defaultMaxTokens,
+          temperature: options.temperature || this.defaultTemperature,
+        });
+
+        const contentItem = response.message?.content?.[0];
+        content = contentItem?.type === "text" ? contentItem.text : "";
+        tokensUsed =
+          (response.meta?.billedUnits?.inputTokens || 0) +
+          (response.meta?.billedUnits?.outputTokens || 0);
+      } else {
+        throw new Error(`No client available for provider: ${this.provider}`);
+      }
 
       const duration = Date.now() - startTime;
-      const content = this.extractTextContent(response);
 
       logger.debug("Completion successful", {
         responseLength: content.length,
         duration,
-        tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
+        tokensUsed,
       });
 
       return {
         success: true,
         data: content,
         metadata: {
-          tokensUsed:
-            response.usage.input_tokens + response.usage.output_tokens,
+          tokensUsed,
           duration,
         },
       };
     } catch (error: any) {
       logger.error("Completion failed", error);
+
+      // Try fallback if primary fails
+      if (this.provider === "anthropic" && this.cohereClient) {
+        logger.info("Falling back to Cohere");
+        return this.completeWithCohere(prompt, options);
+      } else if (this.provider === "cohere" && this.anthropicClient) {
+        logger.info("Falling back to Anthropic");
+        return this.completeWithAnthropic(prompt, options);
+      }
+
       return {
         success: false,
         error: error.message || "Unknown error occurred",
       };
     }
+  }
+
+  private async completeWithAnthropic(
+    prompt: string,
+    options: CompletionOptions = {},
+  ): Promise<AgentResponse<string>> {
+    if (!this.anthropicClient) {
+      throw new Error("Anthropic client not available");
+    }
+
+    const response = await this.anthropicClient.messages.create({
+      model: this.model,
+      max_tokens: options.maxTokens || this.defaultMaxTokens,
+      temperature: options.temperature || this.defaultTemperature,
+      system: options.systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      stop_sequences: options.stopSequences,
+    });
+
+    const content = this.extractTextContent(response);
+
+    return {
+      success: true,
+      data: content,
+      metadata: {
+        tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
+        provider: "anthropic-fallback",
+      },
+    };
+  }
+
+  private async completeWithCohere(
+    prompt: string,
+    options: CompletionOptions = {},
+  ): Promise<AgentResponse<string>> {
+    if (!this.cohereClient) {
+      throw new Error("Cohere client not available");
+    }
+
+    const chatMessages: any[] = [];
+    if (options.systemPrompt) {
+      chatMessages.push({ role: "system", content: options.systemPrompt });
+    }
+    chatMessages.push({ role: "user", content: prompt });
+
+    const response = await this.cohereClientV2!.chat({
+      model: "command-a-03-2025",
+      messages: chatMessages,
+      maxTokens: options.maxTokens || this.defaultMaxTokens,
+      temperature: options.temperature || this.defaultTemperature,
+    });
+
+    const contentItem = response.message?.content?.[0];
+    const content = contentItem?.type === "text" ? contentItem.text : "";
+
+    return {
+      success: true,
+      data: content,
+      metadata: {
+        tokensUsed: 1000, // Estimate for Cohere fallback
+        provider: "cohere-fallback",
+      },
+    };
   }
 
   /**
@@ -114,36 +257,67 @@ export class LLMService {
     try {
       logger.debug("Sending chat request", {
         messageCount: messages.length,
+        provider: this.provider,
         ...options,
       });
 
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: options.maxTokens || this.defaultMaxTokens,
-        temperature: options.temperature || this.defaultTemperature,
-        system: options.systemPrompt,
-        messages: messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        })),
-        stop_sequences: options.stopSequences,
-      });
+      let response: any;
+      let content: string;
+      let tokensUsed = 0;
+
+      if (this.provider === "anthropic" && this.anthropicClient) {
+        response = await this.anthropicClient.messages.create({
+          model: this.model,
+          max_tokens: options.maxTokens || this.defaultMaxTokens,
+          temperature: options.temperature || this.defaultTemperature,
+          system: options.systemPrompt,
+          messages: messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          stop_sequences: options.stopSequences,
+        });
+
+        content = this.extractTextContent(response);
+        tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
+      } else if (this.provider === "cohere" && this.cohereClientV2) {
+        const chatMessages: any[] = [];
+        if (options.systemPrompt) {
+          chatMessages.push({ role: "system", content: options.systemPrompt });
+        }
+        chatMessages.push(
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
+        );
+
+        response = await this.cohereClientV2.chat({
+          model: "command-a-03-2025",
+          messages: chatMessages,
+          maxTokens: options.maxTokens || this.defaultMaxTokens,
+          temperature: options.temperature || this.defaultTemperature,
+        });
+
+        const contentItem = response.message?.content?.[0];
+        content = contentItem?.type === "text" ? contentItem.text : "";
+        tokensUsed =
+          (response.usage?.inputTokens || 0) +
+          (response.usage?.outputTokens || 0);
+      } else {
+        throw new Error(`No client available for provider: ${this.provider}`);
+      }
 
       const duration = Date.now() - startTime;
-      const content = this.extractTextContent(response);
 
       logger.debug("Chat successful", {
         responseLength: content.length,
         duration,
-        tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
+        tokensUsed,
       });
 
       return {
         success: true,
         data: content,
         metadata: {
-          tokensUsed:
-            response.usage.input_tokens + response.usage.output_tokens,
+          tokensUsed,
           duration,
         },
       };
@@ -232,9 +406,12 @@ export class LLMService {
    */
   getModelInfo() {
     return {
+      provider: this.provider,
       model: this.model,
       maxTokens: this.defaultMaxTokens,
       temperature: this.defaultTemperature,
+      hasAnthropic: !!this.anthropicClient,
+      hasCohere: !!this.cohereClient,
     };
   }
 }

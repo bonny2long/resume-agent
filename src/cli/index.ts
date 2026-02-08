@@ -22,6 +22,8 @@ import { githubCommand } from "./commands/github";
 import { listCommand } from "./commands/list";
 import { generateCommand } from "./commands/generate"; // ← PHASE 3: Document generation
 import { coverLetterCommand } from "./commands/cover-letter"; // ← PHASE 4: Cover letters
+import { findManagerCommand } from "./commands/find-manager"; // ← PHASE 5: Hiring manager finder
+import { linkedInMessageCommand } from "./commands/linkedin-message"; // ← PHASE 5: LinkedIn messages
 
 const program = new Command();
 
@@ -66,6 +68,8 @@ async function main() {
     program.addCommand(tailorCommand);
     program.addCommand(generateCommand); // ← PHASE 3: Generate DOCX/PDF
     program.addCommand(coverLetterCommand); // ← PHASE 4: Cover letters
+    program.addCommand(findManagerCommand); // ← PHASE 5: Hiring manager finder
+    program.addCommand(linkedInMessageCommand); // ← PHASE 5: LinkedIn messages
     program.addCommand(applyCommand);
     program.addCommand(statusCommand);
     program.addCommand(researchCommand);

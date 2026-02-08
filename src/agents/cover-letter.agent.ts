@@ -28,15 +28,18 @@ export interface CoverLetterOptions {
 }
 
 export class CoverLetterAgent {
-  async generateCoverLetter(jobId: string, options: CoverLetterOptions = {}): Promise<{ success: boolean; data?: CoverLetter; error?: string }> {
+  async generateCoverLetter(
+    jobId: string,
+    options: CoverLetterOptions = {},
+  ): Promise<{ success: boolean; data?: CoverLetter; error?: string }> {
     try {
       // Get job details and master resume data
       const prisma = getPrismaClient();
-      
+
       // Fetch job details
-      const job = await prisma.jobs.findUnique({
+      const job = await prisma.job.findUnique({
         where: { id: jobId },
-        include: { companies: true }
+        include: { company: true },
       });
 
       if (!job) {
@@ -44,15 +47,15 @@ export class CoverLetterAgent {
       }
 
       // Fetch master resume
-      const masterResume = await prisma.masterResumes.findFirst({
+      const masterResume = await prisma.masterResume.findFirst({
         include: {
           experiences: {
             include: {
               achievements: true,
-              techStack: true
-            }
-          }
-        }
+              technologies: true,
+            },
+          },
+        },
       });
 
       if (!masterResume) {
@@ -60,10 +63,10 @@ export class CoverLetterAgent {
       }
 
       // Generate cover letter content
-      const currentDate = new Date().toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
+      const currentDate = new Date().toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
       });
 
       const coverLetter: CoverLetter = {
@@ -73,28 +76,28 @@ export class CoverLetterAgent {
         yourPhone: masterResume.phone || "",
         recipientName: "Hiring Manager", // Default, could be enhanced
         recipientTitle: job.title,
-        companyName: job.companies?.name || "",
-        companyAddress: job.companies?.headquarters || "",
+        companyName: job.company?.name || "",
+        companyAddress: job.company?.headquarters || "",
         date: currentDate,
         greeting: "Dear Hiring Manager,",
-        opening: `I am writing to express my strong interest in the ${job.title} position at ${job.companies?.name}.`,
+        opening: `I am writing to express my strong interest in the ${job.title} position at ${job.company?.name}.`,
         body: [
           `With my background and experience, I believe I would be a valuable addition to your team.`,
           `I am particularly drawn to this opportunity because it aligns perfectly with my skills and career goals.`,
-          `I would welcome the opportunity to discuss how my qualifications match your needs.`
+          `I would welcome the opportunity to discuss how my qualifications match your needs.`,
         ],
         closing: "Sincerely,",
         signature: masterResume.fullName || "",
         hiringManager: "Hiring Manager",
         jobTitle: job.title,
-        tone: options.tone || "professional"
+        tone: options.tone || "professional",
       };
 
       return { success: true, data: coverLetter };
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: error.message || "Failed to generate cover letter" 
+      return {
+        success: false,
+        error: error.message || "Failed to generate cover letter",
       };
     }
   }

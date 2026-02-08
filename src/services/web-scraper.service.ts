@@ -521,12 +521,15 @@ Please visit the original URL for complete details: ${url}`;
       // Extract company name from domain (excluding www, tlds, and common subdomains)
       const domainParts = hostname.split(".");
 
-      // Find the main domain part (excluding www and tlds)
+      // Find the main domain part (excluding www, careers, jobs, tlds, and common subdomains)
       let mainDomain = "";
       for (let i = 0; i < domainParts.length; i++) {
         const part = domainParts[i];
         if (
           part !== "www" &&
+          part !== "careers" &&
+          part !== "jobs" &&
+          part !== "recruiting" &&
           part !== "com" &&
           part !== "net" &&
           part !== "io" &&
