@@ -2,6 +2,37 @@
 
 A concise reference for all available commands, grouped by category.
 
+## 🚀 Complete Application Workflow
+
+**Purpose:** Get everything you need for a job application in 6 steps.
+
+# 1. Analyze job
+npm run dev analyze <job-url> --save
+
+# 2. Tailor resume
+npm run dev tailor <job-id> --generate-embeddings
+
+# 3. Generate resume
+npm run dev generate <job-id>
+
+# 4. Generate cover letter
+npm run dev cover-letter <job-id>
+
+# 5. Find hiring manager (NEW!)
+npm run dev find-manager <job-id> --save
+
+# 6. Generate LinkedIn message (NEW!)
+npm run dev linkedin-message <job-id> --save
+
+# Result:
+# ✅ Tailored resume
+# ✅ Cover letter
+# ✅ Hiring manager contact
+# ✅ LinkedIn connection message
+# Ready to apply!
+
+---
+
 ## 📝 Resume Management
 
 **Purpose:** Manually view, edit, and manage your master resume data in the database.

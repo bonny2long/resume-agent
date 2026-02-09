@@ -1,5 +1,6 @@
 // src/services/embeddings.service.ts
 import { CohereClient } from "cohere-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import config from "@/config";
 import { logger } from "@/utils/logger";
 import getPrismaClient from "@/database/client";
@@ -11,30 +12,69 @@ export interface EmbeddingResult {
 }
 
 export class EmbeddingsService {
-  private cohere: CohereClient | null;
-  private model = "embed-english-v3.0"; // 1024 dimensions
+  private cohere: CohereClient | null = null;
+  private gemini: GoogleGenerativeAI | null = null;
+  private model: string;
   private prisma = getPrismaClient();
+  private provider: string;
 
   constructor() {
-    if (!config.embeddings?.apiKey) {
-      logger.warn("No Cohere API key found, using mock embeddings");
-      this.cohere = null;
+    this.provider = config.embeddings?.provider || "cohere";
+    
+    if (this.provider === "gemini") {
+      if (!config.embeddings?.apiKey) {
+        logger.warn("No Gemini API key found, using mock embeddings");
+        this.gemini = null;
+      } else {
+        this.gemini = new GoogleGenerativeAI(config.embeddings.apiKey);
+      }
+      this.model = config.embeddings?.model || "text-embedding-004";
     } else {
-      this.cohere = new CohereClient({
-        token: config.embeddings.apiKey,
-      });
+      if (!config.embeddings?.apiKey) {
+        logger.warn("No Cohere API key found, using mock embeddings");
+        this.cohere = null;
+      } else {
+        this.cohere = new CohereClient({
+          token: config.embeddings.apiKey,
+        });
+      }
+      this.model = config.embeddings?.model || "embed-english-v3.0";
     }
 
     logger.debug("Embeddings Service initialized", {
-      provider: config.embeddings?.provider || "cohere",
+      provider: this.provider,
       model: this.model,
     });
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      logger.debug("Generating embedding", { textLength: text.length });
+      logger.debug("Generating embedding", { 
+        textLength: text.length,
+        provider: this.provider,
+      });
 
+      // Handle Gemini provider
+      if (this.provider === "gemini") {
+        if (!this.gemini) {
+          const embedding = this.generateMockEmbedding(text);
+          logger.debug("Mock embedding generated", {
+            dimensions: embedding.length,
+          });
+          return embedding;
+        }
+
+        const embeddingModel = this.gemini.getGenerativeModel({ model: "text-embedding-004" });
+        const result = await embeddingModel.embedContent(text);
+        const embedding = result.embedding.values;
+
+        logger.debug("Gemini embedding generated", {
+          dimensions: embedding.length,
+        });
+        return embedding;
+      }
+
+      // Handle Cohere provider (default)
       if (!this.cohere) {
         const embedding = this.generateMockEmbedding(text);
         logger.debug("Mock embedding generated", {
@@ -56,7 +96,15 @@ export class EmbeddingsService {
       });
       return embedding;
     } catch (error: any) {
-      logger.error("Failed to generate embedding", error);
+      // Check for rate limit specifically (Cohere)
+      if (error.status === 429) {
+        logger.warn(`${this.provider} API rate limit reached, using mock embeddings`, {
+          message: error.message?.substring(0, 100) + "...",
+        });
+      } else {
+        logger.error("Failed to generate embedding", error);
+      }
+      
       const fallbackEmbedding = this.generateMockEmbedding(text);
       logger.debug("Fallback to mock embedding", {
         dimensions: fallbackEmbedding.length,

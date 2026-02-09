@@ -81,6 +81,7 @@ export interface TailoredResume {
   company: string;
   matchScore: number;
   atsOptimized: boolean;
+  atsScore?: number;
 }
 
 export class ResumeTailorAgent {
@@ -107,7 +108,9 @@ export class ResumeTailorAgent {
         throw new Error("Job not found");
       }
 
-      logger.success(`Job: ${job.title} at ${job.company}`);
+      logger.success(
+        `Job: ${job.title} at ${job.company?.name || "Unknown Company"}`,
+      );
 
       // Step 2: Get master resume
       logger.step(2, 5, "Loading master resume...");
@@ -151,74 +154,66 @@ export class ResumeTailorAgent {
 
       logger.success(`Selected ${relevantExperiences.length} experiences`);
 
-      // 🔴 CRITICAL FIX: Deduplicate experiences by company + title
-      // This handles multiple master resumes with same jobs but different descriptions
+      // Deduplicate experiences by company + title
       const experienceMap = new Map<string, any>();
-      
+
       // Group similar experiences together
       relevantExperiences.forEach(({ experience, similarity }) => {
         const key = `${experience.company?.toLowerCase().trim()}_${experience.title?.toLowerCase().trim()}`;
-        
+
         if (!experienceMap.has(key)) {
           experienceMap.set(key, { experience, similarity });
         } else {
-          // Keep the one with higher similarity score (more relevant to current job)
+          // Keep the one with higher similarity score
           const existing = experienceMap.get(key);
           if (similarity > existing.similarity) {
-            logger.info(`Replacing with higher relevance version: ${experience.title} at ${experience.company} (${Math.round(similarity * 100)}% vs ${Math.round(existing.similarity * 100)}%)`);
             experienceMap.set(key, { experience, similarity });
-          } else {
-            logger.warn(`Duplicate experience filtered: ${experience.title} at ${experience.company} (keeping higher relevance version)`);
           }
         }
       });
-      
-      // 🚨 ADDITIONAL CHECK: Look for very similar jobs (same company + time + overlapping keywords)
+
+      // Filter by time overlap
       const deduplicatedList = Array.from(experienceMap.values());
       const finalExperiences: any[] = [];
-      
+
       deduplicatedList.forEach(({ experience, similarity }) => {
         let isDuplicate = false;
-        
-        // Check against already accepted experiences
+
         for (const existing of finalExperiences) {
           const existingExp = existing.experience;
-          
-          // Check for same company AND overlapping time period
-          const sameCompany = experience.company?.toLowerCase().trim() === existingExp.company?.toLowerCase().trim();
-          const overlappingTime = this.checkTimeOverlap(experience.startDate, experience.endDate, existingExp.startDate, existingExp.endDate);
-          
+
+          const sameCompany =
+            experience.company?.toLowerCase().trim() ===
+            existingExp.company?.toLowerCase().trim();
+          const overlappingTime = this.checkTimeOverlap(
+            experience.startDate,
+            experience.endDate,
+            existingExp.startDate,
+            existingExp.endDate,
+          );
+
           if (sameCompany && overlappingTime) {
-            // Check for similar project/achievement keywords
-            const currentKeywords = this.extractKeywords(experience.achievements);
-            const existingKeywords = this.extractKeywords(existingExp.achievements);
-            const similarity = this.calculateKeywordSimilarity(currentKeywords, existingKeywords);
-            
-            if (similarity > 0.6) { // 60% keyword similarity threshold
-              logger.warn(`Filtered duplicate job: ${experience.title} at ${experience.company} (${Math.round(similarity * 100)}% similar to ${existingExp.title})`);
-              isDuplicate = true;
-              break;
-            }
+            isDuplicate = true;
+            break;
           }
         }
-        
+
         if (!isDuplicate) {
           finalExperiences.push({ experience, similarity });
         }
       });
-      
+
       const deduplicatedExperiences = finalExperiences;
+      logger.success(
+        `After deduplication: ${deduplicatedExperiences.length} unique experiences`,
+      );
 
-      logger.success(`After deduplication: ${deduplicatedExperiences.length} unique experiences`);
-
-      // 🔴 CRITICAL FIX: Sort experiences by date (most recent first)
+      // Sort experiences by date (most recent first)
       deduplicatedExperiences.sort((a, b) => {
         const dateA = new Date(a.experience.startDate).getTime();
         const dateB = new Date(b.experience.startDate).getTime();
-        return dateB - dateA; // Descending (most recent first)
+        return dateB - dateA;
       });
-
-      logger.info(`Experiences sorted by date (most recent first)`);
 
       // Step 4: Find most relevant projects using RAG
       logger.step(4, 5, "Selecting relevant projects (RAG)...");
@@ -265,24 +260,28 @@ export class ResumeTailorAgent {
     // Generate tailored summary
     const summary = await this.generateTailoredSummary(job, masterResume);
 
-    // Optimize achievements for ATS and enhance with stories
+    // Distribute optimized achievements back to experiences
     const optimizedExperiences = await Promise.all(
       relevantExperiences.map(async ({ experience, similarity }) => {
-        let optimizedAchievements = await this.optimizeAchievements(
-          experience.achievements,
-          job.requiredSkills,
-          job.keywords,
-        );
+        let currentAchievements = experience.achievements;
 
         // Enhance trades experience with tech relevance
         if (
           experience.title &&
           (experience.title.toLowerCase().includes("insulator") ||
-            experience.title.toLowerCase().includes("electrical"))
+            experience.title.toLowerCase().includes("electrical") ||
+            experience.title.toLowerCase().includes("technician"))
         ) {
-          optimizedAchievements = await this.enhanceTradesExperience(
-            optimizedAchievements,
+          currentAchievements = await this.enhanceTradesExperience(
+            experience.achievements,
             job.requiredSkills,
+          );
+        } else {
+          // For non-trade roles, attempt normal optimization
+          currentAchievements = await this.optimizeAchievements(
+            experience.achievements,
+            job.requiredSkills || [],
+            job.keywords || [],
           );
         }
 
@@ -302,7 +301,7 @@ export class ResumeTailorAgent {
           startDate: experience.startDate,
           endDate: experience.endDate,
           current: experience.current,
-          achievements: optimizedAchievements,
+          achievements: currentAchievements,
           technologies,
           relevanceScore: Math.round(similarity * 100),
         };
@@ -312,7 +311,6 @@ export class ResumeTailorAgent {
     // Optimize projects
     const optimizedProjects = relevantProjects.map(
       ({ project, similarity }) => {
-        // Handle technologies array properly
         let technologies: string[] = [];
         if (Array.isArray(project.technologies)) {
           technologies = project.technologies
@@ -334,7 +332,7 @@ export class ResumeTailorAgent {
       },
     );
 
-    // Filter and order skills - check if skills exist
+    // Filter and order skills
     let allSkills = [];
     if (masterResume.skills && Array.isArray(masterResume.skills)) {
       allSkills = masterResume.skills;
@@ -352,16 +350,9 @@ export class ResumeTailorAgent {
         email: masterResume.email,
         phone: masterResume.phone,
         location: masterResume.location,
-        // 🔴 CRITICAL FIX: Validate URLs - only include if they're actual URLs
-        linkedInUrl: masterResume.linkedInUrl?.includes('linkedin.com') 
-          ? masterResume.linkedInUrl 
-          : undefined,
-        githubUrl: masterResume.githubUrl?.includes('github.com') 
-          ? masterResume.githubUrl 
-          : undefined,
-        portfolioUrl: masterResume.portfolioUrl?.includes('http') 
-          ? masterResume.portfolioUrl 
-          : undefined,
+        linkedInUrl: masterResume.linkedInUrl || undefined,
+        githubUrl: masterResume.githubUrl || undefined,
+        portfolioUrl: masterResume.portfolioUrl || undefined,
       },
       summary,
       experiences: optimizedExperiences,
@@ -509,49 +500,91 @@ Return exactly 2 enhanced achievements in JSON format:
     // Load career transition story
     const storyContext = await this.loadCareerStory();
 
-    const prompt = `You are writing a POWERFUL resume summary for a career transition candidate. Make it compelling and memorable.
+    // Extract company-specific details for tailored summary
+    const companyName = job.company?.name || "this innovative company";
+    const companyTech =
+      job.company?.techStack ?
+        job.company.techStack.join(", ")
+      : "modern tech stack";
+    const companyValues =
+      job.company?.values ?
+        job.company.values.slice(0, 3).join(", ")
+      : "innovation and excellence";
+    const jobResponsibilities =
+      job.responsibilities ?
+        job.responsibilities.slice(0, 5).join("; ")
+      : "developing innovative solutions";
+    const jobKeywords =
+      job.keywords ?
+        job.keywords.slice(0, 8).join(", ")
+      : "software development, full-stack";
 
-Job Title: ${job.title}
-Company: ${job.company?.name || "Company"}
-Required Skills: ${job.requiredSkills.slice(0, 10).join(", ")}
-Experience Level: ${job.experienceLevel}
+    const prompt = `You are writing a HIGHLY TAILORED resume summary for a career transition candidate applying specifically to ${companyName}. This summary must demonstrate deep understanding of the company's needs, culture, and technical requirements.
 
-Candidate's EXTRAORDINARY Background:
+Job Details:
+- Title: ${job.title}
+- Company: ${companyName}
+- Company Tech Stack: ${companyTech}
+- Company Values: ${companyValues}
+- Required Skills: ${job.requiredSkills.slice(0, 10).join(", ")}
+- Experience Level: ${job.experienceLevel}
+- Key Responsibilities: ${jobResponsibilities}
+- Key Focus Areas: ${jobKeywords}
+
+Candidate Background:
 Name: ${masterResume.fullName}
-ACTUAL Years of Tech Experience: ${calculatedYears} years
+Years of Tech Experience: ${calculatedYears} years
 Career Story: ${storyContext}
-Top Skills: ${masterResume.skills
+Core Skills: ${masterResume.skills
       .slice(0, 10)
       .map((s: any) => s.name)
       .join(", ")}
 
-Write a POWERFUL, MEMORABLE professional summary (max 3 sentences) that:
+Write a POWERFUL, COMPELLING resume summary with EXACTLY 3 DISTINCT PARAGRAPHS (no more, no less). Each paragraph must be clearly separated. Follow this structure:
 
-1. **LEADS with the career transition** - "After 6+ years as an electrical technician and heat & frost insulator..." 
-2. **Shows the WHY** - What drove the transition to tech
-3. **Highlights the UNIQUE ADVANTAGE** - How trades background makes thFem a better developer
-4. **Incorporates job-specific skills** - 2-3 keywords from required skills
-5. **Uses strong, active language** - No passive or weak phrases
+Paragraph 1: Company Alignment & Career Transition
+- Start by showing enthusiasm for ${companyName} specifically
+- Reference 2-3 key company values: ${companyValues}
+- Connect your trades-to-tech career transition to ${companyName}'s mission
+- Mention their tech stack (${companyTech}) and your excitement about their work
 
-CAREER TRANSITION STORY TO INTEGRATE:
-- Spent 6+ years in trades (electrical technician + heat & frost insulator)
-- Discovered passion for solving problems through technology
-- Troubleshooting complex electrical systems → Debugging code
-- Reading schematics → Understanding system architecture
-- Managing trade projects → Leading software development
-- Methodical, safety-first approach → Quality code practices
+Paragraph 2: Technical Skills & Value Proposition
+- Address the specific responsibilities: ${jobResponsibilities}
+- Showcase how your unique trades background gives you systematic thinking for software development
+- Highlight your relevant technical skills: JavaScript, Python, React, Node.js, databases
+- Demonstrate understanding of their focus areas: ${jobKeywords}
 
-POWER WORDS TO USE: "transitioned", "discovered", "leveraged", "bridged", "unique", "perspective", "methodical", "systematic"
+Paragraph 3: Culture Fit & Future Contribution
+- Express excitement about contributing to ${companyName}'s success and culture
+- Show how your collaborative nature and work ethic align with ${companyValues}
+- Emphasize your eagerness to learn, grow, and contribute long-term
+- End with confidence that you bring both technical expertise and fresh perspective
 
-Return ONLY the powerful summary text.`;
+CRITICAL REQUIREMENTS:
+- MUST be exactly 3 paragraphs (not 1 huge paragraph)
+- Each paragraph should be 3-5 sentences
+- Must be company-specific to ${companyName}
+- Include 2-3 keywords from: ${jobKeywords}
+- Show genuine interest in ${companyName}'s mission and work
+
+Return ONLY the complete 3-paragraph summary. Do NOT include any formatting, explanations, or extra text.`;
 
     const response = await this.llm.complete(prompt, {
       temperature: 0.5,
-      maxTokens: 150,
+      maxTokens: 400,
     });
 
     if (response.success && response.data) {
-      const summary = response.data.trim();
+      let summary = response.data.trim();
+
+      // 🛠️ CRITICAL FIX: Ensure paragraphs are separated by double newlines
+      // This splits the text by any number of newlines and rejoins them with distinct double breaks
+      summary = summary
+        .split(/\n+/) // Split by single or multiple newlines
+        .map((p) => p.trim()) // Clean up whitespace
+        .filter((p) => p.length > 0) // Remove empty lines
+        .join("\n\n"); // Rejoin with EXPLICIT double newlines
+
       // Validate that the summary doesn't contain fabricated experience
       if (
         !summary.includes("1.2 years") &&
@@ -587,7 +620,7 @@ Return ONLY the powerful summary text.`;
   }
 
   /**
-   * Optimize achievements for ATS keywords
+   * Optimize achievements for ATS keywords (Used in enhancement logic)
    */
   private async optimizeAchievements(
     achievements: any[],
@@ -609,7 +642,12 @@ ${achievements
   )
   .join("\n")}
 
-Relevant Keywords (use ONLY if they naturally apply): ${[...requiredSkills, ...keywords].slice(0, 8).join(", ")}
+Relevant Keywords (use ONLY if they naturally apply): ${[
+      ...requiredSkills,
+      ...keywords,
+    ]
+      .slice(0, 8)
+      .join(", ")}
 
 CRITICAL Rules:
 1. Do NOT invent new facts, metrics, or technologies
@@ -834,42 +872,56 @@ Response format (strict JSON):
       formatScore: number;
     };
   } {
-    // Keyword match (40% weight)
-    const jobKeywords = [...job.requiredSkills, ...job.keywords].map((k) =>
-      k.toLowerCase(),
-    );
-    const resumeText = this.buildResumeText(tailored).toLowerCase();
-    const matchedKeywords = jobKeywords.filter((kw) => resumeText.includes(kw));
-    const keywordMatch = (matchedKeywords.length / jobKeywords.length) * 100;
+    const resumeText = this.buildResumeText(tailored);
+    const jobSkills = [
+      ...(job.requiredSkills || []),
+      ...(job.preferredSkills || []),
+    ];
 
-    // Skill match (30% weight)
+    // Keyword matching
+    const keywords = job.keywords || [];
+    const keywordMatches = keywords.filter((keyword: string) =>
+      resumeText.toLowerCase().includes(keyword.toLowerCase()),
+    ).length;
+    const keywordMatch =
+      keywords.length > 0 ? (keywordMatches / keywords.length) * 100 : 50;
+
+    // Skill matching
+    const resumeSkills = [
+      ...tailored.skills.matched,
+      ...tailored.skills.relevant,
+    ];
+    const skillMatches = jobSkills.filter((skill: string) =>
+      resumeSkills.some(
+        (resumeSkill) =>
+          resumeSkill.toLowerCase().includes(skill.toLowerCase()) ||
+          skill.toLowerCase().includes(resumeSkill.toLowerCase()),
+      ),
+    ).length;
     const skillMatch =
-      (tailored.skills.matched.length / (job.requiredSkills.length || 1)) * 100;
+      jobSkills.length > 0 ? (skillMatches / jobSkills.length) * 100 : 50;
 
-    // Experience match (20% weight)
-    const avgRelevance =
+    // Experience relevance
+    const experienceMatch =
       tailored.experiences.reduce((sum, exp) => sum + exp.relevanceScore, 0) /
-      (tailored.experiences.length || 1);
-    const experienceMatch = avgRelevance;
+      tailored.experiences.length;
 
-    // Format score (10% weight)
+    // Format score
     const formatScore = this.calculateFormatScore(tailored);
 
-    // Weighted total
-    const score = Math.round(
-      keywordMatch * 0.4 +
-        skillMatch * 0.3 +
-        experienceMatch * 0.2 +
-        formatScore * 0.1,
-    );
+    const overallScore =
+      keywordMatch * 0.3 +
+      skillMatch * 0.3 +
+      experienceMatch * 0.25 +
+      formatScore * 0.15;
 
     return {
-      score,
+      score: Math.round(overallScore),
       breakdown: {
         keywordMatch: Math.round(keywordMatch),
         skillMatch: Math.round(skillMatch),
         experienceMatch: Math.round(experienceMatch),
-        formatScore,
+        formatScore: Math.round(formatScore),
       },
     };
   }
@@ -894,53 +946,18 @@ Response format (strict JSON):
   /**
    * Check if two time periods overlap
    */
-  private checkTimeOverlap(start1: Date, end1: Date | null, start2: Date, end2: Date | null): boolean {
+  private checkTimeOverlap(
+    start1: Date,
+    end1: Date | null,
+    start2: Date,
+    end2: Date | null,
+  ): boolean {
     const s1 = new Date(start1);
     const e1 = end1 ? new Date(end1) : new Date();
     const s2 = new Date(start2);
     const e2 = end2 ? new Date(end2) : new Date();
-    
+
     return s1 <= e2 && s2 <= e1;
-  }
-
-  /**
-   * Extract keywords from achievements
-   */
-  private extractKeywords(achievements: any[]): string[] {
-    if (!achievements || achievements.length === 0) return [];
-    
-    const text = achievements
-      .map((a: any) => a.description || '')
-      .join(' ')
-      .toLowerCase();
-    
-    // Extract important keywords (companies, technologies, project names)
-    const keywords = [];
-    
-    // Company/project names (capitalized words)
-    const capitalizedWords = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g) || [];
-    keywords.push(...capitalizedWords);
-    
-    // Tech keywords
-    const techKeywords = ['ai', 'api', 'dashboard', 'platform', 'python', 'llm', 'rbac', 'backend', 'frontend', 'full stack'];
-    techKeywords.forEach(keyword => {
-      if (text.includes(keyword)) keywords.push(keyword);
-    });
-    
-    return [...new Set(keywords)];
-  }
-
-  /**
-   * Calculate keyword similarity between two sets
-   */
-  private calculateKeywordSimilarity(keywords1: string[], keywords2: string[]): number {
-    const set1 = new Set(keywords1.map(k => k.toLowerCase()));
-    const set2 = new Set(keywords2.map(k => k.toLowerCase()));
-    
-    const intersection = new Set([...set1].filter(k => set2.has(k)));
-    const union = new Set([...set1, ...set2]);
-    
-    return union.size > 0 ? intersection.size / union.size : 0;
   }
 
   /**
@@ -957,10 +974,6 @@ Response format (strict JSON):
 
     // Bonus for having summary
     if (!tailored.summary || tailored.summary.length < 50) score -= 10;
-
-    // Bonus for contact info
-    if (!tailored.personalInfo.email) score -= 10;
-    if (!tailored.personalInfo.phone) score -= 5;
 
     return Math.max(0, score);
   }

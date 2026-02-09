@@ -421,8 +421,10 @@ Please visit the original URL for complete details: ${url}`;
     const page = await this.scrape(url);
     const $ = cheerio.load(page.html);
 
-    // Extract company with URL-based fallback
-    let company = this.extractCompany($);
+    // Extract company using content-first approach
+    let company = this.extractCompanyFromContent($, page);
+    
+    // Only use URL extraction as absolute last resort
     if (!company) {
       company = this.extractCompanyFromUrl(url);
     }
@@ -483,8 +485,7 @@ Please visit the original URL for complete details: ${url}`;
 
   // Helper methods for extraction
   private extractCompanyFromUrl(url: string): string | undefined {
-    if (url.includes("temporaltechnologies")) return "Temporal Technologies";
-    if (url.includes("united.com")) return "United Airlines";
+    // Handle known job board platforms with company in path
     if (url.includes("greenhouse.io")) {
       const match = url.match(/greenhouse\.io\/([^\/]+)/);
       if (match) {
@@ -493,6 +494,7 @@ Please visit the original URL for complete details: ${url}`;
         return company.charAt(0).toUpperCase() + company.slice(1);
       }
     }
+    
     if (url.includes("myworkdayjobs.com")) {
       const match = url.match(/myworkdayjobs\.com\/([^\/]+)/);
       if (match) {
@@ -513,29 +515,91 @@ Please visit the original URL for complete details: ${url}`;
       }
     }
 
-    // Extract company from domain name
+    // Handle Oracle Cloud - try to extract from URL path or use generic
+    if (url.includes("oraclecloud.com")) {
+      const match = url.match(/\/sites\/([^\/]+)/);
+      if (match && match[1] && match[1] !== "jobsearch") {
+        logger.info("Extracted company from Oracle Cloud URL", {
+          url,
+          company: match[1].charAt(0).toUpperCase() + match[1].slice(1),
+        });
+        return match[1].charAt(0).toUpperCase() + match[1].slice(1);
+      }
+      // Fallback for Oracle Cloud when can't extract company
+      logger.info("Oracle Cloud URL detected, using generic", { url });
+      return "Oracle Cloud Hosting";
+    }
+
+    // Handle Lever.co
+    if (url.includes("lever.co")) {
+      const match = url.match(/lever\.co\/([^\/]+)/);
+      if (match) {
+        const company = match[1];
+        return company.charAt(0).toUpperCase() + company.slice(1);
+      }
+    }
+
+    // Handle Workday
+    if (url.includes("workday.com")) {
+      const match = url.match(/workday\.com\/([^\/]+)/);
+      if (match) {
+        const company = match[1];
+        return company.charAt(0).toUpperCase() + company.slice(1);
+      }
+    }
+
+    // Handle SmartRecruiters
+    if (url.includes("smartrecruiters.com")) {
+      const match = url.match(/smartrecruiters\.com\/([^\/]+)/);
+      if (match) {
+        const company = match[1];
+        return company.charAt(0).toUpperCase() + company.slice(1);
+      }
+    }
+
+    // Handle specific known companies
+    if (url.includes("temporaltechnologies")) return "Temporal Technologies";
+    if (url.includes("united.com")) return "United Airlines";
+    if (url.includes("linkedin.com")) return "LinkedIn";
+    if (url.includes("indeed.com")) return "Indeed";
+    if (url.includes("glassdoor.com")) return "Glassdoor";
+
+    // Extract company from domain name as last resort
     try {
       const urlObj = new URL(url);
       const hostname = urlObj.hostname;
 
-      // Extract company name from domain (excluding www, tlds, and common subdomains)
-      const domainParts = hostname.split(".");
+      // Skip known job board domains - they don't represent the actual company
+      const jobBoardDomains = [
+        'oraclecloud.com', 'myworkdayjobs.com', 'greenhouse.io', 
+        'lever.co', 'workday.com', 'smartrecruiters.com', 
+        'linkedin.com', 'indeed.com', 'glassdoor.com',
+        'monster.com', 'careerbuilder.com', 'ziprecruiter.com'
+      ];
 
-      // Find the main domain part (excluding www, careers, jobs, tlds, and common subdomains)
+      if (jobBoardDomains.some(domain => hostname.includes(domain))) {
+        logger.info("Skipping job board domain for company extraction", {
+          url,
+          domain: hostname,
+        });
+        return undefined;
+      }
+
+      // Extract company name from domain (excluding common subdomains and TLDs)
+      const domainParts = hostname.split(".");
+      const exclusions = [
+        "www", "careers", "jobs", "recruiting", "talent", "join", 
+        "com", "net", "io", "org", "co", "app", "site"
+      ];
+
+      // Find the most meaningful domain part
       let mainDomain = "";
       for (let i = 0; i < domainParts.length; i++) {
         const part = domainParts[i];
         if (
-          part !== "www" &&
-          part !== "careers" &&
-          part !== "jobs" &&
-          part !== "recruiting" &&
-          part !== "com" &&
-          part !== "net" &&
-          part !== "io" &&
-          part !== "org" &&
-          part !== "co" &&
-          !part.match(/^\d+$/)
+          !exclusions.includes(part) &&
+          !part.match(/^\d+$/) && // Skip numeric parts
+          part.length > 2 // Skip very short parts
         ) {
           mainDomain = part;
           break;
@@ -546,24 +610,42 @@ Please visit the original URL for complete details: ${url}`;
         // Convert domain name to proper company name
         let companyName = mainDomain;
 
-        // Handle common patterns
+        // Handle common patterns and special cases
         companyName = companyName.replace(/-/g, " ");
-        companyName = companyName.replace(
-          /(\w)/g,
-          (match, p1) =>
-            p1.toUpperCase() + (companyName.indexOf(match) === 0 ? "" : ""),
-        );
+        companyName = companyName.replace(/_/g, " ");
 
-        // Fix capitalization for multi-word names
-        companyName = companyName
-          .split(" ")
-          .map(
-            (word) =>
-              word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
-          )
-          .join(" ");
+        // Special mappings for known companies
+        const specialCases: { [key: string]: string } = {
+          'github': 'GitHub',
+          'microsoft': 'Microsoft',
+          'google': 'Google',
+          'amazon': 'Amazon',
+          'apple': 'Apple',
+          'netflix': 'Netflix',
+          'facebook': 'Meta',
+          'meta': 'Meta',
+          'twitter': 'Twitter',
+          'instagram': 'Instagram',
+          'linkedin': 'LinkedIn',
+          'adobe': 'Adobe',
+          'salesforce': 'Salesforce',
+          'oracle': 'Oracle',
+          'ibm': 'IBM',
+          'intel': 'Intel',
+          'nvidia': 'NVIDIA'
+        };
 
-        logger.info("Extracted company from domain", {
+        if (specialCases[companyName.toLowerCase()]) {
+          companyName = specialCases[companyName.toLowerCase()];
+        } else {
+          // Standard capitalization
+          companyName = companyName
+            .split(" ")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(" ");
+        }
+
+        logger.info("Extracted company from domain (fallback)", {
           url,
           domain: hostname,
           company: companyName,
@@ -592,34 +674,265 @@ Please visit the original URL for complete details: ${url}`;
     return undefined;
   }
 
-  private extractCompany($: cheerio.CheerioAPI): string | undefined {
+  private extractCompanyFromContent($: cheerio.CheerioAPI, page: any): string | undefined {
+    // 1. Try structured data (JSON-LD, microdata)
+    const structuredData = this.extractStructuredCompanyData($);
+    if (structuredData) {
+      logger.info("Company extracted from structured data", { company: structuredData });
+      return structuredData;
+    }
+
+    // 2. Try meta tags
+    const metaCompany = this.extractCompanyFromMeta($);
+    if (metaCompany) {
+      logger.info("Company extracted from meta tags", { company: metaCompany });
+      return metaCompany;
+    }
+
+    // 3. Try common page elements (most reliable)
+    const pageCompany = this.extractCompanyFromPageElements($);
+    if (pageCompany) {
+      logger.info("Company extracted from page elements", { company: pageCompany });
+      return pageCompany;
+    }
+
+    // 4. Try title parsing
+    const titleCompany = this.extractCompanyFromTitle(page.title);
+    if (titleCompany) {
+      logger.info("Company extracted from title", { company: titleCompany });
+      return titleCompany;
+    }
+
+    // 5. Try breadcrumb and navigation elements
+    const navCompany = this.extractCompanyFromNavigation($);
+    if (navCompany) {
+      logger.info("Company extracted from navigation", { company: navCompany });
+      return navCompany;
+    }
+
+    // 6. Try content heuristics
+    const contentCompany = this.extractCompanyFromContentHeuristics($);
+    if (contentCompany) {
+      logger.info("Company extracted from content heuristics", { company: contentCompany });
+      return contentCompany;
+    }
+
+    return undefined;
+  }
+
+  private extractStructuredCompanyData($: cheerio.CheerioAPI): string | undefined {
+    // Try JSON-LD structured data
+    const scripts = $('script[type="application/ld+json"]');
+    for (let i = 0; i < scripts.length; i++) {
+      try {
+        const data = JSON.parse($(scripts[i]).html() || '{}');
+        
+        if (data.hiringOrganization?.name) {
+          return data.hiringOrganization.name;
+        }
+        
+        if (data.publisher?.name) {
+          return data.publisher.name;
+        }
+        
+        if (data.author?.name) {
+          return data.author.name;
+        }
+        
+        if (data.organization?.name) {
+          return data.organization.name;
+        }
+        
+        // Check for JobPosting schema
+        if (Array.isArray(data['@graph'])) {
+          for (const item of data['@graph']) {
+            if (item['@type'] === 'JobPosting' && item.hiringOrganization?.name) {
+              return item.hiringOrganization.name;
+            }
+          }
+        }
+      } catch (e) {
+        // Skip invalid JSON
+      }
+    }
+
+    // Try microdata
+    const microdata = $('[itemprop="hiringOrganization"] [itemprop="name"]');
+    if (microdata.length > 0) {
+      return microdata.first().text().trim();
+    }
+
+    const microdata2 = $('[itemprop="employer"] [itemprop="name"]');
+    if (microdata2.length > 0) {
+      return microdata2.first().text().trim();
+    }
+
+    return undefined;
+  }
+
+  private extractCompanyFromMeta($: cheerio.CheerioAPI): string | undefined {
+    const metaSelectors = [
+      'meta[name="company"]',
+      'meta[property="company"]',
+      'meta[name="employer"]',
+      'meta[property="employer"]',
+      'meta[name="organization"]',
+      'meta[property="organization"]',
+      'meta[name="og:site_name"]',
+      'meta[property="og:site_name"]',
+      'meta[name="twitter:site"]',
+      'meta[property="twitter:site"]'
+    ];
+
+    for (const selector of metaSelectors) {
+      const content = $(selector).attr('content');
+      if (content && content.length > 2 && content.length < 100) {
+        return content.trim();
+      }
+    }
+
+    return undefined;
+  }
+
+  private extractCompanyFromPageElements($: cheerio.CheerioAPI): string | undefined {
     const selectors = [
-      ".company-name",
+      // Explicit company selectors
+      '.company-name',
+      '.company',
+      '.employer',
+      '.hiring-organization',
+      '.organization-name',
+      
+      // Common class patterns
       '[class*="company"]',
       '[class*="employer"]',
-      "h2",
-      ".header",
-      '[class*="header"]',
+      '[class*="organization"]',
+      
+      // Header elements (often contain company)
+      '.company-header',
+      '.job-header .company',
+      '.job-posting-header .company',
+      
+      // Location-based selectors
+      '.location .company',
+      '.job-location .company',
+      
+      // Common HTML structure
+      'h2.company',
+      'h3.company',
+      'div.company',
+      'span.company'
     ];
 
     for (const selector of selectors) {
-      const text = $(selector).first().text().trim();
-      if (text && text.length < 100 && text.toLowerCase() !== "apply") {
-        // Check if it looks like a company name
-        if (
-          text.includes("Technologies") ||
-          text.includes("Inc") ||
-          text.includes("LLC") ||
-          text.includes("Corp") ||
-          text.includes("Ltd") ||
-          /^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$/.test(text)
-        ) {
+      const elements = $(selector);
+      for (let i = 0; i < elements.length; i++) {
+        const text = $(elements[i]).text().trim();
+        if (text && 
+            text.length > 1 && 
+            text.length < 100 && 
+            !this.looksLikeCommonWord(text) &&
+            !text.toLowerCase().includes('apply') &&
+            !text.toLowerCase().includes('save') &&
+            !text.toLowerCase().includes('job') &&
+            !text.toLowerCase().includes('position')) {
           return text;
         }
       }
     }
+
     return undefined;
   }
+
+  private extractCompanyFromTitle(title: string): string | undefined {
+    if (!title) return undefined;
+
+    // Common patterns: "Job Title at Company", "Company - Job Title", etc.
+    const patterns = [
+      /(?:at|@|for)\s+([^,\n\r|–-]+?)(?:\s*[–-]|\s*\(|\s*$)/i,
+      /([^,\n\r|–-]+?)(?:\s*[–-]\s*|\s*\|\s*)(?:job|position|role)/i,
+      /([^,\n\r|–-]+?)(?:\s*[–-]\s*|\s*\|\s*)/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = title.match(pattern);
+      if (match && match[1]) {
+        const company = match[1].trim();
+        if (company.length > 2 && company.length < 100 && !this.looksLikeCommonWord(company)) {
+          return company;
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  private extractCompanyFromNavigation($: cheerio.CheerioAPI): string | undefined {
+    // Try breadcrumbs
+    const breadcrumbs = $('.breadcrumb, [class*="breadcrumb"], .breadcrumbs, [class*="breadcrumb"]');
+    for (let i = 0; i < breadcrumbs.length; i++) {
+      const text = $(breadcrumbs[i]).text().trim();
+      const parts = text.split(/[\n\r›>]/).map(p => p.trim()).filter(p => p);
+      
+      // Look for the longest part that might be a company name
+      for (const part of parts) {
+        if (part.length > 2 && part.length < 100 && !this.looksLikeCommonWord(part)) {
+          return part;
+        }
+      }
+    }
+
+    // Try navigation
+    const navItems = $('nav a, .navigation a, [class*="nav"] a');
+    for (let i = 0; i < navItems.length; i++) {
+      const text = $(navItems[i]).text().trim();
+      if (text && text.length > 2 && text.length < 100 && !this.looksLikeCommonWord(text)) {
+        return text;
+      }
+    }
+
+    return undefined;
+  }
+
+  private extractCompanyFromContentHeuristics($: cheerio.CheerioAPI): string | undefined {
+    // Look for company mentions in the first few paragraphs
+    const firstParagraphs = $('p').slice(0, 5);
+    for (let i = 0; i < firstParagraphs.length; i++) {
+      const text = $(firstParagraphs[i]).text().trim();
+      
+      // Look for patterns like "We are [Company Name]", "Join [Company Name]", etc.
+      const patterns = [
+        /(?:we are|join|welcome to)\s+([A-Z][a-zA-Z\s&-]+?)(?:\s|\.|,|!|$)/i,
+        /(?:at|@)\s+([A-Z][a-zA-Z\s&-]{2,50})(?:\s|\.|,|!|$)/i
+      ];
+
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match && match[1]) {
+          const company = match[1].trim();
+          if (company.length > 2 && company.length < 100) {
+            return company;
+          }
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  private looksLikeCommonWord(text: string): boolean {
+    const commonWords = [
+      'apply', 'save', 'job', 'position', 'role', 'career', 'opportunity',
+      'location', 'remote', 'salary', 'pay', 'benefits', 'team', 'work',
+      'time', 'full', 'part', 'type', 'description', 'requirements',
+      'skills', 'experience', 'education', 'company', 'employer'
+    ];
+
+    return commonWords.includes(text.toLowerCase()) ||
+           /^(the|a|an|and|or|but|in|on|at|by|for|to|with|from|up|about|into|through|during|before|after|above|below|between|under|along|following|across|behind|beyond|plus|except|but|nor|yet|so|since|unless|until|while|where|when|why|how|all|any|both|each|few|more|most|other|some|such|no|nor|not|only|own|same|than|too|very|just)$/i.test(text);
+  }
+
+
 
   private extractLocation($: cheerio.CheerioAPI): string | undefined {
     const selectors = [".location", '[class*="location"]', '[class*="city"]'];

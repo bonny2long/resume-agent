@@ -23,64 +23,6 @@ export interface DocumentGenerationOptions {
 
 export class DocumentGeneratorService {
   /**
-   * Helper method to truncate summary to target word count
-   * FIXED: Better sentence boundary detection and ellipsis handling
-   */
-  private truncateSummary(summary: string, targetWords: number): string {
-    const words = summary.split(" ");
-    if (words.length <= targetWords) {
-      return summary;
-    }
-
-    // Truncate to target words
-    const truncated = words.slice(0, targetWords).join(" ");
-
-    // Try to end at a complete sentence
-    const lastPeriod = truncated.lastIndexOf(".");
-    const lastExclamation = truncated.lastIndexOf("!");
-    const lastQuestion = truncated.lastIndexOf("?");
-
-    const lastSentenceEnd = Math.max(lastPeriod, lastExclamation, lastQuestion);
-
-    // If we can end at a sentence boundary without losing too much content (70% threshold)
-    if (lastSentenceEnd > targetWords * 0.7) {
-      return truncated.substring(0, lastSentenceEnd + 1);
-    }
-
-    // Otherwise, truncate at word boundary and add ellipsis
-    // Clean up any trailing punctuation except period
-    let cleaned = truncated.replace(/[,;:]$/, "");
-
-    // If it already ends with punctuation, keep it
-    if (cleaned.match(/[.!?]$/)) {
-      return cleaned;
-    }
-
-    // Add ellipsis with proper spacing
-    return cleaned + "...";
-  }
-
-  /**
-   * Get summary length appropriate for template type
-   * FIXED: Adjusted word counts for better sentence completion
-   */
-  private getTemplateSummary(summary: string, template: string): string {
-    switch (template) {
-      case "minimal":
-        // Target: 25-30 words (shortest)
-        return this.truncateSummary(summary, 28);
-      case "modern":
-        // Target: 40-45 words (medium)
-        return this.truncateSummary(summary, 42);
-      case "traditional":
-        // Target: 55-65 words (longest)
-        return this.truncateSummary(summary, 65);
-      default:
-        return summary;
-    }
-  }
-
-  /**
    * Remove duplicate experiences based on company and title similarity
    */
   private deduplicateExperiences(experiences: any[]): any[] {
@@ -285,7 +227,28 @@ export class DocumentGeneratorService {
 
     // Generate document
     const buffer = await Packer.toBuffer(document);
-    fs.writeFileSync(filepath, buffer);
+
+    // Retry mechanism for file writing (handles locked files)
+    let retries = 0;
+    const maxRetries = 3;
+    let writeSuccess = false;
+
+    while (!writeSuccess && retries < maxRetries) {
+      try {
+        fs.writeFileSync(filepath, buffer);
+        writeSuccess = true;
+      } catch (error: any) {
+        if (error.code === "EBUSY" && retries < maxRetries - 1) {
+          logger.warn(
+            `File locked, retrying in 1 second... (attempt ${retries + 1}/${maxRetries})`,
+          );
+          retries++;
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
+        } else {
+          throw error;
+        }
+      }
+    }
 
     logger.success(`DOCX generated: ${filename}`);
     return filepath;
@@ -399,7 +362,7 @@ export class DocumentGeneratorService {
       );
     }
 
-    // Professional Summary
+    // Professional Summary Header
     sections.push(
       new Paragraph({
         heading: HeadingLevel.HEADING_1,
@@ -416,19 +379,28 @@ export class DocumentGeneratorService {
       }),
     );
 
-    // Enhanced summary with career story (template-specific length)
-    sections.push(
-      new Paragraph({
-        spacing: { after: 240 },
-        children: [
-          new TextRun({
-            text: this.getTemplateSummary(tailored.summary, "modern"),
-            size: 22,
-            font: "Arial",
-          }),
-        ],
-      }),
-    );
+    // 🔴 FIX: Split summary into distinct paragraphs
+    const summaryParagraphs = tailored.summary
+      .split(/\n+/)
+      .filter((p) => p.trim().length > 0);
+
+    summaryParagraphs.forEach((paragraph, index) => {
+      sections.push(
+        new Paragraph({
+          // Add standard spacing after each paragraph, slightly more after the last one
+          spacing: {
+            after: index === summaryParagraphs.length - 1 ? 240 : 120,
+          },
+          children: [
+            new TextRun({
+              text: paragraph.trim(),
+              size: 22,
+              font: "Arial",
+            }),
+          ],
+        }),
+      );
+    });
 
     // Technical Skills
     if (
@@ -543,7 +515,6 @@ export class DocumentGeneratorService {
             `${exp.endDate?.toLocaleString("default", { month: "short" })} ${exp.endDate?.getFullYear()}`
           );
 
-        // FIXED: Added location fallback
         const locationText = exp.location ? `${exp.location} | ` : "";
 
         sections.push(
@@ -854,7 +825,7 @@ export class DocumentGeneratorService {
       }),
     );
 
-    // Professional Summary (no all-caps header)
+    // Professional Summary Header
     sections.push(
       new Paragraph({
         spacing: { after: 80 },
@@ -869,18 +840,27 @@ export class DocumentGeneratorService {
       }),
     );
 
-    sections.push(
-      new Paragraph({
-        spacing: { after: 240 },
-        children: [
-          new TextRun({
-            text: this.getTemplateSummary(tailored.summary, "traditional"),
-            size: 22,
-            font: "Times New Roman",
-          }),
-        ],
-      }),
-    );
+    // 🔴 FIX: Split summary into distinct paragraphs
+    const summaryParagraphs = tailored.summary
+      .split(/\n+/)
+      .filter((p) => p.trim().length > 0);
+
+    summaryParagraphs.forEach((paragraph, index) => {
+      sections.push(
+        new Paragraph({
+          spacing: {
+            after: index === summaryParagraphs.length - 1 ? 240 : 120,
+          },
+          children: [
+            new TextRun({
+              text: paragraph.trim(),
+              size: 22,
+              font: "Times New Roman",
+            }),
+          ],
+        }),
+      );
+    });
 
     // Technical Skills
     if (
@@ -952,7 +932,6 @@ export class DocumentGeneratorService {
                 font: "Times New Roman",
               }),
               new TextRun({
-                // FIXED: Added conditional for location
                 text: exp.location ? `, ${exp.location}` : "",
                 size: 22,
                 font: "Times New Roman",
@@ -1109,7 +1088,9 @@ export class DocumentGeneratorService {
 
         sections.push(
           new Paragraph({
-            spacing: { after: index < tailored.projects.length - 1 ? 120 : 60 },
+            spacing: {
+              after: index < tailored.projects.length - 1 ? 120 : 60,
+            },
             children: [
               new TextRun({
                 text: `${project.description} Technologies: ${project.technologies.join(", ")}`,
@@ -1215,20 +1196,29 @@ export class DocumentGeneratorService {
       }),
     );
 
-    // Summary (no header, just text - shortest for minimal)
-    sections.push(
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 360 },
-        children: [
-          new TextRun({
-            text: this.getTemplateSummary(tailored.summary, "minimal"),
-            size: 22,
-            font: "Helvetica",
-          }),
-        ],
-      }),
-    );
+    // 🔴 FIX: Split summary into distinct paragraphs (Minimal style)
+    const summaryParagraphs = tailored.summary
+      .split(/\n+/)
+      .filter((p) => p.trim().length > 0);
+
+    summaryParagraphs.forEach((paragraph, index) => {
+      sections.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: {
+            // Larger spacing after the entire block, distinct spacing between paragraphs
+            after: index === summaryParagraphs.length - 1 ? 360 : 120,
+          },
+          children: [
+            new TextRun({
+              text: paragraph.trim(),
+              size: 22,
+              font: "Helvetica",
+            }),
+          ],
+        }),
+      );
+    });
 
     // Skills (minimal header)
     if (
@@ -1252,7 +1242,7 @@ export class DocumentGeneratorService {
       const allSkills = [
         ...tailored.skills.matched,
         ...tailored.skills.relevant,
-      ].slice(0, 10); // FIXED: Reduced from 15 to 10 for more minimal
+      ].slice(0, 10);
 
       sections.push(
         new Paragraph({
@@ -1391,7 +1381,6 @@ export class DocumentGeneratorService {
           }),
         );
 
-        // FIXED: Shorter descriptions for minimal template
         const shortDescription =
           project.description.length > 80 ?
             project.description.substring(0, 77) + "..."
@@ -1777,20 +1766,6 @@ export class DocumentGeneratorService {
     // PDF conversion requires LibreOffice which may not be available
     logger.warn("PDF conversion not yet implemented, returning DOCX");
     return docxPath;
-
-    /* TODO: Implement when LibreOffice is available
-    const { execSync } = require('child_process');
-    const command = `python scripts/office/soffice.py --headless --convert-to pdf "${docxPath}"`;
-    
-    try {
-      execSync(command, { cwd: process.cwd() });
-      logger.success('Converted to PDF');
-      return pdfPath;
-    } catch (error) {
-      logger.error('PDF conversion failed', error);
-      return docxPath; // Fallback to DOCX
-    }
-    */
   }
 }
 

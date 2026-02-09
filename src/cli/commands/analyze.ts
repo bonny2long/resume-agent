@@ -14,29 +14,14 @@ import { MatchResult } from "@/agents/job-analyzer.agent";
 export const analyzeCommand = new Command("analyze")
   .description("Analyze a job posting and research the company")
   .argument("[job-url]", "URL of the job posting")
-  .option("--save", "Save analysis to database", false)
+  .option("--no-save", "Skip saving to database", false)
   .option("--verbose", "Show detailed logging output", false)
   .action(async (jobUrl?: string, options?: any) => {
-    // Parse options from Commander.js with fallback to process.argv
-    let save = false;
-    let verbose = false;
-
-    // Method 1: Check options object directly
-    if (options?.save) save = true;
-    if (options?.verbose) verbose = true;
-
-    // Method 2: Check if this is a commander command with opts() method
-    if (options?.opts) {
-      const cmdOptions = options.opts();
-      if (cmdOptions?.save) save = true;
-      if (cmdOptions?.verbose) verbose = true;
-    }
-
-    // Method 3: Fallback to checking process.argv directly
-    if (!save) save = process.argv.includes("--save");
-    if (!verbose) verbose = process.argv.includes("--verbose");
-
-    const opts = { save, verbose };
+    // Save by default, only skip if --no-save is explicitly provided
+    const opts = {
+      save: !options?.noSave && process.env.NO_SAVE !== "true",
+      verbose: options?.verbose || process.argv.includes("--verbose")
+    };
 
     try {
       // If no URL provided, prompt for it
@@ -57,7 +42,7 @@ export const analyzeCommand = new Command("analyze")
         jobUrl = url;
       }
 
-      // Check database connection if saving
+      // Check database connection (always save by default)
       if (opts?.save) {
         const prisma = getPrismaClient();
         try {
@@ -390,14 +375,19 @@ export const analyzeCommand = new Command("analyze")
             console.log(chalk.gray("🔍 Saving job information..."));
           }
 
-          // Save job
+// Save job
+          const jobTitle = job.title || "Software Engineer"; // Fallback title
+          const uniqueTitle = `${jobTitle} - ${new Date().toISOString().split('T')[0]}`; // Add date to make unique
+          console.log(`DEBUG: Saving job with title: "${uniqueTitle}"`);
+          console.log(`DEBUG: Company ID: ${savedCompany.id}`);
+          
           const savedJob = await jobRepo.createJob({
             companyId: savedCompany.id,
-            title: job.title,
+            title: uniqueTitle,
             url: jobUrl,
             location: job.location || "Remote",
             salary: job.salary,
-            rawDescription: "Job description", // We'd store the full text
+            rawDescription: "Job description", // We'd store full text
             requiredSkills: job.requiredSkills,
             preferredSkills: job.preferredSkills,
             responsibilities: job.responsibilities,
@@ -406,6 +396,8 @@ export const analyzeCommand = new Command("analyze")
             skillsMatch: matchResult?.score,
             experienceLevel: job.experienceLevel,
           });
+          
+          console.log(`DEBUG: Job saved with ID: ${savedJob.id}`);
 
           saveSpinner.succeed("Saved to database!");
           console.log(chalk.green(`  ✓ Company: ${savedCompany.name}`));

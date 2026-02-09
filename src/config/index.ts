@@ -18,9 +18,15 @@ const config: Config = {
     temperature: parseFloat(process.env.DEFAULT_TEMPERATURE || "0.7"),
   },
   embeddings: {
-    provider: "cohere",
-    apiKey: process.env.COHERE_API_KEY || "",
-    model: process.env.COHERE_EMBEDDING_MODEL || "embed-english-v3.0",
+    provider: (process.env.EMBEDDINGS_PROVIDER as "anthropic" | "openai" | "cohere" | "gemini") || "cohere",
+    apiKey: 
+      process.env.EMBEDDINGS_PROVIDER === "gemini" ? 
+        (process.env.GEMINI_API_KEY || "") :
+        (process.env.COHERE_API_KEY || ""),
+    model: 
+      process.env.EMBEDDINGS_PROVIDER === "gemini" ? 
+        (process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004") :
+        (process.env.COHERE_EMBEDDING_MODEL || "embed-english-v3.0"),
   },
   github: {
     token: process.env.GITHUB_TOKEN,

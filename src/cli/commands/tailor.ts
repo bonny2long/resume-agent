@@ -73,7 +73,6 @@ export const tailorCommand = new Command("tailor")
 
         try {
           const embeddings = getEmbeddingsService();
-
           const expCount = await embeddings.generateAllExperienceEmbeddings();
           const projCount = await embeddings.generateAllProjectEmbeddings();
 
@@ -88,8 +87,9 @@ export const tailorCommand = new Command("tailor")
 
       // Step 2: Tailor the resume
       const tailorSpinner = ora("Tailoring resume...").start();
-
       const tailorAgent = getResumeTailorAgent();
+
+      // Ensure jobId is treated as string since we validated it above
       const result = await tailorAgent.tailorResume(jobId!);
 
       if (!result.success || !result.data) {
@@ -127,16 +127,16 @@ export const tailorCommand = new Command("tailor")
         );
         console.log(
           chalk.gray(
-            `     ${exp.startDate.getFullYear()} - ${exp.current ? "Present" : exp.endDate?.getFullYear()}`,
+            `    ${exp.startDate.getFullYear()} - ${exp.current ? "Present" : exp.endDate?.getFullYear()}`,
           ),
         );
         exp.achievements.slice(0, 2).forEach((ach) => {
           console.log(
-            chalk.gray(`     • ${ach.description.substring(0, 60)}...`),
+            chalk.gray(`    • ${ach.description.substring(0, 60)}...`),
           );
         });
         console.log(
-          chalk.cyan(`     Tech: ${exp.technologies.slice(0, 5).join(", ")}`),
+          chalk.cyan(`    Tech: ${exp.technologies.slice(0, 5).join(", ")}`),
         );
         console.log();
       });
@@ -148,9 +148,9 @@ export const tailorCommand = new Command("tailor")
             `  ${index + 1}. ${proj.name} (Relevance: ${proj.relevanceScore}%)`,
           ),
         );
-        console.log(chalk.gray(`     ${proj.description.substring(0, 60)}...`));
+        console.log(chalk.gray(`    ${proj.description.substring(0, 60)}...`));
         console.log(
-          chalk.cyan(`     Tech: ${proj.technologies.slice(0, 5).join(", ")}`),
+          chalk.cyan(`    Tech: ${proj.technologies.slice(0, 5).join(", ")}`),
         );
         console.log();
       });
@@ -177,6 +177,7 @@ export const tailorCommand = new Command("tailor")
       const prisma = getPrismaClient();
       const job = await prisma.job.findUnique({
         where: { id: jobId },
+        include: { company: true },
       });
 
       if (job) {
@@ -221,7 +222,7 @@ export const tailorCommand = new Command("tailor")
         }
 
         const timestamp = new Date().toISOString().split("T")[0];
-        const filename = `resume_${tailored.company.toLowerCase().replace(/\s+/g, "-")}_${timestamp}.json`;
+        const filename = `resume_${job?.title?.toLowerCase().replace(/\s+/g, "-") || "tailored"}_${timestamp}.json`;
         const filepath = path.join(outputDir, filename);
 
         fs.writeFileSync(filepath, JSON.stringify(tailored, null, 2));
@@ -237,15 +238,9 @@ export const tailorCommand = new Command("tailor")
       logger.box(`
 Tailored Resume Complete! ✓
 
-Job: ${tailored.jobTitle} at ${tailored.company}
-Match Score: ${tailored.matchScore}%
-ATS Optimized: ${tailored.atsOptimized ? "Yes" : "No"}
-
-Selected Content:
-  • ${tailored.experiences.length} most relevant experiences
-  • ${tailored.projects.length} most relevant projects
-  • ${tailored.skills.matched.length} matched skills
-  • ${tailored.skills.relevant.length} additional relevant skills
+Job: ${job?.title || "Unknown Position"} at ${job?.company || "Unknown Company"}
+ATS Score: ${tailored.atsScore || "N/A"}%
+Resume tailored successfully with ${tailored.experiences.length} experiences and ${tailored.projects.length} projects
 
 Next steps:
   • Generate PDF: npm run dev generate ${jobId}
