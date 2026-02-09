@@ -135,9 +135,12 @@ export const tailorCommand = new Command("tailor")
             chalk.gray(`    • ${ach.description.substring(0, 60)}...`),
           );
         });
-        console.log(
-          chalk.cyan(`    Tech: ${exp.technologies.slice(0, 5).join(", ")}`),
-        );
+        // Only show Tech section if there are actual technologies
+        if (exp.technologies && exp.technologies.length > 0) {
+          console.log(
+            chalk.cyan(`    Tech: ${exp.technologies.slice(0, 5).join(", ")}`),
+          );
+        }
         console.log();
       });
 
@@ -149,9 +152,12 @@ export const tailorCommand = new Command("tailor")
           ),
         );
         console.log(chalk.gray(`    ${proj.description.substring(0, 60)}...`));
-        console.log(
-          chalk.cyan(`    Tech: ${proj.technologies.slice(0, 5).join(", ")}`),
-        );
+        // Only show Tech section if there are actual technologies
+        if (proj.technologies && proj.technologies.length > 0) {
+          console.log(
+            chalk.cyan(`    Tech: ${proj.technologies.slice(0, 5).join(", ")}`),
+          );
+        }
         console.log();
       });
 

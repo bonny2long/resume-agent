@@ -542,23 +542,23 @@ Core Skills: ${masterResume.skills
 
 Write a POWERFUL, COMPELLING resume summary with EXACTLY 3 DISTINCT PARAGRAPHS (no more, no less). Each paragraph must be clearly separated. Follow this structure:
 
-Paragraph 1: Company Alignment & Career Transition
-- Start by showing enthusiasm for ${companyName} specifically
-- Reference 2-3 key company values: ${companyValues}
-- Connect your trades-to-tech career transition to ${companyName}'s mission
-- Mention their tech stack (${companyTech}) and your excitement about their work
+Paragraph 1: Your Unique Story & Value Proposition
+- Start with your compelling career transition story - how you moved from electrical technician/insulator to software engineering
+- Emphasize the unique perspective gained from managing multi-million dollar projects and working with diverse clients in trades
+- Connect this systematic, hands-on problem-solving approach to software development challenges
+- Show how your background gives you insight into both physical and digital systems
 
-Paragraph 2: Technical Skills & Value Proposition
-- Address the specific responsibilities: ${jobResponsibilities}
-- Showcase how your unique trades background gives you systematic thinking for software development
-- Highlight your relevant technical skills: JavaScript, Python, React, Node.js, databases
+Paragraph 2: Technical Skills & Company-Specific Solutions
+- Address how your skills solve ${companyName}'s specific needs: ${jobResponsibilities}
+- Showcase your technical abilities: JavaScript, Python, React, Node.js, databases and how they apply to ${companyTech}
 - Demonstrate understanding of their focus areas: ${jobKeywords}
+- Highlight how your trades experience translates to better software architecture and user solutions
 
-Paragraph 3: Culture Fit & Future Contribution
-- Express excitement about contributing to ${companyName}'s success and culture
-- Show how your collaborative nature and work ethic align with ${companyValues}
-- Emphasize your eagerness to learn, grow, and contribute long-term
-- End with confidence that you bring both technical expertise and fresh perspective
+Paragraph 3: How You'll Help ${companyName} Succeed
+- Specifically state how your unique background will benefit ${companyName}'s mission and projects
+- Reference your collaborative experience working with engineers, project managers, and clients in trades environments
+- Connect your work ethic and quality focus to ${companyValues}
+- End with confidence about the specific value you bring - combining practical expertise with modern software skills
 
 CRITICAL REQUIREMENTS:
 - MUST be exactly 3 paragraphs (not 1 huge paragraph)
