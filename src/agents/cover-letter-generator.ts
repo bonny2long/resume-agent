@@ -1,4 +1,4 @@
-// src/agents/cover-letter.agent.ts
+// src/agents/cover-letter-generator.ts
 import { getLLMService } from "@/services/llm.service";
 import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
@@ -59,7 +59,7 @@ export class CoverLetterAgent {
       logger.header("Cover Letter Agent");
       logger.info("Generating cover letter", { jobId, tone: options.tone });
 
-// Step 1: Load job and company data
+      // Step 1: Load job and company data
       logger.step(1, 4, "Loading job and company data...");
       const job = await this.prisma.job.findUnique({
         where: { id: jobId },
@@ -70,11 +70,11 @@ export class CoverLetterAgent {
         throw new Error("Job not found");
       }
 
-logger.success(`Job: ${job.title} at ${job.company?.name}`);
+      logger.success(`Job: ${job.title} at ${job.company?.name}`);
 
       // Step 2: Load master resume
       logger.step(2, 4, "Loading resume data...");
-const masterResume = await this.prisma.masterResume.findFirst({
+      const masterResume = await this.prisma.masterResume.findFirst({
         include: {
           experiences: {
             include: { achievements: true },
@@ -339,7 +339,7 @@ Return ONLY valid JSON, no markdown formatting.`;
   /**
    * Create fallback content if AI fails
    */
-private createFallbackContent(
+  private createFallbackContent(
     job: any,
     _masterResume: any,
     careerStory: string,
@@ -349,7 +349,7 @@ private createFallbackContent(
     body: string[];
     closing: string;
   } {
-const opening =
+    const opening =
       careerStory ?
         careerStory +
         ` I am writing to express my strong interest in the ${job.title} position at ${job.company?.name}.`

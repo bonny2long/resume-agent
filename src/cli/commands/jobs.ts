@@ -202,9 +202,7 @@ jobsCommand
               `  • Status: ${app.status} (${new Date(app.createdAt).toLocaleDateString()})`,
             ),
           );
-          if (app.atsScore) {
-            console.log(chalk.gray(`    ATS Score: ${app.atsScore}%`));
-          }
+
         });
         console.log();
       }

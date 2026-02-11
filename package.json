@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "nodemon --exec \"ts-node -r tsconfig-paths/register\" src/cli/index.ts --",
     "dev:analyze": "npm run dev -- analyze",
+    "find-manager": "npm run dev -- find-manager",
     "build": "tsc",
     "start": "node dist/cli/index.js",
     "prisma:generate": "prisma generate",
@@ -24,6 +25,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
     "@google/generative-ai": "^0.24.1",
+    "@huggingface/inference": "^4.13.12",
     "@octokit/rest": "^21.0.0",
     "@prisma/client": "^5.10.0",
     "axios": "^1.6.0",

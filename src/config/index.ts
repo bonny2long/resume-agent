@@ -17,17 +17,31 @@ const config: Config = {
     maxTokens: parseInt(process.env.DEFAULT_MAX_TOKENS || "4000"),
     temperature: parseFloat(process.env.DEFAULT_TEMPERATURE || "0.7"),
   },
-  embeddings: {
-    provider: (process.env.EMBEDDINGS_PROVIDER as "anthropic" | "openai" | "cohere" | "gemini") || "cohere",
-    apiKey: 
-      process.env.EMBEDDINGS_PROVIDER === "gemini" ? 
-        (process.env.GEMINI_API_KEY || "") :
-        (process.env.COHERE_API_KEY || ""),
-    model: 
-      process.env.EMBEDDINGS_PROVIDER === "gemini" ? 
-        (process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004") :
-        (process.env.COHERE_EMBEDDING_MODEL || "embed-english-v3.0"),
+  huggingface: {
+    apiKey: process.env.HUGGINGFACE_API_KEY || "",
+    model: process.env.HUGGINGFACE_MODEL || "meta-llama/Llama-3.3-70B-Instruct",
   },
+  embeddings: (() => {
+    const provider =
+      (process.env.EMBEDDINGS_PROVIDER as
+        | "anthropic"
+        | "openai"
+        | "cohere"
+        | "gemini"
+        | "huggingface") || "cohere";
+    const isGemini = provider === "gemini";
+    return {
+      provider,
+      apiKey:
+        isGemini ?
+          process.env.GEMINI_API_KEY || ""
+        : process.env.COHERE_API_KEY || "",
+      model:
+        isGemini ?
+          process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004"
+        : process.env.COHERE_EMBEDDING_MODEL || "embed-english-v3.0",
+    };
+  })(),
   github: {
     token: process.env.GITHUB_TOKEN,
     enabled: process.env.ENABLE_GITHUB_SYNC === "true",

@@ -118,9 +118,18 @@ export class LinkedInMessageAgent {
         // Extract short version for LinkedIn
         if (
           content.includes("electrical technician") ||
-          content.includes("trades")
+          content.includes("trades") ||
+          content.includes("electrical")
         ) {
-          return "After 6+ years in electrical trades, I transitioned to software engineering, bringing a unique systematic approach to development.";
+          return "Former electrician turned software engineer - I bring 6+ years of systematic problem-solving and hands-on technical expertise to modern software development.";
+        }
+
+        // Look for other transition patterns
+        if (
+          content.includes("career change") ||
+          content.includes("transition")
+        ) {
+          return "Career changer with a unique perspective - I combine my previous industry experience with modern software engineering skills to solve problems differently.";
         }
       }
     } catch (error) {
@@ -209,34 +218,77 @@ export class LinkedInMessageAgent {
   ): Promise<string> {
     const toneGuidance = this.getToneGuidance(tone);
 
+    // Extract relevant job details for personalization
+    const keySkills =
+      job.requiredSkills
+        ?.slice(0, 3)
+        .map((s: any) => s.name)
+        .join(", ") || "";
+    const companyFocus =
+      job.company?.industry || job.company?.values?.slice(0, 1)[0] || "";
+    const yourUniqueValue =
+      careerStory || "Software engineer with strong problem-solving skills";
+
+    // Extract hiring manager insights if available
+    let hmInsights = "";
+    if (hiringManager.profileData) {
+      try {
+        const profile =
+          typeof hiringManager.profileData === "string" ?
+            JSON.parse(hiringManager.profileData)
+          : hiringManager.profileData;
+
+        if (profile.experience?.length) {
+          const recentExp = profile.experience[0];
+          hmInsights +=
+            recentExp.company ? `Works at ${recentExp.company}` : "";
+        }
+        if (profile.skills?.length) {
+          const topSkills = profile.skills.slice(0, 2).join(", ");
+          hmInsights +=
+            hmInsights ? `. Skills: ${topSkills}` : `Skills: ${topSkills}`;
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+    }
+
     const prompt = `Write a LinkedIn connection request (MAXIMUM 300 characters) for a job application.
 
 CRITICAL: Response must be 300 characters or less. This is a hard LinkedIn limit.
 
+Context:
 Job: ${job.title} at ${job.company?.name}
+${keySkills ? `Key skills needed: ${keySkills}` : ""}
+${companyFocus ? `Company focus: ${companyFocus}` : ""}
 Hiring Manager: ${hiringManager.fullName}
 ${hiringManager.title ? `Their Title: ${hiringManager.title}` : ""}
+${hmInsights ? `About them: ${hmInsights}` : ""}
 Your Name: ${masterResume.fullName}
-${careerStory ? `Your Story: ${careerStory}` : ""}
+Your unique value: ${yourUniqueValue}
 
 ${toneGuidance}
 
 Requirements:
 1. Under 300 characters (INCLUDING spaces)
-2. Mention the specific role or company
-3. Be genuine, not generic
-4. ${
-      tone === "professional"
-        ? "Professional and direct"
-        : tone === "enthusiastic"
-          ? "Show excitement"
-          : "Be friendly and approachable"
+2. Reference something specific about the role, company, or their background
+3. Show why you're a good fit beyond just "interested"
+4. Be memorable and stand out from generic requests
+5. ${
+      tone === "professional" ? "Professional but engaging"
+      : tone === "enthusiastic" ? "Show genuine excitement"
+      : "Be friendly and authentic"
     }
+
+Examples of good hooks:
+- "Love what ${job.company?.name} is doing in [specific area]"
+- "Your experience with [specific tech/field] caught my eye"
+- "My background in [relevant area] aligns perfectly with your [role/company focus]"
 
 Return ONLY the message text, no quotation marks, no preamble.`;
 
     const response = await this.llm.complete(prompt, {
-      temperature: 0.7,
+      temperature: 0.8,
       maxTokens: 150,
     });
 
@@ -246,16 +298,31 @@ Return ONLY the message text, no quotation marks, no preamble.`;
       // Remove quotes if present
       message = message.replace(/^["']|["']$/g, "");
 
-      // Truncate if too long
+      // Smart truncate if too long - try to end at a word boundary
       if (message.length > 300) {
-        message = message.substring(0, 297) + "...";
+        let truncated = message.substring(0, 298);
+        const lastSpace = truncated.lastIndexOf(" ");
+        const lastPeriod = truncated.lastIndexOf(".");
+
+        if (lastSpace > 250 && lastSpace > lastPeriod) {
+          truncated = truncated.substring(0, lastSpace);
+        } else if (lastPeriod > 250) {
+          truncated = truncated.substring(0, lastPeriod + 1);
+        } else {
+          truncated = truncated.substring(0, 295) + "...";
+        }
+        message = truncated;
       }
 
       return message;
     }
 
-    // Fallback
-    return `Hi ${hiringManager.fullName.split(" ")[0]}, I'm interested in the ${job.title} role at ${job.company?.name}. I'd love to connect and learn more about the opportunity.`;
+    // Improved fallback
+    const firstName = hiringManager.fullName.split(" ")[0];
+    if (keySkills) {
+      return `Hi ${firstName}! Impressed by ${job.company?.name}'s work in ${companyFocus}. My background in ${keySkills.split(",")[0]} aligns perfectly with the ${job.title} role. Would love to connect!`;
+    }
+    return `Hi ${firstName}! Your work at ${job.company?.name} caught my eye. I'd bring unique value to the ${job.title} role and would love to connect about the opportunity.`;
   }
 
   /**
@@ -270,26 +337,51 @@ Return ONLY the message text, no quotation marks, no preamble.`;
   ): Promise<{ subject: string; message: string }> {
     const toneGuidance = this.getToneGuidance(tone);
 
-    const prompt = `Write a LinkedIn message to send after your connection request is accepted.
+    // Extract more specific details for personalization
+    const topSkills =
+      masterResume.skills
+        ?.slice(0, 5)
+        .map((s: any) => s.name)
+        .join(", ") || "";
+    const jobHighlights = job.responsibilities?.slice(0, 2).join("; ") || "";
+    const companyValues = job.company?.values?.slice(0, 2).join("; ") || "";
 
+    const prompt = `Write a compelling LinkedIn message to send after your connection request is accepted.
+
+Context:
 Job: ${job.title} at ${job.company?.name}
+${jobHighlights ? `Role highlights: ${jobHighlights}` : ""}
+${companyValues ? `Company values: ${companyValues}` : ""}
+${
+  job.requiredSkills?.length ?
+    `Key skills needed: ${job.requiredSkills
+      .slice(0, 3)
+      .map((s: any) => s.name)
+      .join(", ")}`
+  : ""
+}
 Hiring Manager: ${hiringManager.fullName}
 ${hiringManager.title ? `Their Title: ${hiringManager.title}` : ""}
+${hiringManager.department ? `Their Department: ${hiringManager.department}` : ""}
 Your Name: ${masterResume.fullName}
-${careerStory ? `Your Story: ${careerStory}` : ""}
-Your Skills: ${masterResume.skills
-      ?.slice(0, 5)
-      .map((s: any) => s.name)
-      .join(", ")}
+${careerStory ? `Your unique story: ${careerStory}` : ""}
+${topSkills ? `Your top skills: ${topSkills}` : ""}
 
 ${toneGuidance}
 
 Write a message that:
-1. Thanks them for connecting
-2. ${careerStory ? "Briefly mentions your unique background" : "Mentions your relevant experience"}
-3. Expresses specific interest in the role
-4. Asks for 15-20 minutes to chat
-5. Is 3-4 short paragraphs
+1. Thanks them warmly for connecting
+2. Shows you've done your homework - mention something specific about their role, the company, or recent company news/achievements
+3. ${careerStory ? "Briefly connect your unique background to their needs" : "Connect your relevant experience to their specific challenges"}
+4. Be specific about why THIS role excites you (not just any job)
+5. Ask for a brief conversation with a clear call-to-action
+6. Keep it conversational and engaging, not robotic
+
+Structure:
+- Warm opening + gratitude
+- 1 paragraph showing research and specific interest
+- 1 paragraph connecting your background to their needs
+- Clear, easy call-to-action
 
 Return a JSON object:
 {
@@ -362,24 +454,28 @@ ${masterResume.fullName}`,
   ): Promise<string> {
     const toneGuidance = this.getToneGuidance(tone);
 
-    const prompt = `Write a polite follow-up LinkedIn message.
+    const prompt = `Write a thoughtful follow-up LinkedIn message that adds value.
 
-Context: You sent a message about the ${job.title} role at ${job.company?.name} 
-to ${hiringManager.fullName} but haven't heard back.
+Context: You previously connected with ${hiringManager.fullName} about the ${job.title} role at ${job.company?.name} but haven't heard back about your message.
 
 ${toneGuidance}
 
-Write a brief follow-up that:
-1. Is polite and understanding (they're busy)
-2. Reiterates your interest
-3. Offers additional information or flexibility
-4. Keeps the door open
-5. Is 2-3 sentences max
+Write a follow-up that:
+1. Acknowledges they're busy (shows empathy)
+2. Briefly reminds them of your specific interest in THIS role
+3. Offers something NEW - a quick insight, question, or relevant observation
+4. Makes it easy for them to respond (low friction)
+5. Is concise but not generic
 
-Return ONLY the message text.`;
+Examples of value-add:
+- "I just saw [company news] and it reinforced my interest"
+- "Quick question about [specific aspect of the role]"
+- "I recently worked with [relevant tech] and thought of your team"
+
+Return ONLY the message text, no quotation marks.`;
 
     const response = await this.llm.complete(prompt, {
-      temperature: 0.7,
+      temperature: 0.8,
       maxTokens: 200,
     });
 
@@ -387,8 +483,9 @@ Return ONLY the message text.`;
       return response.data.trim().replace(/^["']|["']$/g, "");
     }
 
-    // Fallback
-    return `Hi ${hiringManager.fullName.split(" ")[0]}, I wanted to follow up on my previous message about the ${job.title} role. I understand you're busy, but I remain very interested in the opportunity. Please let me know if you'd like any additional information. Thank you!`;
+    // Improved fallback
+    const firstName = hiringManager.fullName.split(" ")[0];
+    return `Hi ${firstName}, following up on the ${job.title} role. I understand you're busy - just wanted to reiterate my excitement about ${job.company?.name}'s innovative approach. Would 10 minutes work for a quick chat about how my background could help the team?`;
   }
 
   /**
@@ -398,22 +495,25 @@ Return ONLY the message text.`;
     switch (tone) {
       case "enthusiastic":
         return `Tone: Enthusiastic and energetic
-- Show genuine excitement
-- Use words like "thrilled", "excited", "passionate"
-- Maintain professionalism`;
+- Show genuine excitement about the specific role/company
+- Use words like "excited", "impressed", "fascinated", "passionate"
+- Be energetic but maintain professionalism
+- Focus on what specifically excites you about this opportunity`;
 
       case "friendly":
         return `Tone: Friendly and approachable
-- Be conversational
-- Use contractions ("I'm", "I'd")
-- Show personality`;
+- Be conversational and natural
+- Use appropriate contractions ("I'm", "I'd", "you'll")
+- Show personality while staying professional
+- Write like you'd speak to a colleague`;
 
       case "professional":
       default:
-        return `Tone: Professional and respectful
-- Formal but not stiff
-- Direct and clear
-- Business-appropriate`;
+        return `Tone: Professional and polished
+- Clear, confident, and respectful
+- Direct but not abrupt
+- Focus on value and competence
+- Use business-appropriate language that shows you're a peer`;
     }
   }
 

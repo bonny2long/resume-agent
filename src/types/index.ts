@@ -18,7 +18,11 @@ export interface Config {
     temperature: number;
   };
   embeddings?: {
-    provider: "anthropic" | "openai" | "cohere" | "gemini";
+    provider: "anthropic" | "openai" | "cohere" | "gemini" | "huggingface";
+    apiKey: string;
+    model: string;
+  };
+  huggingface: {
     apiKey: string;
     model: string;
   };

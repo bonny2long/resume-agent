@@ -1,6 +1,8 @@
 // src/services/llm.service.ts
 import Anthropic from "@anthropic-ai/sdk";
 import { CohereClient, CohereClientV2 } from "cohere-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { InferenceClient } from "@huggingface/inference";
 import config from "@/config";
 import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
@@ -25,7 +27,9 @@ export class LLMService {
   private anthropicClient?: Anthropic;
   private cohereClient?: CohereClient;
   private cohereClientV2?: CohereClientV2;
-  private provider: "anthropic" | "cohere";
+  private geminiClient?: GoogleGenerativeAI;
+  private huggingFaceClient?: InferenceClient;
+  private provider: "anthropic" | "cohere" | "gemini" | "huggingface";
   private model: string;
   private defaultMaxTokens: number;
   private defaultTemperature: number;
@@ -45,7 +49,15 @@ export class LLMService {
     });
   }
 
-  private detectProvider(): "anthropic" | "cohere" {
+  private detectProvider(): "anthropic" | "cohere" | "gemini" | "huggingface" {
+    // Prefer Hugging Face if available
+    if (process.env.HUGGINGFACE_API_KEY) {
+      return "huggingface";
+    }
+    // Prefer Gemini if available
+    if (process.env.GEMINI_API_KEY) {
+      return "gemini";
+    }
     // Prefer Anthropic if available
     if (config.llm.apiKey || process.env.ANTHROPIC_API_KEY) {
       return "anthropic";
@@ -56,11 +68,120 @@ export class LLMService {
     }
 
     throw new Error(
-      "No LLM API key found. Please set ANTHROPIC_API_KEY or COHERE_API_KEY",
+      "No LLM API key found. Please set HUGGINGFACE_API_KEY, GEMINI_API_KEY, ANTHROPIC_API_KEY or COHERE_API_KEY",
     );
   }
 
+  private getModelForProvider(
+    provider: "anthropic" | "cohere" | "gemini" | "huggingface",
+  ): string {
+    // Map the configured model to provider-specific models
+    const configuredModel = this.model;
+
+    switch (provider) {
+      case "huggingface":
+        return config.huggingface.model;
+
+      case "gemini":
+        // Prioritize a specific Gemini model from env if set
+        if (process.env.GEMINI_MODEL) return process.env.GEMINI_MODEL;
+
+        // Use Gemini models - fallback to gemini-2.5-flash-lite (highest free tier quota) if config has Anthropic model
+        if (
+          configuredModel.includes("claude") ||
+          configuredModel.includes("anthropic")
+        ) {
+          return "gemini-2.5-flash-lite";
+        }
+        // Use appropriate Gemini model names
+        if (configuredModel.includes("gemini")) {
+          return configuredModel; // Pass through if already a gemini model name
+        }
+        return "gemini-2.5-flash-lite"; // 1500+ req/day on free tier
+
+      case "anthropic":
+        // Use Anthropic models
+        if (configuredModel.includes("gemini")) {
+          return "claude-3-5-sonnet-20240620"; // Use a valid, recent model
+        }
+        return configuredModel;
+
+      case "cohere":
+        // Use Cohere models
+        if (
+          configuredModel.includes("claude") ||
+          configuredModel.includes("anthropic") ||
+          configuredModel.includes("gemini")
+        ) {
+          return "command-r"; // Use a standard, valid model
+        }
+        return configuredModel.includes("command") ? configuredModel : (
+            "command-r"
+          );
+
+      default:
+        return configuredModel;
+    }
+  }
+
+  /**
+   * Retry helper with exponential backoff for rate-limit (429) errors
+   */
+  private async withRetry<T>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+  ): Promise<T> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        const message = error?.message || "";
+        const isRetryable =
+          message.includes("429") ||
+          message.includes("Too Many Requests") ||
+          message.includes("quota") ||
+          message.includes("503") || // Model loading
+          message.includes("502") || // Bad Gateway
+          message.includes("504"); // Gateway Timeout
+
+        if (isRetryable && attempt < maxRetries) {
+          // Extract retry delay from error message, or use exponential backoff
+          const retryMatch = message.match(/retry in ([\d.]+)s/i);
+          // For 503 (model loading), wait longer (20s+)
+          const isModelLoading = message.includes("503");
+          const baseWait = isModelLoading ? 20 : 5;
+
+          const waitSeconds =
+            retryMatch ?
+              parseFloat(retryMatch[1])
+            : Math.pow(2, attempt + 1) * baseWait;
+          const waitMs = Math.ceil(waitSeconds * 1000);
+
+          logger.warn(
+            `Request failed (${isModelLoading ? "Model Loading" : "Rate Limit"}). Retrying in ${waitSeconds.toFixed(1)}s (attempt ${attempt + 1}/${maxRetries})...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error("Max retries exceeded");
+  }
+
   private initializeClients(): void {
+    // Initialize Hugging Face if key is available
+    const hfKey = process.env.HUGGINGFACE_API_KEY;
+    if (hfKey) {
+      this.huggingFaceClient = new InferenceClient(hfKey);
+    }
+
+    // Initialize Gemini if key is available
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+      this.geminiClient = new GoogleGenerativeAI(geminiKey);
+    }
+
     // Initialize Anthropic if key is available
     const anthropicKey = config.llm.apiKey || process.env.ANTHROPIC_API_KEY;
     if (anthropicKey) {
@@ -100,7 +221,37 @@ export class LLMService {
       let tokensUsed = 0;
 
       // Try primary provider first
-      if (this.provider === "anthropic" && this.anthropicClient) {
+      if (this.provider === "huggingface" && this.huggingFaceClient) {
+        const result = await this.withRetry(() =>
+          this.huggingFaceClient!.chatCompletion({
+            model: this.getModelForProvider("huggingface"),
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: options.maxTokens || this.defaultMaxTokens,
+            temperature: options.temperature || this.defaultTemperature,
+          }),
+        );
+        content = result.choices[0].message.content || "";
+        tokensUsed =
+          result.usage?.total_tokens || Math.ceil(content.length / 4);
+      } else if (this.provider === "gemini" && this.geminiClient) {
+        const geminiModel = this.getModelForProvider("gemini");
+        const model = this.geminiClient.getGenerativeModel({
+          model: geminiModel,
+        });
+        const result = await this.withRetry(() =>
+          model.generateContent({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: options.maxTokens || this.defaultMaxTokens,
+              temperature: options.temperature || this.defaultTemperature,
+              stopSequences: options.stopSequences,
+            },
+          }),
+        );
+
+        content = result.response.text();
+        tokensUsed = Math.ceil(content.length / 4); // Rough estimate
+      } else if (this.provider === "anthropic" && this.anthropicClient) {
         response = await this.anthropicClient.messages.create({
           model: this.model,
           max_tokens: options.maxTokens || this.defaultMaxTokens,
@@ -125,9 +276,8 @@ export class LLMService {
           chatMessages.push({ role: "system", content: options.systemPrompt });
         }
         chatMessages.push({ role: "user", content: prompt });
-
         response = await this.cohereClientV2.chat({
-          model: "command-a-03-2025",
+          model: this.getModelForProvider("cohere"),
           messages: chatMessages,
           maxTokens: options.maxTokens || this.defaultMaxTokens,
           temperature: options.temperature || this.defaultTemperature,
@@ -162,7 +312,21 @@ export class LLMService {
       logger.error("Completion failed", error);
 
       // Try fallback if primary fails
-      if (this.provider === "anthropic" && this.cohereClient) {
+      if (this.provider === "huggingface") {
+        // Fallback Chain: HuggingFace -> Gemini -> Cohere
+        if (this.geminiClient) {
+          logger.info("Falling back to Gemini");
+          try {
+            return await this.completeWithGemini(prompt, options);
+          } catch (geminiError) {
+            logger.warn("Gemini fallback failed", geminiError);
+          }
+        }
+        if (this.cohereClientV2) {
+          logger.info("Falling back to Cohere");
+          return await this.completeWithCohere(prompt, options);
+        }
+      } else if (this.provider === "anthropic" && this.cohereClient) {
         logger.info("Falling back to Cohere");
         return this.completeWithCohere(prompt, options);
       } else if (this.provider === "cohere" && this.anthropicClient) {
@@ -177,6 +341,43 @@ export class LLMService {
     }
   }
 
+  private async completeWithGemini(
+    prompt: string,
+    options: CompletionOptions = {},
+  ): Promise<AgentResponse<string>> {
+    if (!this.geminiClient) {
+      throw new Error("Gemini client not available");
+    }
+
+    const geminiModel = this.getModelForProvider("gemini");
+    const model = this.geminiClient.getGenerativeModel({
+      model: geminiModel,
+    });
+
+    const result = await this.withRetry(() =>
+      model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: options.maxTokens || this.defaultMaxTokens,
+          temperature: options.temperature || this.defaultTemperature,
+          stopSequences: options.stopSequences,
+        },
+      }),
+    );
+
+    const content = result.response.text();
+    const tokensUsed = Math.ceil(content.length / 4);
+
+    return {
+      success: true,
+      data: content,
+      metadata: {
+        tokensUsed,
+        provider: "gemini-fallback",
+      },
+    };
+  }
+
   private async completeWithAnthropic(
     prompt: string,
     options: CompletionOptions = {},
@@ -185,8 +386,9 @@ export class LLMService {
       throw new Error("Anthropic client not available");
     }
 
+    const anthropicModel = this.getModelForProvider("anthropic");
     const response = await this.anthropicClient.messages.create({
-      model: this.model,
+      model: anthropicModel,
       max_tokens: options.maxTokens || this.defaultMaxTokens,
       temperature: options.temperature || this.defaultTemperature,
       system: options.systemPrompt,
@@ -224,9 +426,8 @@ export class LLMService {
       chatMessages.push({ role: "system", content: options.systemPrompt });
     }
     chatMessages.push({ role: "user", content: prompt });
-
     const response = await this.cohereClientV2!.chat({
-      model: "command-a-03-2025",
+      model: this.getModelForProvider("cohere"),
       messages: chatMessages,
       maxTokens: options.maxTokens || this.defaultMaxTokens,
       temperature: options.temperature || this.defaultTemperature,
@@ -265,9 +466,24 @@ export class LLMService {
       let content: string;
       let tokensUsed = 0;
 
-      if (this.provider === "anthropic" && this.anthropicClient) {
+      if (this.provider === "huggingface" && this.huggingFaceClient) {
+        const result = await this.withRetry(() =>
+          this.huggingFaceClient!.chatCompletion({
+            model: this.getModelForProvider("huggingface"),
+            messages: messages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            max_tokens: options.maxTokens || this.defaultMaxTokens,
+            temperature: options.temperature || this.defaultTemperature,
+          }),
+        );
+        content = result.choices[0].message.content || "";
+        tokensUsed = result.usage?.total_tokens || 0;
+      } else if (this.provider === "anthropic" && this.anthropicClient) {
+        const anthropicModel = this.getModelForProvider("anthropic");
         response = await this.anthropicClient.messages.create({
-          model: this.model,
+          model: anthropicModel,
           max_tokens: options.maxTokens || this.defaultMaxTokens,
           temperature: options.temperature || this.defaultTemperature,
           system: options.systemPrompt,
@@ -288,9 +504,8 @@ export class LLMService {
         chatMessages.push(
           ...messages.map((m) => ({ role: m.role, content: m.content })),
         );
-
         response = await this.cohereClientV2.chat({
-          model: "command-a-03-2025",
+          model: this.getModelForProvider("cohere"),
           messages: chatMessages,
           maxTokens: options.maxTokens || this.defaultMaxTokens,
           temperature: options.temperature || this.defaultTemperature,

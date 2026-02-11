@@ -152,6 +152,8 @@ export const findManagerCommand = new Command("find-manager")
             throw new Error("No hiring manager to save");
           }
 
+
+
           await prisma.hiringManager.create({
             data: {
               jobId: jobId!,

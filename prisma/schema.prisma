@@ -187,22 +187,23 @@ model Job {
 }
 
 model HiringManager {
-  id          String            @id @default(uuid())
-  jobId       String
-  name        String
-  title       String
-  department  String?
-  linkedInUrl String?
-  email       String?
-  phone       String?
-  profileData Json?
-  confidence  Int
-  sources     String[]
-  foundAt     DateTime          @default(now())
-  lastUpdated DateTime          @updatedAt
-  verified    Boolean           @default(false)
-  job         Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  messages    LinkedInMessage[]
+  id            String            @id @default(uuid())
+  jobId         String
+  name          String
+  title         String
+  department    String?
+  linkedInUrl   String?
+  email         String?
+  phone         String?
+  profileData   Json?
+  confidence    Int
+  sources       String[]
+  foundAt       DateTime          @default(now())
+  lastUpdated   DateTime          @updatedAt
+  verified      Boolean           @default(false)
+  job           Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  messages      LinkedInMessage[]
+  applications  Application[]
 
   @@map("hiring_managers")
 }
@@ -226,20 +227,34 @@ model LinkedInMessage {
 }
 
 model Application {
-  id              String    @id @default(uuid())
+  id              String          @id @default(uuid())
   jobId           String
+  job             Job             @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  status          String          @default("prepared")
+  appliedAt       DateTime?
+  
   resumePath      String?
   coverLetterPath String?
-  atsScore        Int?
-  keywordMatch    Int?
-  channels        String[]
-  timeline        Json?
-  status          String    @default("draft")
-  appliedAt       DateTime?
+  
+  hiringManagerId String?
+  hiringManager   HiringManager? @relation(fields: [hiringManagerId], references: [id], onDelete: SetNull)
+  linkedInSent    Boolean         @default(false)
+  linkedInSentAt  DateTime?
+  
+  responded       Boolean         @default(false)
+  respondedAt     DateTime?
+  interviewDate   DateTime?
+  
   notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  job             Job       @relation(fields: [jobId], references: [id])
+  followUpDate    DateTime?
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  @@index([jobId])
+  @@index([status])
+  @@index([appliedAt])
 
   @@map("applications")
 }

@@ -4,12 +4,12 @@ import inquirer from "inquirer";
 import chalk from "chalk";
 import ora from "ora";
 import { logger } from "@/utils/logger";
-import { getJobAnalyzerAgent } from "@/agents/job-analyzer.agent";
+import { getJobAnalyzerAgent } from "@/agents/job-analyzer";
 import { getCompanyResearcherAgent } from "@/agents/company-researcher";
 import { getJobRepository } from "@/database/repositories/job.repository";
 import { gitHubSkillsService } from "@/services/github-skills.service";
 import getPrismaClient from "@/database/client";
-import { MatchResult } from "@/agents/job-analyzer.agent";
+import { MatchResult } from "@/agents/job-analyzer";
 
 export const analyzeCommand = new Command("analyze")
   .description("Analyze a job posting and research the company")

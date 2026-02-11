@@ -250,8 +250,9 @@ IMPORTANT: Do NOT change the industry, size, or location from the domain analysi
       values: domainAnalysis.values,
       workStyle: domainAnalysis.workStyle,
       benefits: domainAnalysis.benefits,
-      techStack: hasTechStack
-        ? [...new Set([...domainAnalysis.techStack, ...websiteData.techStack])]
+      techStack:
+        hasTechStack ?
+          [...new Set([...domainAnalysis.techStack, ...websiteData.techStack])]
         : domainAnalysis.techStack,
       products: domainAnalysis.products,
       description: domainAnalysis.description,
@@ -389,9 +390,9 @@ Keep it realistic and professional. If you don't know actual news, generate typi
 
     // Calculate score
     const score =
-      userPreferences.length > 0
-        ? Math.round((matches.length / userPreferences.length) * 100)
-        : 50; // Default if no preferences
+      userPreferences.length > 0 ?
+        Math.round((matches.length / userPreferences.length) * 100)
+      : 50; // Default if no preferences
 
     // Identify potential concerns
     const redFlags = ["long hours", "high pressure", "strict", "micromanage"];

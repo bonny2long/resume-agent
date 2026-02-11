@@ -4,6 +4,13 @@ import { getWebScraperService } from "@/services/web-scraper.service";
 import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
 
+export interface MatchResult {
+  score: number;
+  matched: string[];
+  missing: string[];
+  extras: string[];
+}
+
 export interface JobAnalysis {
   // Basic Info
   title: string;
@@ -267,12 +274,7 @@ Rules:
   calculateMatchScore(
     userSkills: string[],
     jobAnalysis: JobAnalysis,
-  ): {
-    score: number;
-    matched: string[];
-    missing: string[];
-    extras: string[];
-  } {
+  ): MatchResult {
     const normalizeSkill = (skill: string) => skill.toLowerCase().trim();
 
     const userSkillsNormalized = userSkills.map(normalizeSkill);

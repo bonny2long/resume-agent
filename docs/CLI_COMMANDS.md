@@ -2,27 +2,31 @@
 
 A concise reference for all available commands, grouped by category.
 
+> **💡 Important:** Always use `npm run dev -- <command>` when passing flags (like `--save`, `--type`, etc.). The `--` separates npm arguments from your command arguments.
+
 ## 🚀 Complete Application Workflow
 
 **Purpose:** Get everything you need for a job application in 6 steps.
 
+```bash
 # 1. Analyze job
-npm run dev analyze <job-url> --save
+npm run dev -- analyze <job-url> --save
 
 # 2. Tailor resume
-npm run dev tailor <job-id> --generate-embeddings
+npm run dev -- tailor <job-id> --generate-embeddings
 
 # 3. Generate resume
-npm run dev generate <job-id>
+npm run dev -- generate <job-id>
 
 # 4. Generate cover letter
-npm run dev cover-letter <job-id>
+npm run dev -- cover-letter <job-id>
 
 # 5. Find hiring manager (NEW!)
-npm run dev find-manager <job-id> --save
+npm run dev -- find-manager <job-id> --save
 
 # 6. Generate LinkedIn message (NEW!)
-npm run dev linkedin-message <job-id> --save
+npm run dev -- linkedin-message <job-id> --save
+```
 
 # Result:
 # ✅ Tailored resume
@@ -141,22 +145,22 @@ npm run dev linkedin-message <job-id> --save
 **Resume Generation Examples:**
 ```bash
 # Interactive job selection
-npm run dev generate
+npm run dev -- generate
 
 # Generate for specific job with options
-npm run dev generate 507ce59b-70be-478f-8789-ca3c45347ac4 --format docx --template modern
+npm run dev -- generate 507ce59b-70be-478f-8789-ca3c45347ac4 --format docx --template modern
 
 # Try different templates
-npm run dev generate <job-id> --template traditional
+npm run dev -- generate <job-id> --template traditional
 ```
 
 **Cover Letter Generation Examples:**
 ```bash
 # Interactive cover letter generation
-npm run dev cover-letter
+npm run dev -- cover-letter
 
 # Generate cover letter with specific tone
-npm run dev cover-letter <job-id> --tone enthusiastic --format docx
+npm run dev -- cover-letter <job-id> --tone enthusiastic --format docx
 ```
 
 ---

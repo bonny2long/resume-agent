@@ -25,8 +25,16 @@ export const linkedInMessageCommand = new Command("linkedin-message")
   )
   .option("--no-story", "Exclude career transition story")
   .option("--save", "Save message to database", false)
-  .action(async (jobId?: string, options?: any) => {
+  .action(async (jobId?: string, options?: any, command?: any) => {
     try {
+      // Debug: Log all arguments and options
+      console.log(chalk.gray(`Debug: jobId=${jobId}, options=${JSON.stringify(options)}, command=${JSON.stringify(command?.opts())}`));
+      
+      // Ensure options is properly populated
+      if (!options && command) {
+        options = command.opts();
+      }
+      
       const prisma = getPrismaClient();
 
       // If no job ID provided, show recent jobs
@@ -191,6 +199,9 @@ export const linkedInMessageCommand = new Command("linkedin-message")
       console.log();
       console.log(chalk.white("  ─────────────────────────────────────"));
       console.log();
+
+      // Debug save option
+      console.log(chalk.gray(`  Save option: ${options?.save}`));
 
       // Stats
       console.log(chalk.gray(`  Characters: ${messageData.characterCount}`));

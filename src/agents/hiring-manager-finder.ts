@@ -99,9 +99,9 @@ export class HiringManagerFinderAgent {
       const topMatch = rankedCandidates[0];
 
       logger.success(
-        rankedCandidates.length > 0
-          ? `Found ${rankedCandidates.length} candidates`
-          : "No candidates found",
+        rankedCandidates.length > 0 ?
+          `Found ${rankedCandidates.length} candidates`
+        : "No candidates found",
       );
 
       return {
@@ -210,15 +210,8 @@ Return ONLY a JSON array of objects with this structure:
     const managers: HiringManager[] = [];
 
     try {
-      // Try common team/about pages
-      const pagesToTry = [
-        `https://${domain}/about/team`,
-        `https://${domain}/team`,
-        `https://${domain}/about`,
-        `https://${domain}/about-us`,
-        `https://${domain}/leadership`,
-        `https://${domain}/our-team`,
-      ];
+      // Try only the most likely team/about page to avoid timeouts
+      const pagesToTry = [`https://${domain}/about`];
 
       for (const url of pagesToTry) {
         try {

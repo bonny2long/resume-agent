@@ -1,7 +1,7 @@
 // src/services/embeddings.service.ts
 import { CohereClient } from "cohere-ai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import config from "@/config";
+import { InferenceClient } from "@huggingface/inference";
 import { logger } from "@/utils/logger";
 import getPrismaClient from "@/database/client";
 
@@ -14,103 +14,100 @@ export interface EmbeddingResult {
 export class EmbeddingsService {
   private cohere: CohereClient | null = null;
   private gemini: GoogleGenerativeAI | null = null;
-  private model: string;
+  private huggingface: InferenceClient | null = null;
   private prisma = getPrismaClient();
-  private provider: string;
 
   constructor() {
-    this.provider = config.embeddings?.provider || "cohere";
-    
-    if (this.provider === "gemini") {
-      if (!config.embeddings?.apiKey) {
-        logger.warn("No Gemini API key found, using mock embeddings");
-        this.gemini = null;
-      } else {
-        this.gemini = new GoogleGenerativeAI(config.embeddings.apiKey);
-      }
-      this.model = config.embeddings?.model || "text-embedding-004";
-    } else {
-      if (!config.embeddings?.apiKey) {
-        logger.warn("No Cohere API key found, using mock embeddings");
-        this.cohere = null;
-      } else {
-        this.cohere = new CohereClient({
-          token: config.embeddings.apiKey,
-        });
-      }
-      this.model = config.embeddings?.model || "embed-english-v3.0";
+    // Initialize all available clients
+    if (process.env.COHERE_API_KEY) {
+      this.cohere = new CohereClient({
+        token: process.env.COHERE_API_KEY,
+      });
     }
 
-    logger.debug("Embeddings Service initialized", {
-      provider: this.provider,
-      model: this.model,
+    if (process.env.HUGGINGFACE_API_KEY) {
+      this.huggingface = new InferenceClient(process.env.HUGGINGFACE_API_KEY);
+    }
+
+    if (process.env.GEMINI_API_KEY) {
+      this.gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    }
+
+    logger.info("Embeddings Service initialized", {
+      cohere: !!this.cohere,
+      huggingface: !!this.huggingface,
+      gemini: !!this.gemini,
     });
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
-    try {
-      logger.debug("Generating embedding", { 
-        textLength: text.length,
-        provider: this.provider,
-      });
+    // 1. Try Hugging Face (Primary)
+    if (this.huggingface) {
+      try {
+        const model =
+          process.env.HUGGINGFACE_EMBEDDING_MODEL ||
+          "sentence-transformers/all-MiniLM-L6-v2";
+        const result = await this.huggingface.featureExtraction({
+          model: model,
+          inputs: text,
+        });
 
-      // Handle Gemini provider
-      if (this.provider === "gemini") {
-        if (!this.gemini) {
-          const embedding = this.generateMockEmbedding(text);
-          logger.debug("Mock embedding generated", {
-            dimensions: embedding.length,
-          });
-          return embedding;
+        if (Array.isArray(result)) {
+          // Handle batch vs single return
+          if (Array.isArray(result[0])) {
+            return result[0] as number[];
+          }
+          return result as number[];
         }
-
-        const embeddingModel = this.gemini.getGenerativeModel({ model: "text-embedding-004" });
-        const result = await embeddingModel.embedContent(text);
-        const embedding = result.embedding.values;
-
-        logger.debug("Gemini embedding generated", {
-          dimensions: embedding.length,
-        });
-        return embedding;
+      } catch (error: any) {
+        logger.warn(
+          `Hugging Face embedding failed: ${error.message}. Trying fallback...`,
+        );
       }
-
-      // Handle Cohere provider (default)
-      if (!this.cohere) {
-        const embedding = this.generateMockEmbedding(text);
-        logger.debug("Mock embedding generated", {
-          dimensions: embedding.length,
-        });
-        return embedding;
-      }
-
-      const response = await this.cohere.embed({
-        texts: [text],
-        model: this.model,
-        inputType: "search_document",
-      });
-
-      const embedding = (response.embeddings as number[][])[0];
-
-      logger.debug("Cohere embedding generated", {
-        dimensions: embedding.length,
-      });
-      return embedding;
-    } catch (error: any) {
-      // Check for rate limit specifically (Cohere)
-      if (error.status === 429) {
-        logger.warn(`${this.provider} API rate limit reached, using mock embeddings`, {
-          message: error.message?.substring(0, 100) + "...",
-        });
-      } else {
-        logger.error("Failed to generate embedding", error);
-      }
-      
-      const fallbackEmbedding = this.generateMockEmbedding(text);
-      logger.debug("Fallback to mock embedding", {
-        dimensions: fallbackEmbedding.length,
-      });
-      return fallbackEmbedding;
     }
+
+    // 2. Try Gemini (Secondary)
+    if (this.gemini) {
+      try {
+        const model = this.gemini.getGenerativeModel({
+          model: process.env.GEMINI_EMBEDDING_MODEL || "text-embedding-004",
+        });
+        const result = await model.embedContent(text);
+        return result.embedding.values;
+      } catch (error: any) {
+        logger.warn(
+          `Gemini embedding failed: ${error.message}. Trying fallback...`,
+        );
+      }
+    }
+
+    // 3. Try Cohere (Tertiary)
+    if (this.cohere) {
+      try {
+        const response = await this.cohere.embed({
+          texts: [text],
+          model: process.env.COHERE_EMBEDDING_MODEL || "embed-english-v3.0",
+          inputType: "search_document",
+        });
+
+        if (
+          response.embeddings &&
+          Array.isArray(response.embeddings) &&
+          response.embeddings.length > 0
+        ) {
+          const embedding = (response.embeddings as number[][])[0];
+          if (Array.isArray(embedding)) return embedding;
+        }
+      } catch (error: any) {
+        logger.warn(
+          `Cohere embedding failed: ${error.message}. Trying fallback...`,
+        );
+      }
+    }
+
+    // 4. Mock Fallback
+    logger.warn("All embedding providers failed, using mock embedding");
+    return this.generateMockEmbedding(text);
   }
 
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
