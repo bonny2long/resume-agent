@@ -23,7 +23,9 @@ import { listCommand } from "./commands/list";
 import { generateCommand } from "./commands/generate"; // ← PHASE 3: Document generation
 import { coverLetterCommand } from "./commands/cover-letter"; // ← PHASE 4: Cover letters
 import { findManagerCommand } from "./commands/find-manager"; // ← PHASE 5: Hiring manager finder
+import { resetCommand } from "./commands/reset";
 import { linkedInMessageCommand } from "./commands/linkedin-message"; // ← PHASE 5: LinkedIn messages
+import { uploadAllFixedCommand } from "./commands/upload-all-fixed";
 
 const program = new Command();
 
@@ -76,6 +78,8 @@ async function main() {
     program.addCommand(creditsCommand);
     program.addCommand(githubCommand);
     program.addCommand(listCommand);
+    program.addCommand(resetCommand);
+    program.addCommand(uploadAllFixedCommand);
 
     // Global error handler
     program.exitOverride((err) => {

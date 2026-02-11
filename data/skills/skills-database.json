@@ -1,0 +1,86 @@
+{
+  "technical_skills": {
+    "programming_languages": {
+      "proficient": ["JavaScript", "TypeScript", "Python"],
+      "familiar": ["Java", "C++", "SQL"]
+    },
+    "frontend": {
+      "frameworks": ["React", "Next.js"],
+      "styling": ["Tailwind CSS", "CSS3", "HTML5", "SASS"],
+      "state_management": ["Redux", "Context API", "Zustand"],
+      "testing": ["Jest", "React Testing Library", "Cypress"]
+    },
+    "backend": {
+      "runtime": ["Node.js", "Deno"],
+      "frameworks": ["Express.js", "Fastify", "NestJS"],
+      "databases": ["PostgreSQL", "MySQL", "MongoDB", "SQLite"],
+      "orm": ["Prisma", "Sequelize", "TypeORM"]
+    },
+    "devops": {
+      "version_control": ["Git", "GitHub", "GitLab"],
+      "ci_cd": ["GitHub Actions", "Jenkins", "Docker"],
+      "cloud": ["AWS", "Vercel", "Netlify"],
+      "monitoring": ["New Relic", "Sentry"]
+    },
+    "ai_ml": {
+      "frameworks": ["TensorFlow.js", "OpenAI API"],
+      "concepts": ["LLM Integration", "Natural Language Processing", "Recommendation Systems"],
+      "tools": ["LangChain", "Hugging Face"]
+    },
+    "api": {
+      "rest": ["REST API Design", "OpenAPI/Swagger"],
+      "graphql": ["Apollo Client", "GraphQL"],
+      "authentication": ["JWT", "OAuth 2.0", "RBAC", "Session Management"]
+    }
+  },
+  "soft_skills": {
+    "leadership": {
+      "team_coordination": "Led development teams and coordinated project milestones",
+      "mentorship": "Mentored junior developers and provided technical guidance",
+      "decision_making": "Made technical decisions balancing complexity and requirements"
+    },
+    "communication": {
+      "technical": "Explained complex technical concepts to non-technical stakeholders",
+      "presentation": "Presented project progress and technical solutions to clients",
+      "documentation": "Created comprehensive documentation for APIs and codebases"
+    },
+    "problem_solving": {
+      "analytical": "Applied systematic troubleshooting approach learned from electrical work",
+      "creative": "Developed innovative solutions for complex technical challenges",
+      "efficiency": "Optimized performance and implemented best practices"
+    },
+    "adaptability": {
+      "learning": "Quickly mastered new technologies and frameworks",
+      "flexibility": "Adapted to changing project requirements and priorities",
+      "cross_functional": "Collaborated effectively with diverse team members"
+    }
+  },
+  "domain_expertise": {
+    "digital_transformation": "Experience implementing technology solutions that transform business processes",
+    "ai_integration": "Hands-on experience integrating AI/ML capabilities into production applications",
+    "enterprise_software": "Understanding of enterprise requirements including security, scalability, and compliance",
+    "full_stack_development": "End-to-end development experience from database to UI/UX",
+    "project_management": "Managed project timelines, coordinated resources, and delivered on commitments"
+  },
+  "certifications_education": {
+    "formal_education": [
+      {
+        "institution": "i.c Stars",
+        "program": "Technology, Business & Leadership Development Program",
+        "status": "Present",
+        "focus": "Software Engineering, Business Acumen, Leadership"
+      },
+      {
+        "institution": "Ivy Tech Community College",
+        "degree": "A.A.S. in Construction Management",
+        "status": "Present"
+      }
+    ],
+    "technical_certifications": [],
+    "continuous_learning": [
+      "Advanced React Patterns and Performance Optimization",
+      "Enterprise Architecture and System Design",
+      "AI/ML Integration in Production Systems"
+    ]
+  }
+}

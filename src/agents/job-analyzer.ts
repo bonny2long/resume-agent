@@ -209,7 +209,7 @@ Rules:
     analysis.keywords = [...new Set(analysis.keywords)];
 
     // Infer experience level if not set
-    if (!analysis.experienceLevel) {
+    if (!analysis.experienceLevel && analysis.title) {
       analysis.experienceLevel = this.inferExperienceLevel(analysis.title);
     }
 
@@ -229,6 +229,7 @@ Rules:
    * Infer experience level from job title
    */
   private inferExperienceLevel(title: string): JobAnalysis["experienceLevel"] {
+    if (!title) return "mid";
     const lower = title.toLowerCase();
 
     if (lower.includes("intern") || lower.includes("entry")) return "entry";

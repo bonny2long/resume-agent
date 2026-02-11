@@ -4,6 +4,7 @@ import { getEmbeddingsService } from "@/services/embeddings.service";
 import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
 import getPrismaClient from "@/database/client";
+import storyLoader from "@/utils/story-loader";
 
 export interface TailoredResume {
   // Basic Info
@@ -308,9 +309,9 @@ export class ResumeTailorAgent {
       }),
     );
 
-    // Optimize projects
-    const optimizedProjects = relevantProjects.map(
-      ({ project, similarity }) => {
+    // Optimize projects with detailed achievement stories
+    const optimizedProjects = await Promise.all(
+      relevantProjects.map(async ({ project, similarity }) => {
         let technologies: string[] = [];
         if (Array.isArray(project.technologies)) {
           technologies = project.technologies
@@ -318,18 +319,46 @@ export class ResumeTailorAgent {
             .filter(Boolean);
         }
 
+        // Load detailed achievement story
+        const achievementStory = await this.loadAchievementStory(project.name);
+        let enhancedDescription = project.description;
+        let enhancedAchievements = project.achievements || [];
+        
+        if (achievementStory) {
+          // Extract specific metrics and achievements from the detailed story
+          const lines = achievementStory.split('\n');
+          const metrics: string[] = [];
+          const achievements: string[] = [];
+          
+          lines.forEach(line => {
+            const cleanLine = line.replace(/^[-•]\s*/, '').trim();
+            if (cleanLine.includes('%') || cleanLine.includes('+') || cleanLine.includes('users')) {
+              metrics.push(cleanLine);
+            } else if (cleanLine.length > 10 && !cleanLine.startsWith('#')) {
+              achievements.push(cleanLine);
+            }
+          });
+          
+          // Prioritize metrics in achievements
+          enhancedAchievements = [
+            ...metrics.slice(0, 3),
+            ...enhancedAchievements,
+            ...achievements.slice(0, 2)
+          ];
+        }
+
         return {
           id: project.id,
           name: project.name,
-          description: project.description,
+          description: enhancedDescription,
           role: project.role,
           technologies,
-          achievements: project.achievements,
+          achievements: enhancedAchievements,
           githubUrl: project.githubUrl,
           liveUrl: project.liveUrl,
           relevanceScore: Math.round(similarity * 100),
         };
-      },
+      }),
     );
 
     // Filter and order skills
@@ -455,35 +484,51 @@ Return exactly 2 enhanced achievements in JSON format:
     }));
   }
 
+
+
   /**
-   * Load career transition story for context
+   * Load career transition story using shared loader
    */
   private async loadCareerStory(): Promise<string> {
     try {
-      const fs = await import("fs");
-      const path = await import("path");
-
-      const storyPath = path.join(
-        process.cwd(),
-        "data",
-        "resumes",
-        "career-transition-story.md",
-      );
-      if (fs.existsSync(storyPath)) {
-        const content = fs.readFileSync(storyPath, "utf-8");
-        // Extract key points from the story
-        return (
-            content.includes(
-              "After 6+ years working as an Electrical Technician",
-            )
-          ) ?
-            "Transitioned from electrical technician and heat & frost insulator to software engineering, bringing unique problem-solving perspective from both physical and digital systems."
-          : "Made career transition to technology with strong background in technical problem-solving and project management.";
-      }
+      const story = await storyLoader.loadTransitionStory();
+      
+      // Combine elements for a comprehensive story
+      const storyElements = [
+        story.motivation,
+        story.uniqueValue
+      ].filter(Boolean).join(' ');
+      
+      return storyElements || "Career transitioner bringing systematic problem-solving from trades to software engineering";
     } catch (error) {
-      logger.warn("Could not load career story", error);
+      logger.warn("Could not load transition story", error);
+      return "Career transition to technology with strong technical background and systematic problem-solving approach.";
     }
-    return "Career transition to technology with strong technical background.";
+  }
+
+  /**
+   * Load achievement story using shared loader
+   */
+  private async loadAchievementStory(projectName: string): Promise<string> {
+    try {
+      const story = await storyLoader.loadAchievementStory(projectName);
+      
+      if (!story) return '';
+
+      // Combine quantifiable and technical achievements
+      const quantifiable = story.quantifiableAchievements
+        .map(ach => ach.metric ? `${ach.description} (${ach.metric})` : ach.description)
+        .slice(0, 3);
+      
+      const technical = story.technicalAchievements
+        .map(ach => ach.description)
+        .slice(0, 2);
+
+      return [...quantifiable, ...technical].join('\n');
+    } catch (error) {
+      logger.warn(`Could not load achievement story for ${projectName}`, error);
+      return '';
+    }
   }
 
   /**
@@ -540,31 +585,35 @@ Core Skills: ${masterResume.skills
       .map((s: any) => s.name)
       .join(", ")}
 
-Write a POWERFUL, COMPELLING resume summary with EXACTLY 3 DISTINCT PARAGRAPHS (no more, no less). Each paragraph must be clearly separated. Follow this structure:
+Write a POWERFUL, COMPELLING resume summary with EXACTLY 3 DISTINCT PARAGRAPHS following this specific structure:
 
-Paragraph 1: Your Unique Story & Value Proposition
-- Start with your compelling career transition story - how you moved from electrical technician/insulator to software engineering
-- Emphasize the unique perspective gained from managing multi-million dollar projects and working with diverse clients in trades
-- Connect this systematic, hands-on problem-solving approach to software development challenges
-- Show how your background gives you insight into both physical and digital systems
+Paragraph 1: The "Who You Are" (Identity & Expertise)
+- Define professional identity immediately - your "elevator pitch"
+- Include your current title/role, years of experience, and your "superpower"
+- Focus on professional title, core industry, and high-level overview of expertise
+- Use strong adjectives: "Strategic," "Results-oriented," "Data-driven," "Systematic"
+- For career transition: "Strategic software engineer transitioning from technical trades with systematic problem-solving expertise"
 
-Paragraph 2: Technical Skills & Company-Specific Solutions
-- Address how your skills solve ${companyName}'s specific needs: ${jobResponsibilities}
-- Showcase your technical abilities: JavaScript, Python, React, Node.js, databases and how they apply to ${companyTech}
-- Demonstrate understanding of their focus areas: ${jobKeywords}
-- Highlight how your trades experience translates to better software architecture and user solutions
+Paragraph 2: The "What You've Done" (Evidence & Achievements)
+- Back up claims with hard data and quantifiable achievements
+- Focus on major projects, leadership experience, or specific problems solved
+- Use Context-Action-Result format: "Managed X (Context), implemented Y (Action), achieved Z (Result)"
+- Include specific achievements from your projects: AI platforms, leadership roles, measurable impacts
+- Reference key projects: Chef BonBon, SyncUp, United Airlines AI Insights
 
-Paragraph 3: How You'll Help ${companyName} Succeed
-- Specifically state how your unique background will benefit ${companyName}'s mission and projects
-- Reference your collaborative experience working with engineers, project managers, and clients in trades environments
-- Connect your work ethic and quality focus to ${companyValues}
-- End with confidence about the specific value you bring - combining practical expertise with modern software skills
+Paragraph 3: The "What You Offer" (Skills & Future Value)
+- Bridge gap between your past and ${companyName}'s future
+- Highlight most relevant technical skills and soft skills that align with job description
+- Include specialized tools, certifications, and how you'll help ${companyName} reach goals
+- Mirror keywords from job posting to help pass ATS systems
+- Specific technical skills: JavaScript, Python, React, Node.js, databases, AI/ML integration
 
 CRITICAL REQUIREMENTS:
 - MUST be exactly 3 paragraphs (not 1 huge paragraph)
 - Each paragraph should be 3-5 sentences
 - Must be company-specific to ${companyName}
 - Include 2-3 keywords from: ${jobKeywords}
+- Focus on professional identity, quantifiable achievements, and future value
 - Show genuine interest in ${companyName}'s mission and work
 
 Return ONLY the complete 3-paragraph summary. Do NOT include any formatting, explanations, or extra text.`;

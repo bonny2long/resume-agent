@@ -204,8 +204,9 @@ model HiringManager {
   job           Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
   messages      LinkedInMessage[]
   applications  Application[]
-
+  
   @@map("hiring_managers")
+  @@unique([name, jobId]) // Prevent duplicates of same manager for same job
 }
 
 model LinkedInMessage {

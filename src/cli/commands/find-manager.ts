@@ -9,11 +9,71 @@ import getPrismaClient from "@/database/client";
 
 export const findManagerCommand = new Command("find-manager")
   .description("Find hiring manager for a specific job")
-  .argument("[job-id]", "ID of the analyzed job")
+  .argument("[job-id]", "ID of the analyzed job (optional)")
   .option("--save", "Save top candidate to database", false)
+  .option("--list", "List all saved hiring managers", false)
+  .option("--help", "Show help for find-manager command", false)
   .action(async (jobId?: string, options?: any) => {
     try {
       const prisma = getPrismaClient();
+
+      // Handle --help option
+      if (options.help) {
+        console.log(chalk.bold.cyan("\n📋 Hiring Manager Finder Commands:\n"));
+        console.log(chalk.white(`
+Usage: npm run dev -- find-manager [command] [options]
+
+Commands:
+  find-manager <job-id>        Find hiring manager for a specific job
+  find-manager <job-id> --save  Save top candidate to database
+  find-manager --list            List all saved hiring managers
+
+Examples:
+  npm run dev -- find-manager abc-123
+  npm run dev -- find-manager abc-123 --save
+  npm run dev -- find-manager --list
+
+Tips:
+  • Use --save when you find a good candidate
+  • Managers are saved to database for future reference
+  • All managers can be viewed with --list
+`));
+        return;
+      }
+
+      // Handle --list option to show all saved hiring managers
+      if (options.list) {
+        const managers = await prisma.hiringManager.findMany({
+          include: {
+            job: {
+              include: { company: true }
+            }
+          },
+          orderBy: { foundAt: "desc" }
+        });
+
+        if (managers.length === 0) {
+          console.log(chalk.yellow("\n⚠️  No saved hiring managers found"));
+          console.log(chalk.cyan("\n💡 Tip: Use --save when finding managers to save them"));
+          return;
+        }
+
+        console.log(chalk.bold.cyan("\n📋 All Saved Hiring Managers:\n"));
+        managers.forEach((manager, index) => {
+          console.log(chalk.white(`${index + 1}. ${manager.name} - ${manager.job?.title || 'Unknown Job'}`));
+          console.log(chalk.gray(`   Job ID: ${manager.jobId}`));
+          console.log(chalk.gray(`   Title: ${manager.title || 'N/A'}`));
+          console.log(chalk.gray(`   Confidence: ${manager.confidence}%`));
+          console.log(chalk.gray(`   Found: ${new Date(manager.foundAt).toLocaleDateString()}`));
+          console.log(chalk.gray(`   LinkedIn: ${manager.linkedInUrl || 'N/A'}`));
+          console.log(chalk.gray(`   Email: ${manager.email || 'N/A'}`));
+          console.log(chalk.gray(`   Phone: ${manager.phone || 'N/A'}`));
+          console.log();
+        });
+
+        console.log(chalk.green(`\n✅ Found ${managers.length} hiring managers`));
+        return;
+      }
 
       // If no job ID provided, show recent jobs
       if (!jobId) {

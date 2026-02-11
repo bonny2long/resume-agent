@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import { logger } from "@/utils/logger";
-import { PrismaClient } from "@prisma/client";
+import getPrismaClient from "@/database/client";
 import ora from "ora";
 import inquirer from "inquirer";
 
@@ -35,6 +35,7 @@ export const resetCommand = new Command("reset")
         console.log(chalk.white("   • Education"));
         console.log(chalk.white("   • Certifications"));
         console.log(chalk.white("   • Job applications"));
+        console.log(chalk.white("   • Jobs"));
         console.log(chalk.white("   • Companies"));
         console.log(chalk.white("   • Hiring managers"));
         break;
@@ -50,6 +51,7 @@ export const resetCommand = new Command("reset")
       case "data":
         console.log(chalk.yellow("⚠️  This will delete imported data:"));
         console.log(chalk.white("   • Job applications"));
+        console.log(chalk.white("   • Jobs"));
         console.log(chalk.white("   • Companies"));
         console.log(chalk.white("   • Hiring managers"));
         console.log(chalk.white("   • LinkedIn messages"));
@@ -73,15 +75,23 @@ export const resetCommand = new Command("reset")
       }
     }
 
-    const prisma = new PrismaClient();
+    const prisma = getPrismaClient();
     const spinner = ora("Resetting database...").start();
 
     try {
       switch (resetType) {
         case "all":
-          // Delete everything - this will cascade delete all related data
+          // Delete everything
+          spinner.text = "Clearing application and job data...";
+          await prisma.application.deleteMany({});
+          await prisma.job.deleteMany({});
+          await prisma.company.deleteMany({});
+          await prisma.hiringManager.deleteMany({});
+          await prisma.linkedInMessage.deleteMany({});
+          await prisma.gitHubRepo.deleteMany({});
+
+          spinner.text = "Clearing resume data...";
           await prisma.masterResume.deleteMany({});
-          spinner.text = "Clearing all data...";
           break;
 
         case "resume":
@@ -93,6 +103,7 @@ export const resetCommand = new Command("reset")
         case "data":
           // Delete job application data
           await prisma.application.deleteMany({});
+          await prisma.job.deleteMany({});
           await prisma.company.deleteMany({});
           await prisma.hiringManager.deleteMany({});
           await prisma.linkedInMessage.deleteMany({});
@@ -110,9 +121,7 @@ export const resetCommand = new Command("reset")
       if (resetType === "all" || resetType === "resume") {
         console.log(chalk.cyan("\n💡 Next steps:"));
         console.log(
-          chalk.white(
-            "   1. Upload your resumes: npm run dev -- upload-all-merge",
-          ),
+          chalk.white("   1. Upload your resumes: npm run dev -- upload-all"),
         );
         console.log(
           chalk.white(
@@ -132,7 +141,5 @@ export const resetCommand = new Command("reset")
         chalk.white(error instanceof Error ? error.message : "Unknown error"),
       );
       logger.error("Database reset failed", error);
-    } finally {
-      await prisma.$disconnect();
     }
   });

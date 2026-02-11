@@ -1,41 +1,190 @@
 # 📋 Resume Agent CLI Commands
 
-A concise reference for all available commands, grouped by category.
-
-> **💡 Important:** Always use `npm run dev -- <command>` when passing flags (like `--save`, `--type`, etc.). The `--` separates npm arguments from your command arguments.
-
-## 🚀 Complete Application Workflow
-
-**Purpose:** Get everything you need for a job application in 6 steps.
-
-```bash
-# 1. Analyze job
-npm run dev -- analyze <job-url> --save
-
-# 2. Tailor resume
-npm run dev -- tailor <job-id> --generate-embeddings
-
-# 3. Generate resume
-npm run dev -- generate <job-id>
-
-# 4. Generate cover letter
-npm run dev -- cover-letter <job-id>
-
-# 5. Find hiring manager (NEW!)
-npm run dev -- find-manager <job-id> --save
-
-# 6. Generate LinkedIn message (NEW!)
-npm run dev -- linkedin-message <job-id> --save
-```
-
-# Result:
-# ✅ Tailored resume
-# ✅ Cover letter
-# ✅ Hiring manager contact
-# ✅ LinkedIn connection message
-# Ready to apply!
+> **💡 Quick Start:** Most commands are simple and intuitive. Just `npm run dev <command>` to get started!
 
 ---
+
+## 🚀 **Complete Application Workflow**
+
+**Get everything you need in one command!**
+
+```bash
+# Full application workflow (6 steps)
+npm run dev -- apply <job-url>
+
+# Step-by-step application
+npm run dev -- analyze <job-url>
+npm run dev -- tailor <job-id> 
+npm run dev -- generate <job-id>
+npm run dev -- cover-letter <job-id>
+npm run dev -- find-manager <job-id>
+```
+
+**Result:** 
+✅ Resume + Cover Letter + Hiring Manager + LinkedIn Message = Complete Application Package
+
+---
+
+## 📝 **Resume Management**
+
+**Your master resume - keep it updated!**
+
+```bash
+# View your resume data
+npm run dev -- resume list
+
+# Add new experience
+npm run dev -- resume add-experience
+
+# Add a project
+npm run dev -- resume add-project
+
+# Add skills
+npm run dev -- resume add-skill
+
+# Import PDF resume
+npm run dev -- upload resume.pdf
+```
+
+---
+
+## 📊 **Job Analysis & Applications**
+
+**Analyze jobs and track applications**
+
+```bash
+# List all jobs
+npm run dev -- jobs list
+
+# Analyze new job
+npm run dev -- analyze <job-url>
+
+# Tailor resume for job
+npm run dev -- tailor <job-id>
+
+# Generate documents
+npm run dev -- generate <job-id> --template modern
+```
+
+---
+
+## 🔍 **Company Research & LinkedIn**
+
+**Find hiring managers and connect**
+
+```bash
+# Research company
+npm run dev -- research <company-name>
+
+# Find hiring manager
+npm run dev -- find-manager <job-id>
+
+# Generate LinkedIn message
+npm run dev -- linkedin-message <job-id> --tone professional
+
+# Send connection request
+npm run dev -- linkedin-message <job-id> --type connection_request
+```
+
+---
+
+## 📁 **Data Management**
+
+**Keep your data organized**
+
+```bash
+# Export your data
+npm run dev -- export
+
+# Import backup
+npm run dev -- import
+
+# Sync GitHub projects
+npm run dev -- github sync
+```
+
+---
+
+## 🛠️ **Utilities & Setup**
+
+**System management commands**
+
+```bash
+# Initialize system
+npm run dev -- init
+
+# View system status
+npm run dev -- status
+
+# Reset everything
+npm run dev -- reset
+
+# View API credits
+npm run dev -- credits
+```
+
+---
+
+## 📚 **Command Categories**
+
+| Category | Commands | Description |
+|----------|-----------|-------------|
+| **🚀 Applications** | `apply`, `analyze`, `tailor`, `generate`, `cover-letter` | Complete job application workflow |
+| **📝 Resumes** | `resume list`, `resume add-experience`, `add-project`, `add-skill` | Manage your master resume |
+| **📊 Jobs** | `jobs list`, `jobs search`, `jobs show`, `jobs delete` | View and manage job postings |
+| **🔍 Research** | `research`, `find-manager`, `linkedin-message` | Company research and networking |
+| **📁 Data** | `export`, `import`, `github sync`, `upload` | Data import/export and backup |
+| **⚙️ Utils** | `init`, `status`, `reset`, `credits` | System setup and management |
+
+---
+
+## 🎯 **Popular Command Examples**
+
+**Complete Application:**
+```bash
+npm run dev -- apply https://careers.company.com/jobs/123
+```
+
+**Quick Resume Generation:**
+```bash
+npm run dev -- generate --template modern
+```
+
+**Find Hiring Manager:**
+```bash
+npm run dev -- find-manager abc-123 --save
+```
+
+**LinkedIn Connection:**
+```bash
+npm run dev -- linkedin-message abc-123 --save
+```
+
+---
+
+## 💡 **Pro Tips**
+
+**🔥 Save Time:**
+- Use `npm run dev -- apply <url>` for complete workflow
+- Save job analysis with `--save` flag
+- Save hiring managers with `--save` flag
+
+**📋 Data Organization:**
+- Keep achievement stories updated in `data/resumes/achievement-stories/`
+- Update career story in `data/resumes/transition-highlights/`
+- Skills database in `data/skills/skills-database.json`
+
+**🎯 Best Practices:**
+- Always `--generate-embeddings` for better resume tailoring
+- Use `--template modern` for ATS-friendly resumes
+- Try different `--tone` options for cover letters
+
+---
+
+**🆘 Need Help?**
+- Run `npm run dev -- help` for command assistance
+- Check `docs/CLI_COMMANDS.md` for detailed examples
+- View `data/README.md` for data structure guide
 
 ## 📝 Resume Management
 
@@ -71,46 +220,12 @@ npm run dev -- linkedin-message <job-id> --save
 **Purpose:** Sync your coding history and verify your skills from actual code.
 
 | Command                                   | Description                                                        |
-| ----------------------------------------- | ------------------------------------------------------------------ |
-| `npm run dev -- github sync`              | Connect to GitHub and fetch all your repositories.                 |
-| `npm run dev -- github list`              | List synced repositories stored in the database.                   |
-| `npm run dev -- github show <name>`       | View details of a specific repository.                             |
-| `npm run dev -- extract-skills`           | Analyze high-quality repos to extract/verify skills automatically. |
-
----
-
-## 💼 Job Applications & Analysis
-
-**Purpose:** Analyze job postings and manage your applications.
-
-| Command                                   | Description                                                |
-| ----------------------------------------- | ---------------------------------------------------------- |
-| `npm run dev -- list`                     | List various entities (jobs, applications, resumes, etc.). |
-| `npm run dev -- list --type jobs`         | List analyzed job postings.                                |
-| `npm run dev -- list --type applications` | List job applications.                                    |
-| `npm run dev -- list --type resumes`      | List master resumes.                                       |
-| `npm run dev -- list --type companies`    | List companies.                                            |
-| `npm run dev -- list --type skills`       | List skills.                                               |
-| `npm run dev -- jobs list`                | List all analyzed jobs in the database.                     |
-| `npm run dev -- jobs show <job-id>`       | Show details of a specific job.                           |
-| `npm run dev -- jobs search <query>`      | Search jobs by title or company.                          |
-| `npm run dev -- jobs delete <job-id>`     | Delete an analyzed job.                                   |
-| `npm run dev -- analyze <url>`            | Scrape a job posting and see how well your resume matches. |
-| `npm run dev -- tailor <job-id>`          | Generate a tailored resume for a specific job.           |
-| `npm run dev -- apply <url>`               | Start the application workflow for a specific job.        |
-| `npm run dev -- research <company>`       | Scrape company website for culture and values.             |
-| `npm run dev -- status`                   | View the status of your job applications.                  |
-
----
-
-## 🔍 Hiring Manager & LinkedIn
-
-**Purpose:** Find and connect with hiring managers for your job applications.
-
-| Command                                                | Description                                                    |
-| ------------------------------------------------------ | -------------------------------------------------------------- |
+| ------------------------------------------ | -------------------------------------------------------------------- |
 | `npm run dev -- find-manager [job-id]`                  | Find hiring manager for a specific job (interactive if no ID). |
 | `npm run dev -- find-manager <job-id> --save`          | Find and save hiring manager to database.                     |
+| `npm run dev -- find-manager --list`                     | List all saved hiring managers with details.                  |
+| `npm run dev -- find-manager --help`                    | Show help for find-manager commands.                       |
+| `npm run dev -- find-manager --list`                     | List all saved hiring managers with details.                  |
 | `npm run dev -- linkedin-message [job-id]`              | Generate LinkedIn message for hiring manager.                 |
 | `npm run dev -- linkedin-message <job-id> --type connection_request` | Generate connection request message (default).                |
 | `npm run dev -- linkedin-message <job-id> --type initial_message` | Generate initial message after connecting.                     |

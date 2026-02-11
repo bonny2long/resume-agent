@@ -3,8 +3,7 @@ import { getLLMService } from "@/services/llm.service";
 import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
 import getPrismaClient from "@/database/client";
-import fs from "fs";
-import path from "path";
+import storyLoader from "@/utils/story-loader";
 
 export interface LinkedInMessageOptions {
   type: "connection_request" | "initial_message" | "follow_up";
@@ -101,42 +100,16 @@ export class LinkedInMessageAgent {
   }
 
   /**
-   * Load career story
+   * Load career transition story using shared loader
    */
   private async loadCareerStory(): Promise<string> {
     try {
-      const storyPath = path.join(
-        process.cwd(),
-        "data",
-        "resumes",
-        "career-transition-story.md",
-      );
-
-      if (fs.existsSync(storyPath)) {
-        const content = fs.readFileSync(storyPath, "utf-8");
-
-        // Extract short version for LinkedIn
-        if (
-          content.includes("electrical technician") ||
-          content.includes("trades") ||
-          content.includes("electrical")
-        ) {
-          return "Former electrician turned software engineer - I bring 6+ years of systematic problem-solving and hands-on technical expertise to modern software development.";
-        }
-
-        // Look for other transition patterns
-        if (
-          content.includes("career change") ||
-          content.includes("transition")
-        ) {
-          return "Career changer with a unique perspective - I combine my previous industry experience with modern software engineering skills to solve problems differently.";
-        }
-      }
+      // Use concise story for LinkedIn
+      return await storyLoader.getConciseCareerStory();
     } catch (error) {
       logger.warn("Could not load career story", error);
+      return "Former electrician turned software engineer - I bring systematic problem-solving and hands-on technical expertise to modern software development.";
     }
-
-    return "";
   }
 
   /**

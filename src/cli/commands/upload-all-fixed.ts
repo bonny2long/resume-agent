@@ -10,8 +10,8 @@ import { getResumeParserService } from "@/services/resume-parser.service";
 import { ParsedResume } from "@/services/resume-parser.service";
 import { Proficiency, Impact, TechCategory } from "@prisma/client";
 
-export const uploadAllFixedCommand = new Command("upload-all-merge")
-  .description("Upload and parse ALL resume files (fixed version)")
+export const uploadAllFixedCommand = new Command("upload-all")
+  .description("Upload and parse ALL resume files")
   .option("--confirm", "Skip confirmation prompt")
   .action(async (options: { confirm?: boolean }) => {
     logger.header("Resume Batch Upload (Fixed)");
@@ -247,12 +247,16 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
         try {
           await prisma.experience.create({
             data: {
-              resumeId: masterResume.id,
+              resume: {
+                connect: {
+                  id: masterResume.id,
+                },
+              },
               company: exp.company,
               title: exp.title,
               location: exp.location || "",
               startDate: new Date(exp.startDate),
-              endDate: exp.endDate ? new Date(exp.endDate) : null,
+              endDate: exp.endDate && exp.endDate !== 'Invalid Date' ? new Date(exp.endDate) : null,
               current: exp.current,
               description: exp.description,
               achievements: {
@@ -279,14 +283,18 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
         try {
           await prisma.project.create({
             data: {
-              resumeId: masterResume.id,
+              resume: {
+                connect: {
+                  id: masterResume.id,
+                },
+              },
               name: proj.name,
               description: proj.description,
               role: proj.role || "",
               githubUrl: proj.githubUrl,
               liveUrl: proj.liveUrl,
-              startDate: proj.startDate ? new Date(proj.startDate) : new Date(),
-              endDate: proj.endDate ? new Date(proj.endDate) : new Date(),
+              startDate: proj.startDate && proj.startDate !== 'Invalid Date' ? new Date(proj.startDate) : new Date(),
+              endDate: proj.endDate && proj.endDate !== 'Invalid Date' ? new Date(proj.endDate) : new Date(),
               achievements: proj.achievements,
               featured: false,
             },
@@ -304,12 +312,16 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
       for (const edu of mergedData.education) {
         await prisma.education.create({
           data: {
-            resumeId: masterResume.id,
+            resume: {
+              connect: {
+                id: masterResume.id,
+              },
+            },
             institution: edu.institution,
             degree: edu.degree,
             field: edu.field,
             startDate: edu.startDate ? new Date(edu.startDate) : new Date(),
-            endDate: edu.endDate ? new Date(edu.endDate) : null,
+            endDate: edu.endDate && edu.endDate !== 'Invalid Date' ? new Date(edu.endDate) : null,
             gpa: edu.gpa,
           },
         });
@@ -319,11 +331,15 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
       for (const cert of mergedData.certifications) {
         await prisma.certification.create({
           data: {
-            resumeId: masterResume.id,
+            resume: {
+              connect: {
+                id: masterResume.id,
+              },
+            },
             name: cert.name,
             issuer: cert.issuer || "",
-            issueDate: cert.issueDate ? new Date(cert.issueDate) : new Date(),
-            expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : null,
+            issueDate: cert.issueDate && cert.issueDate !== 'Invalid Date' ? new Date(cert.issueDate) : new Date(),
+            expiryDate: cert.expiryDate && cert.expiryDate !== 'Invalid Date' ? new Date(cert.expiryDate) : null,
             credentialId: cert.credentialId,
             url: cert.url,
           },
@@ -344,7 +360,11 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
           try {
             await prisma.skill.create({
               data: {
-                resumeId: masterResume.id,
+                resume: {
+                  connect: {
+                    id: masterResume.id,
+                  },
+                },
                 name: skill,
                 category: "Technical",
                 proficiency: Proficiency.intermediate,
@@ -371,7 +391,11 @@ export const uploadAllFixedCommand = new Command("upload-all-merge")
           try {
             await prisma.skill.create({
               data: {
-                resumeId: masterResume.id,
+                resume: {
+                  connect: {
+                    id: masterResume.id,
+                  },
+                },
                 name: skill,
                 category: "Soft Skills",
                 proficiency: Proficiency.intermediate,

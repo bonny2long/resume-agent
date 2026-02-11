@@ -7,37 +7,40 @@ import { logger } from "@/utils/logger";
 import getPrismaClient from "@/database/client";
 
 export const initCommand = new Command("init")
-  .description("Initialize your master resume")
+  .description("Initialize or overwrite your master resume")
   .action(async () => {
     logger.header("Initialize Master Resume");
-    console.log(
-      chalk.gray(
-        "Let's create your master resume. This will be used to generate tailored resumes.\n",
-      ),
-    );
 
     try {
       const prisma = getPrismaClient();
-
-      // Check if resume already exists
       const existing = await prisma.masterResume.findFirst();
 
       if (existing) {
-        const { confirm } = await inquirer.prompt([
+        console.log(
+          chalk.yellow(
+            "⚠️  A master resume already exists. This will overwrite it.",
+          ),
+        );
+        const { confirmOverwrite } = await inquirer.prompt([
           {
             type: "confirm",
-            name: "confirm",
-            message:
-              "A master resume already exists. Do you want to create a new one?",
+            name: "confirmOverwrite",
+            message: "Are you sure you want to continue?",
             default: false,
           },
         ]);
 
-        if (!confirm) {
-          logger.info("Initialization cancelled");
+        if (!confirmOverwrite) {
+          logger.info("Initialization cancelled.");
           return;
         }
       }
+
+      console.log(
+        chalk.gray(
+          "\nLet's gather your information. This will be used to generate tailored resumes.",
+        ),
+      );
 
       // Personal Information
       logger.section("Personal Information");
@@ -46,12 +49,14 @@ export const initCommand = new Command("init")
           type: "input",
           name: "fullName",
           message: "Full Name:",
+          default: existing?.fullName || "",
           validate: (input) => input.trim().length > 0 || "Name is required",
         },
         {
           type: "input",
           name: "email",
           message: "Email:",
+          default: existing?.email || "",
           validate: (input) => {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             return emailRegex.test(input) || "Please enter a valid email";
@@ -61,12 +66,14 @@ export const initCommand = new Command("init")
           type: "input",
           name: "phone",
           message: "Phone Number:",
+          default: existing?.phone || "",
           validate: (input) => input.trim().length > 0 || "Phone is required",
         },
         {
           type: "input",
           name: "location",
           message: "Location (e.g., San Francisco, CA):",
+          default: existing?.location || "",
           validate: (input) =>
             input.trim().length > 0 || "Location is required",
         },
@@ -74,16 +81,19 @@ export const initCommand = new Command("init")
           type: "input",
           name: "linkedInUrl",
           message: "LinkedIn URL (optional):",
+          default: existing?.linkedInUrl || "",
         },
         {
           type: "input",
           name: "githubUrl",
           message: "GitHub URL (optional):",
+          default: existing?.githubUrl || "",
         },
         {
           type: "input",
           name: "portfolioUrl",
           message: "Portfolio URL (optional):",
+          default: existing?.portfolioUrl || "",
         },
       ]);
 
@@ -91,22 +101,29 @@ export const initCommand = new Command("init")
       logger.section("Professional Summary");
       const summary = await inquirer.prompt([
         {
-          type: "input",
+          type: "editor",
           name: "summaryShort",
-          message: "Short summary (2-3 sentences):",
+          message: "Short summary (2-3 sentences, press Enter for editor):",
+          default: existing?.summaryShort || "",
           validate: (input) => input.trim().length > 0 || "Summary is required",
         },
         {
           type: "editor",
           name: "summaryLong",
-          message: "Long summary (press Enter to open editor):",
-          default: "",
+          message: "Long summary (optional, press Enter for editor):",
+          default: existing?.summaryLong || "",
         },
       ]);
 
-      // Create master resume
-      const spinner = ora("Creating master resume...").start();
+      const spinner = ora("Saving master resume...").start();
 
+      // If a resume exists, delete it to ensure a clean slate.
+      // This is safer than updating and handles schema changes better.
+      if (existing) {
+        await prisma.masterResume.delete({ where: { id: existing.id } });
+      }
+
+      // Create new master resume
       const resume = await prisma.masterResume.create({
         data: {
           fullName: personalInfo.fullName.trim(),
@@ -122,7 +139,7 @@ export const initCommand = new Command("init")
         },
       });
 
-      spinner.succeed("Master resume created!");
+      spinner.succeed("Master resume saved successfully!");
 
       // Display summary
       logger.box(`
@@ -132,13 +149,18 @@ Email: ${resume.email}
 Location: ${resume.location}
 
 Next steps:
-  1. Add your work experience: resume-agent resume add experience
-  2. Add your projects: resume-agent resume add project
-  3. Add your skills: resume-agent resume add skill
-  4. View your resume: resume-agent resume list
+  1. Add work experience: npm run dev -- resume add-exp
+  2. Add projects: npm run dev -- resume add-project
+  3. Add skills: npm run dev -- resume add-skill
+  4. View your resume: npm run dev -- resume list
       `);
     } catch (error) {
       logger.error("Failed to initialize resume", error);
-      throw error;
+      // The original file had `throw error`, which is fine but can be noisy.
+      // I'll just log it for a cleaner CLI experience.
+      console.log(chalk.red("\n❌ An unexpected error occurred."));
+      if (error instanceof Error) {
+        console.log(chalk.red(`   ${error.message}`));
+      }
     }
   });

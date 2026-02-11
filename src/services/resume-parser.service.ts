@@ -118,17 +118,41 @@ export class ResumeParserService {
     logger.info("Parsing resume with AI...");
 
     const prompt = `
-You are an expert resume parser. Parse the following resume and extract all information into structured JSON.
+You are an expert resume parser with deep understanding of resume formats and professional terminology. Parse the following resume and extract all information into structured JSON.
 
-IMPORTANT RULES:
-1. Extract dates in YYYY-MM-DD format (or YYYY-MM if day not specified)
-2. For current positions, set "endDate" to null and "current" to true
-3. Extract all metrics and numbers from achievements (e.g., "40%", "$2M", "5 engineers")
-4. Identify technologies mentioned (programming languages, frameworks, tools, databases)
-5. Classify skills into categories
-6. Extract complete contact information
-7. Separate work experience from projects
-8. Classify achievement impact as high/medium/low based on scope and results
+CRITICAL PARSING RULES:
+1. **DEGREE EXTRACTION**: Always extract the specific degree type. Common examples: "Bachelor of Science", "Master of Science", "Bachelor of Arts", "Associate Degree", "Certificate", "Diploma". If unclear, use "Not Specified".
+
+2. **DATES**: Convert all dates to YYYY-MM-DD format. If only month/year, use YYYY-MM-01. For current positions, set "endDate" to null and "current" to true.
+
+3. **METRICS**: Extract ALL quantifiable achievements (percentages, dollar amounts, time saved, team sizes, etc.) from descriptions and achievements.
+
+4. **SKILL CLASSIFICATION**: 
+   - **technical**: All programming and technical abilities
+   - **soft**: Communication, leadership, teamwork, problem-solving, etc.
+   - **languages**: Programming languages ONLY (JavaScript, Python, Java, etc.)
+   - **frameworks**: React, Node.js, Django, Spring, etc.
+   - **tools**: Git, Docker, AWS, Jenkins, etc.
+   - **databases**: PostgreSQL, MongoDB, MySQL, Redis, etc.
+
+5. **ACHIEVEMENTS**: Rate impact:
+   - **high**: Revenue impact, major cost savings, leading teams >5, architectural decisions
+   - **medium**: Process improvements, leading small teams, feature launches
+   - **low**: Bug fixes, documentation, minor optimizations
+
+6. **EXPERIENCE VS PROJECTS**: 
+   - Experience: Paid employment positions
+   - Projects: Personal, open-source, or academic work (even if paid)
+
+7. **CONTACT INFO**: Extract emails, phones, LinkedIn, GitHub, portfolio URLs. Handle various formats.
+
+8. **EDUCATION**: Extract institution, degree type, field/major, dates, and GPA if present.
+
+9. **DATA QUALITY**: 
+   - Never leave required fields as null (use "Not Specified" if unclear)
+   - Remove duplicates in skills arrays
+   - Normalize company names (remove "LLC", "Inc." unless part of brand)
+   - Extract location as "City, State" or "City, Country"
 
 Resume Text:
 ${resumeText}
@@ -219,13 +243,88 @@ Return ONLY valid JSON in this exact structure:
       );
     }
 
-    const parsed = response.data;
+    let parsed = response.data;
+
+    // Post-process and validate the parsed data
+    parsed = this.cleanupAndValidate(parsed);
 
     logger.success("Resume parsed successfully!");
     logger.item("Experiences", parsed.experiences.length.toString());
     logger.item("Projects", parsed.projects.length.toString());
     logger.item("Skills", parsed.skills.technical.length.toString());
     logger.item("Education", parsed.education.length.toString());
+
+    return parsed;
+  }
+
+  /**
+   * Cleanup and validate parsed resume data
+   */
+  private cleanupAndValidate(parsed: ParsedResume): ParsedResume {
+    // Remove duplicates from skill arrays and normalize
+    const normalizeArray = (arr: string[]) => 
+      [...new Set(arr.map(item => item.trim()).filter(Boolean))];
+
+    parsed.skills.technical = normalizeArray(parsed.skills.technical);
+    parsed.skills.soft = normalizeArray(parsed.skills.soft);
+    parsed.skills.languages = normalizeArray(parsed.skills.languages);
+    parsed.skills.frameworks = normalizeArray(parsed.skills.frameworks);
+    parsed.skills.tools = normalizeArray(parsed.skills.tools);
+    parsed.skills.databases = normalizeArray(parsed.skills.databases);
+
+    // Clean up experiences (no date changes)
+    parsed.experiences = parsed.experiences.map(exp => ({
+      ...exp,
+      company: exp.company?.trim() || "Not Specified",
+      title: exp.title?.trim() || "Not Specified",
+      location: exp.location?.trim() || undefined,
+      description: exp.description?.trim() || undefined,
+      achievements: exp.achievements.map(ach => ({
+        ...ach,
+        description: ach.description?.trim() || "Not Specified",
+        impact: ach.impact || 'medium' // Default to medium if not specified
+      })),
+      technologies: normalizeArray(exp.technologies)
+    }));
+
+    // Clean up projects (no date changes)
+    parsed.projects = parsed.projects.map(proj => ({
+      ...proj,
+      name: proj.name?.trim() || "Not Specified",
+      description: proj.description?.trim() || "Not Specified",
+      role: proj.role?.trim() || undefined,
+      achievements: proj.achievements.map(a => a?.trim()).filter(Boolean),
+      technologies: normalizeArray(proj.technologies)
+    }));
+
+    // Ensure education degrees are not null or empty (no date changes)
+    parsed.education = parsed.education.map(edu => ({
+      ...edu,
+      degree: edu.degree || "Not Specified",
+      institution: edu.institution || "Not Specified",
+      field: edu.field || "Not Specified"
+    }));
+
+    // Clean up personal info
+    parsed.personalInfo = {
+      ...parsed.personalInfo,
+      fullName: parsed.personalInfo.fullName?.trim() || "Not Specified",
+      email: parsed.personalInfo.email?.trim() || undefined,
+      phone: parsed.personalInfo.phone?.trim() || undefined,
+      location: parsed.personalInfo.location?.trim() || "Not Specified",
+      linkedInUrl: parsed.personalInfo.linkedInUrl?.trim() || undefined,
+      githubUrl: parsed.personalInfo.githubUrl?.trim() || undefined,
+      portfolioUrl: parsed.personalInfo.portfolioUrl?.trim() || undefined
+    };
+
+    // Clean up certifications
+    parsed.certifications = parsed.certifications.map(cert => ({
+      ...cert,
+      name: cert.name?.trim() || "Not Specified",
+      issuer: cert.issuer?.trim() || "Not Specified",
+      credentialId: cert.credentialId?.trim() || undefined,
+      url: cert.url?.trim() || undefined
+    }));
 
     return parsed;
   }

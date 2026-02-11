@@ -3,8 +3,7 @@ import { getLLMService } from "@/services/llm.service";
 import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
 import getPrismaClient from "@/database/client";
-import fs from "fs";
-import path from "path";
+import storyLoader from "@/utils/story-loader";
 
 export interface CoverLetterOptions {
   tone: "professional" | "enthusiastic" | "friendly";
@@ -149,33 +148,47 @@ export class CoverLetterAgent {
   }
 
   /**
-   * Load career transition story
+   * Load career transition story using shared loader
    */
   private async loadCareerStory(): Promise<string> {
     try {
-      const storyPath = path.join(
-        process.cwd(),
-        "data",
-        "resumes",
-        "career-transition-story.md",
-      );
+      await storyLoader.loadTransitionStory();
 
-      if (fs.existsSync(storyPath)) {
-        const content = fs.readFileSync(storyPath, "utf-8");
-
-        // Extract key narrative points
-        if (
-          content.includes("electrical technician") ||
-          content.includes("trades")
-        ) {
-          return "After 6+ years working as an Electrical Technician and Heat & Frost Insulator, I discovered a passion for solving complex problems through technology. This unique background gives me a systematic, methodical approach to development that combines hands-on technical expertise with modern software engineering.";
-        }
-      }
+      // Use detailed story for cover letters
+      return await storyLoader.getDetailedCareerStory();
     } catch (error) {
       logger.warn("Could not load career story", error);
+      return "Career transitioner bringing systematic problem-solving from trades to software engineering.";
     }
+  }
 
-    return "";
+  /**
+   * Load achievement stories using shared loader
+   */
+  private async loadAchievementStories(): Promise<
+    Array<{
+      project: string;
+      role: string;
+      keyAchievement: string;
+      metric: string;
+    }>
+  > {
+    try {
+      const stories = await storyLoader.getAllAchievementStories();
+
+      return stories.map((achievement) => ({
+        project: achievement.project,
+        role: achievement.role,
+        keyAchievement:
+          achievement.keyImpact ||
+          achievement.quantifiableAchievements[0]?.description ||
+          "Technical excellence",
+        metric: achievement.quantifiableAchievements[0]?.metric || "",
+      }));
+    } catch (error) {
+      logger.warn("Could not load achievement stories", error);
+      return [];
+    }
   }
 
   /**
@@ -192,8 +205,11 @@ export class CoverLetterAgent {
     body: string[];
     closing: string;
   }> {
-    // Select 2-3 most relevant achievements
-    const topAchievements = masterResume.experiences
+    // Load achievement stories for better examples
+    const achievementStories = await this.loadAchievementStories();
+
+    // Select 2-3 most relevant achievements (combine database with stories)
+    const dbAchievements = masterResume.experiences
       .flatMap((exp: any) =>
         exp.achievements.map((ach: any) => ({
           company: exp.company,
@@ -202,7 +218,20 @@ export class CoverLetterAgent {
           metrics: ach.metrics,
         })),
       )
-      .slice(0, 3);
+      .slice(0, 2);
+
+    // Add specific project achievements from stories
+    const storyAchievements = achievementStories.slice(0, 1).map((story) => ({
+      company: story.project,
+      title: story.role,
+      achievement: story.keyAchievement,
+      metrics: story.metric,
+    }));
+
+    const topAchievements = [...storyAchievements, ...dbAchievements].slice(
+      0,
+      3,
+    );
 
     // Build prompt based on tone
     const toneGuidance = this.getToneGuidance(options.tone);

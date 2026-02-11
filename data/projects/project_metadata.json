@@ -1,16 +1,69 @@
 {
   "project_metadata": {
-    "last_updated": "2026-02-03T00:00:00.000Z",
-    "total_projects": 0,
-    "featured_projects": [],
+    "last_updated": "2026-02-10T01:45:00.000Z",
+    "total_projects": 3,
+    "featured_projects": ["chef-bonbon", "syncup", "united-airlines-ai-insights"],
     "categories": {
-      "web_development": [],
+      "web_development": ["chef-bonbon", "syncup"],
       "mobile_apps": [],
-      "data_science": [],
+      "data_science": ["united-airlines-ai-insights"],
       "devops": [],
       "open_source": []
     },
-    "technologies_used": {},
+    "technologies_used": {
+      "React": 2,
+      "Node.js": 3,
+      "Supabase": 2,
+      "PostgreSQL": 2,
+      "Tailwind CSS": 2,
+      "API Integration": 3,
+      "AI/ML": 1,
+      "Authentication": 2
+    },
+    "projects": {
+      "chef-bonbon": {
+        "name": "Chef BonBon",
+        "description": "AI-powered recipe generation platform with personalized recipes",
+        "role": "Independent Developer",
+        "technologies": ["API Integration", "React", "Node.js", "Supabase", "PostgreSQL", "Tailwind CSS"],
+        "category": "web_development",
+        "status": "completed",
+        "featured": true,
+        "key_achievements": [
+          "Demonstrated AI integration capabilities in consumer applications",
+          "Showcased full-stack development from database to UI",
+          "Created scalable architecture for recipe recommendations"
+        ]
+      },
+      "syncup": {
+        "name": "SyncUp",
+        "description": "Collaboration and mentorship platform with authentication, role management, and collaboration workflows",
+        "role": "Lead Full Stack Developer",
+        "technologies": ["Full-Stack Software Engineering", "Authentication & Authorization", "React", "Node.js", "Supabase", "PostgreSQL", "Tailwind CSS"],
+        "category": "web_development",
+        "status": "completed",
+        "featured": true,
+        "key_achievements": [
+          "Led full development lifecycle from conception to deployment",
+          "Implemented secure role-based access control system",
+          "Delivered production-ready application used by multiple organizations"
+        ]
+      },
+      "united-airlines-ai-insights": {
+        "name": "United Airlines AI Customer Insights Platform",
+        "description": "AI-powered customer insights platform that transforms unstructured feedback into actionable recommendations",
+        "role": "Full Stack Software Engineer Intern",
+        "technologies": ["AI/ML", "LLM Pipelines", "React", "Node.js", "Role-Based Access Control"],
+        "category": "data_science",
+        "status": "completed",
+        "featured": true,
+        "key_achievements": [
+          "Selected through competitive RFP process for United Airlines",
+          "Built AI layer using LLM pipelines for feedback transformation",
+          "Designed secure systems for executive, admin, and analyst personas"
+        ]
+      }
+    },
     "github_sync": {
       "enabled": false,
       "last_sync": null,

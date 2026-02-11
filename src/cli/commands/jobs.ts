@@ -247,8 +247,22 @@ jobsCommand
         console.log(chalk.white(`   ${job.title} at ${job.company?.name}`));
         console.log(chalk.gray(`   This action cannot be undone.`));
         console.log();
-        console.log(chalk.gray("   Use --force to skip this confirmation"));
-        return;
+        
+        const readline = await import("readline");
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+
+        const answer = await new Promise<string>((resolve) => {
+          rl.question(chalk.gray("   Are you sure? (y/N): "), resolve);
+        });
+        rl.close();
+
+        if (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes') {
+          console.log(chalk.gray("\n✓ Cancelled"));
+          return;
+        }
       }
 
       await prisma.job.delete({
