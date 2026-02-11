@@ -73,11 +73,11 @@ export const tailorCommand = new Command("tailor")
 
         try {
           const embeddings = getEmbeddingsService();
-          const expCount = await embeddings.generateAllExperienceEmbeddings();
-          const projCount = await embeddings.generateAllProjectEmbeddings();
+          await embeddings.generateAllExperienceEmbeddings();
+          await embeddings.generateAllProjectEmbeddings();
 
           embeddingsSpinner.succeed(
-            `Generated embeddings (${expCount} experiences, ${projCount} projects)`,
+            `Generated embeddings for all experiences and projects`,
           );
         } catch (error) {
           embeddingsSpinner.fail("Failed to generate embeddings");
@@ -188,6 +188,7 @@ export const tailorCommand = new Command("tailor")
 
       if (job) {
         const atsAnalysis = tailorAgent.calculateATSScore(tailored, job);
+        tailored.atsScore = atsAnalysis.score; // Assign score to object
 
         const scoreColor =
           atsAnalysis.score >= 80 ? chalk.green
@@ -244,7 +245,7 @@ export const tailorCommand = new Command("tailor")
       logger.box(`
 Tailored Resume Complete! ✓
 
-Job: ${job?.title || "Unknown Position"} at ${job?.company || "Unknown Company"}
+Job: ${job?.title || "Unknown Position"} at ${job?.company?.name || "Unknown Company"}
 ATS Score: ${tailored.atsScore || "N/A"}%
 Resume tailored successfully with ${tailored.experiences.length} experiences and ${tailored.projects.length} projects
 

@@ -1,7 +1,7 @@
 # United Airlines AI Insights Platform
 
 **Role**: Full Stack Software Engineer Intern  
-**Timeline**: 3 months (Oct 2024 - Dec 2024)  
+**Timeline**: 4 months (Aug 2025 - Dec 2025)  
 **Team Size**: Solo developer at i.c Stars  
 **Client**: United Airlines (through competitive RFP process)
 

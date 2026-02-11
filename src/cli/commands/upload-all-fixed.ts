@@ -255,8 +255,14 @@ export const uploadAllFixedCommand = new Command("upload-all")
               company: exp.company,
               title: exp.title,
               location: exp.location || "",
-              startDate: new Date(exp.startDate),
-              endDate: exp.endDate && exp.endDate !== 'Invalid Date' ? new Date(exp.endDate) : null,
+              startDate:
+                exp.startDate && !isNaN(new Date(exp.startDate).getTime()) ?
+                  new Date(exp.startDate)
+                : new Date(),
+              endDate:
+                exp.endDate && !isNaN(new Date(exp.endDate).getTime()) ?
+                  new Date(exp.endDate)
+                : null,
               current: exp.current,
               description: exp.description,
               achievements: {
@@ -293,8 +299,14 @@ export const uploadAllFixedCommand = new Command("upload-all")
               role: proj.role || "",
               githubUrl: proj.githubUrl,
               liveUrl: proj.liveUrl,
-              startDate: proj.startDate && proj.startDate !== 'Invalid Date' ? new Date(proj.startDate) : new Date(),
-              endDate: proj.endDate && proj.endDate !== 'Invalid Date' ? new Date(proj.endDate) : new Date(),
+              startDate:
+                proj.startDate && !isNaN(new Date(proj.startDate).getTime()) ?
+                  new Date(proj.startDate)
+                : new Date(),
+              endDate:
+                proj.endDate && !isNaN(new Date(proj.endDate).getTime()) ?
+                  new Date(proj.endDate)
+                : new Date(),
               achievements: proj.achievements,
               featured: false,
             },
@@ -320,8 +332,14 @@ export const uploadAllFixedCommand = new Command("upload-all")
             institution: edu.institution,
             degree: edu.degree,
             field: edu.field,
-            startDate: edu.startDate ? new Date(edu.startDate) : new Date(),
-            endDate: edu.endDate && edu.endDate !== 'Invalid Date' ? new Date(edu.endDate) : null,
+            startDate:
+              edu.startDate && !isNaN(new Date(edu.startDate).getTime()) ?
+                new Date(edu.startDate)
+              : new Date(),
+            endDate:
+              edu.endDate && !isNaN(new Date(edu.endDate).getTime()) ?
+                new Date(edu.endDate)
+              : null,
             gpa: edu.gpa,
           },
         });
@@ -338,8 +356,14 @@ export const uploadAllFixedCommand = new Command("upload-all")
             },
             name: cert.name,
             issuer: cert.issuer || "",
-            issueDate: cert.issueDate && cert.issueDate !== 'Invalid Date' ? new Date(cert.issueDate) : new Date(),
-            expiryDate: cert.expiryDate && cert.expiryDate !== 'Invalid Date' ? new Date(cert.expiryDate) : null,
+            issueDate:
+              cert.issueDate && !isNaN(new Date(cert.issueDate).getTime()) ?
+                new Date(cert.issueDate)
+              : new Date(),
+            expiryDate:
+              cert.expiryDate && !isNaN(new Date(cert.expiryDate).getTime()) ?
+                new Date(cert.expiryDate)
+              : null,
             credentialId: cert.credentialId,
             url: cert.url,
           },

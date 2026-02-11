@@ -1,9 +1,9 @@
 # SyncUp - Collaboration and Mentorship Platform
 
 **Role**: Lead Full Stack Developer  
-**Timeline**: Started September 2025 - Present (6 months development timeline)  
+**Timeline**: Started September 2024 - January 2025 (self-taught project)  
 **Team Size**: Solo developer  
-**Status**: In development (6 more months until deployment)
+**Status**: Completed January 2025 (self-taught project)
 
 ## Project Overview
 Comprehensive collaboration and mentorship platform designed to connect mentors with mentees, featuring role-based access control, real-time collaboration tools, and structured workflow management.

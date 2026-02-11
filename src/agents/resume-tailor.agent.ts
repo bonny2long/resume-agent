@@ -323,27 +323,31 @@ export class ResumeTailorAgent {
         const achievementStory = await this.loadAchievementStory(project.name);
         let enhancedDescription = project.description;
         let enhancedAchievements = project.achievements || [];
-        
+
         if (achievementStory) {
           // Extract specific metrics and achievements from the detailed story
-          const lines = achievementStory.split('\n');
+          const lines = achievementStory.split("\n");
           const metrics: string[] = [];
           const achievements: string[] = [];
-          
-          lines.forEach(line => {
-            const cleanLine = line.replace(/^[-•]\s*/, '').trim();
-            if (cleanLine.includes('%') || cleanLine.includes('+') || cleanLine.includes('users')) {
+
+          lines.forEach((line) => {
+            const cleanLine = line.replace(/^[-•]\s*/, "").trim();
+            if (
+              cleanLine.includes("%") ||
+              cleanLine.includes("+") ||
+              cleanLine.includes("users")
+            ) {
               metrics.push(cleanLine);
-            } else if (cleanLine.length > 10 && !cleanLine.startsWith('#')) {
+            } else if (cleanLine.length > 10 && !cleanLine.startsWith("#")) {
               achievements.push(cleanLine);
             }
           });
-          
+
           // Prioritize metrics in achievements
           enhancedAchievements = [
             ...metrics.slice(0, 3),
             ...enhancedAchievements,
-            ...achievements.slice(0, 2)
+            ...achievements.slice(0, 2),
           ];
         }
 
@@ -484,22 +488,22 @@ Return exactly 2 enhanced achievements in JSON format:
     }));
   }
 
-
-
   /**
    * Load career transition story using shared loader
    */
   private async loadCareerStory(): Promise<string> {
     try {
       const story = await storyLoader.loadTransitionStory();
-      
+
       // Combine elements for a comprehensive story
-      const storyElements = [
-        story.motivation,
-        story.uniqueValue
-      ].filter(Boolean).join(' ');
-      
-      return storyElements || "Career transitioner bringing systematic problem-solving from trades to software engineering";
+      const storyElements = [story.motivation, story.uniqueValue]
+        .filter(Boolean)
+        .join(" ");
+
+      return (
+        storyElements ||
+        "Career transitioner bringing systematic problem-solving from trades to software engineering"
+      );
     } catch (error) {
       logger.warn("Could not load transition story", error);
       return "Career transition to technology with strong technical background and systematic problem-solving approach.";
@@ -512,22 +516,24 @@ Return exactly 2 enhanced achievements in JSON format:
   private async loadAchievementStory(projectName: string): Promise<string> {
     try {
       const story = await storyLoader.loadAchievementStory(projectName);
-      
-      if (!story) return '';
+
+      if (!story) return "";
 
       // Combine quantifiable and technical achievements
       const quantifiable = story.quantifiableAchievements
-        .map(ach => ach.metric ? `${ach.description} (${ach.metric})` : ach.description)
+        .map((ach) =>
+          ach.metric ? `${ach.description} (${ach.metric})` : ach.description,
+        )
         .slice(0, 3);
-      
+
       const technical = story.technicalAchievements
-        .map(ach => ach.description)
+        .map((ach) => ach.description)
         .slice(0, 2);
 
-      return [...quantifiable, ...technical].join('\n');
+      return [...quantifiable, ...technical].join("\n");
     } catch (error) {
       logger.warn(`Could not load achievement story for ${projectName}`, error);
-      return '';
+      return "";
     }
   }
 
@@ -564,7 +570,7 @@ Return exactly 2 enhanced achievements in JSON format:
         job.keywords.slice(0, 8).join(", ")
       : "software development, full-stack";
 
-    const prompt = `You are writing a HIGHLY TAILORED resume summary for a career transition candidate applying specifically to ${companyName}. This summary must demonstrate deep understanding of the company's needs, culture, and technical requirements.
+    const prompt = `You are writing a HIGHLY TAILORED resume summary for a candidate applying specifically to ${companyName}. This summary must demonstrate deep understanding of the company's needs, culture, and technical requirements. Use the candidate's ACTUAL story and experiences - do not use generic templates.
 
 Job Details:
 - Title: ${job.title}
@@ -592,21 +598,21 @@ Paragraph 1: The "Who You Are" (Identity & Expertise)
 - Include your current title/role, years of experience, and your "superpower"
 - Focus on professional title, core industry, and high-level overview of expertise
 - Use strong adjectives: "Strategic," "Results-oriented," "Data-driven," "Systematic"
-- For career transition: "Strategic software engineer transitioning from technical trades with systematic problem-solving expertise"
+- For career transition: Use the actual career story from the storyContext to create authentic, personalized introduction
 
 Paragraph 2: The "What You've Done" (Evidence & Achievements)
 - Back up claims with hard data and quantifiable achievements
 - Focus on major projects, leadership experience, or specific problems solved
 - Use Context-Action-Result format: "Managed X (Context), implemented Y (Action), achieved Z (Result)"
-- Include specific achievements from your projects: AI platforms, leadership roles, measurable impacts
-- Reference key projects: Chef BonBon, SyncUp, United Airlines AI Insights
+- Include specific achievements from your actual projects using the achievement stories and quantifiable metrics
+- Reference the candidate's real project experiences from their portfolio
 
 Paragraph 3: The "What You Offer" (Skills & Future Value)
 - Bridge gap between your past and ${companyName}'s future
 - Highlight most relevant technical skills and soft skills that align with job description
 - Include specialized tools, certifications, and how you'll help ${companyName} reach goals
 - Mirror keywords from job posting to help pass ATS systems
-- Specific technical skills: JavaScript, Python, React, Node.js, databases, AI/ML integration
+- Specific technical skills: Use the candidate's actual skills list from their resume data
 
 CRITICAL REQUIREMENTS:
 - MUST be exactly 3 paragraphs (not 1 huge paragraph)
@@ -620,7 +626,7 @@ Return ONLY the complete 3-paragraph summary. Do NOT include any formatting, exp
 
     const response = await this.llm.complete(prompt, {
       temperature: 0.5,
-      maxTokens: 400,
+      maxTokens: 1024, // Increased token limit for longer summaries
     });
 
     if (response.success && response.data) {

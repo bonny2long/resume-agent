@@ -32,8 +32,8 @@ I quit a stable, well-paying union job with benefits to study full-time at i.c S
 
 ## Results So Far
 
-**First 6 months**: Built first full-stack app, learned React/Node.js
-**First year**: Led 3 major projects, including United Airlines AI platform
+**Self-Taught Phase (Sep 2024 - Aug 2025)**: Built first full-stack apps, learned React/Node.js, created SyncUp and Chef BonBon projects
+**i.c. Stars Phase (Aug 2025 - Dec 2025)**: Completed intensive 4-month program, led United Airlines AI platform project
 **Current goal**: Become the kind of developer who bridges physical and digital worlds
 
 ## Advice to Others in Similar Situation

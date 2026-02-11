@@ -8,14 +8,15 @@ import getPrismaClient from "@/database/client";
 
 export const initCommand = new Command("init")
   .description("Initialize or overwrite your master resume")
-  .action(async () => {
+  .option("--skip-data", "Skip data entry and just initialize database")
+  .action(async (options) => {
     logger.header("Initialize Master Resume");
 
     try {
       const prisma = getPrismaClient();
       const existing = await prisma.masterResume.findFirst();
 
-      if (existing) {
+      if (existing && !options.skipData) {
         console.log(
           chalk.yellow(
             "⚠️  A master resume already exists. This will overwrite it.",
@@ -34,6 +35,28 @@ export const initCommand = new Command("init")
           logger.info("Initialization cancelled.");
           return;
         }
+      }
+
+      if (options.skipData) {
+        console.log(
+          chalk.gray(
+            "\nSkipping data entry. Use 'upload' command to add your resume data.",
+          ),
+        );
+
+        // If a resume exists, delete it for clean slate
+        if (existing) {
+          await prisma.masterResume.delete({ where: { id: existing.id } });
+        }
+
+        logger.box(`
+Database initialized successfully! ✓
+
+Next steps:
+  1. Upload your resume: npm run dev -- upload <resume-file>
+  2. Or add data manually: npm run dev -- init
+        `);
+        return;
       }
 
       console.log(
