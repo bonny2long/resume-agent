@@ -7,7 +7,8 @@
     "resume-agent": "./dist/cli/index.js"
   },
   "scripts": {
-    "dev": "nodemon --exec \"ts-node -r tsconfig-paths/register\" src/cli/index.ts --",
+    "dev": "nodemon --exec \"ts-node -r tsconfig-paths/register --transpile-only\" src/cli/index.ts --",
+    "cli": "ts-node -r tsconfig-paths/register --transpile-only src/cli/index.ts",
     "dev:analyze": "npm run dev -- analyze",
     "find-manager": "npm run dev -- find-manager",
     "build": "tsc",

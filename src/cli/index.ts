@@ -26,6 +26,7 @@ import { findManagerCommand } from "./commands/find-manager"; // ← PHASE 5: Hi
 import { resetCommand } from "./commands/reset";
 import { linkedInMessageCommand } from "./commands/linkedin-message"; // ← PHASE 5: LinkedIn messages
 import { uploadAllFixedCommand } from "./commands/upload-all-fixed";
+import { emailCommand } from "./commands/email";
 
 const program = new Command();
 
@@ -72,6 +73,7 @@ async function main() {
     program.addCommand(coverLetterCommand); // ← PHASE 4: Cover letters
     program.addCommand(findManagerCommand); // ← PHASE 5: Hiring manager finder
     program.addCommand(linkedInMessageCommand); // ← PHASE 5: LinkedIn messages
+    program.addCommand(emailCommand);
     program.addCommand(applyCommand);
     program.addCommand(statusCommand);
     program.addCommand(researchCommand);

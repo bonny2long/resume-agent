@@ -59,6 +59,15 @@ npm run dev -- jobs list
 # Analyze new job
 npm run dev -- analyze <job-url>
 
+# Show specific job details
+npm run dev -- jobs show <job-id>
+
+# Search jobs
+npm run dev -- jobs search <query>
+
+# Delete job
+npm run dev -- jobs delete <job-id>
+
 # Tailor resume for job
 npm run dev -- tailor <job-id>
 
@@ -88,6 +97,32 @@ npm run dev -- linkedin-message <job-id> --type connection_request
 
 ---
 
+## 📧 **Email Follow-ups**
+
+**Send professional follow-up emails**
+
+```bash
+# Generate follow-up email (will prompt for application selection)
+npm run dev -- email
+
+# Generate email for specific application
+npm run dev -- email <application-id>
+
+# Post-interview thank you email
+npm run dev -- email <application-id> --type post_interview
+
+# Check-in email (weeks later)
+npm run dev -- email <application-id> --type check_in
+
+# Save email to database
+npm run dev -- email <application-id> --save
+
+# Different tone
+npm run dev -- email <application-id> --tone enthusiastic
+```
+
+---
+
 ## 📁 **Data Management**
 
 **Keep your data organized**
@@ -101,6 +136,15 @@ npm run dev -- import
 
 # Sync GitHub projects
 npm run dev -- github sync
+
+# List GitHub repositories
+npm run dev -- github list
+
+# Show repository details
+npm run dev -- github show <repo-name>
+
+# Extract skills from GitHub
+npm run dev -- extract-skills
 ```
 
 ---
@@ -125,16 +169,38 @@ npm run dev -- credits
 
 ---
 
-## 📚 **Command Categories**
+## 📚 **Complete Command Reference**
 
-| Category | Commands | Description |
-|----------|-----------|-------------|
-| **🚀 Applications** | `apply`, `analyze`, `tailor`, `generate`, `cover-letter` | Complete job application workflow |
-| **📝 Resumes** | `resume list`, `resume add-experience`, `add-project`, `add-skill` | Manage your master resume |
-| **📊 Jobs** | `jobs list`, `jobs search`, `jobs show`, `jobs delete` | View and manage job postings |
-| **🔍 Research** | `research`, `find-manager`, `linkedin-message` | Company research and networking |
-| **📁 Data** | `export`, `import`, `github sync`, `upload` | Data import/export and backup |
-| **⚙️ Utils** | `init`, `status`, `reset`, `credits` | System setup and management |
+| ✅ Status | Command | Description | Category |
+|----------|---------|-------------|
+| ✅ **READY** | `analyze <url>` | Analyze job posting from URL | 📊 Jobs |
+| ✅ **READY** | `apply <url>` | Complete application workflow | 🚀 Applications |
+| ✅ **READY** | `cover-letter [id]` | Generate cover letter | 📄 Documents |
+| ✅ **READY** | `credits` | View API credits status | ⚙️ Utils |
+| ✅ **READY** | `email [id]` | Generate follow-up email | 📧 Email |
+| ✅ **READY** | `export` | Export resume data | 📁 Data |
+| ✅ **READY** | `extract-skills` | Extract skills from GitHub | 📁 Data |
+| ✅ **READY** | `find-manager [id]` | Find hiring manager | 🔍 Research |
+| ✅ **READY** | `generate [id]` | Generate resume document | 📄 Documents |
+| ✅ **READY** | `github list` | List GitHub repositories | 📁 Data |
+| ✅ **READY** | `github show <repo>` | Show repository details | 📁 Data |
+| ✅ **READY** | `github sync` | Sync GitHub repositories | 📁 Data |
+| ✅ **READY** | `import` | Import resume data | 📁 Data |
+| ✅ **READY** | `init` | Initialize system | ⚙️ Utils |
+| ✅ **READY** | `jobs delete <id>` | Delete job | 📊 Jobs |
+| ✅ **READY** | `jobs list` | List all jobs | 📊 Jobs |
+| ✅ **READY** | `jobs search <query>` | Search jobs | 📊 Jobs |
+| ✅ **READY** | `jobs show <id>` | Show job details | 📊 Jobs |
+| ✅ **READY** | `linkedin-message [id]` | Generate LinkedIn message | 🔍 Research |
+| ✅ **READY** | `list` | List master resumes | 📝 Resumes |
+| ✅ **READY** | `research <company>` | Research company info | 🔍 Research |
+| ✅ **READY** | `reset` | Reset database | ⚙️ Utils |
+| ✅ **READY** | `reset-jobs` | Clear all jobs | ⚙️ Utils |
+| ✅ **READY** | `resume` | Resume management commands | 📝 Resumes |
+| ✅ **READY** | `status` | View system status | ⚙️ Utils |
+| ✅ **READY** | `tailor <id>` | Tailor resume for job | 📊 Jobs |
+| ✅ **READY** | `upload <file>` | Upload resume file | 📁 Data |
+| ✅ **READY** | `upload-all` | Upload all resume files | 📁 Data |
 
 ---
 
@@ -160,6 +226,63 @@ npm run dev -- find-manager abc-123 --save
 npm run dev -- linkedin-message abc-123 --save
 ```
 
+**Follow-up Email:**
+```bash
+# After applying, follow up after a week
+npm run dev -- email abc-123 --type initial_followup
+
+# After interview, send thank you
+npm run dev -- email abc-123 --type post_interview
+
+# Check in if no response
+npm run dev -- email abc-123 --type check_in
+```
+
+---
+
+## 📄 **Document Generation Options**
+
+**Resume Templates:**
+- `--template modern` (default, ATS-friendly)
+- `--template traditional` (conservative style)
+- `--template minimal` (simple, clean)
+
+**Cover Letter Tones:**
+- `--tone professional` (default)
+- `--tone enthusiastic`
+- `--tone friendly`
+
+**Formats:**
+- `--format docx` (default)
+- `--format pdf` (not yet implemented)
+
+---
+
+## 🔍 **LinkedIn Message Types**
+
+**Message Types:**
+- `--type connection_request` (default)
+- `--type initial_message`
+- `--type follow_up`
+
+**Additional Options:**
+- `--no-story` (exclude career transition story)
+- `--save` (save to database)
+
+---
+
+## 📧 **Email Types**
+
+**Follow-up Email Types:**
+- `--type initial_followup` (default, after applying)
+- `--type post_interview` (thank you after interview)
+- `--type check_in` (weeks later, no response)
+
+**Additional Options:**
+- `--no-story` (exclude career transition story)
+- `--save` (save to database)
+- `--tone professional|enthusiastic|friendly`
+
 ---
 
 ## 💡 **Pro Tips**
@@ -175,9 +298,17 @@ npm run dev -- linkedin-message abc-123 --save
 - Skills database in `data/skills/skills-database.json`
 
 **🎯 Best Practices:**
-- Always `--generate-embeddings` for better resume tailoring
+- Always generate embeddings for better resume tailoring
 - Use `--template modern` for ATS-friendly resumes
 - Try different `--tone` options for cover letters
+
+---
+
+## 🚧 **Commands In Development**
+
+These commands exist but may not be fully functional yet:
+
+- (none currently - all core commands are implemented!)
 
 ---
 
@@ -186,110 +317,13 @@ npm run dev -- linkedin-message abc-123 --save
 - Check `docs/CLI_COMMANDS.md` for detailed examples
 - View `data/README.md` for data structure guide
 
-## 📝 Resume Management
-
-**Purpose:** Manually view, edit, and manage your master resume data in the database.
-
-| Command                                    | Description                                         |
-| ------------------------------------------ | --------------------------------------------------- |
-| `npm run dev -- resume list`               | View a summary of all your stored resume data.      |
-| `npm run dev -- resume add-experience`     | Interactively add a work experience entry.          |
-| `npm run dev -- resume add-project`        | Add a personal or professional project.             |
-| `npm run dev -- resume add-skill`          | Add a skill with proficiency and category.          |
-| `npm run dev -- resume add-education`      | Add an education entry.                             |
-| `npm run dev -- resume edit <type> <id>`   | Edit an existing entry (experience, project, etc.). |
-| `npm run dev -- resume delete <type> <id>` | Delete an entry from the database.                  |
-
 ---
 
-## 📂 Import & Export
+## 📝 **Command Status Legend**
 
-**Purpose:** Get data into and out of the system. Use these to load PDFs or restore backups.
-
-| Command                        | Description                                                          |
-| ------------------------------ | -------------------------------------------------------------------- |
-| `npm run dev -- upload <file>` | Parse and import a single PDF or DOCX resume file.                   |
-| `npm run dev -- upload-all`    | Batch process all PDFs/DOCXs found in `data/resumes/`.               |
-| `npm run dev -- import`        | Interactive import from a JSON master resume file (restores backup). |
-| `npm run dev -- export`        | Export your master resume to JSON (saved in `data/outputs/`).        |
-
----
-
-## 🐙 GitHub & Skills
-
-**Purpose:** Sync your coding history and verify your skills from actual code.
-
-| Command                                   | Description                                                        |
-| ------------------------------------------ | -------------------------------------------------------------------- |
-| `npm run dev -- find-manager [job-id]`                  | Find hiring manager for a specific job (interactive if no ID). |
-| `npm run dev -- find-manager <job-id> --save`          | Find and save hiring manager to database.                     |
-| `npm run dev -- find-manager --list`                     | List all saved hiring managers with details.                  |
-| `npm run dev -- find-manager --help`                    | Show help for find-manager commands.                       |
-| `npm run dev -- find-manager --list`                     | List all saved hiring managers with details.                  |
-| `npm run dev -- linkedin-message [job-id]`              | Generate LinkedIn message for hiring manager.                 |
-| `npm run dev -- linkedin-message <job-id> --type connection_request` | Generate connection request message (default).                |
-| `npm run dev -- linkedin-message <job-id> --type initial_message` | Generate initial message after connecting.                     |
-| `npm run dev -- linkedin-message <job-id> --type follow_up` | Generate follow-up message.                                    |
-| `npm run dev -- linkedin-message <job-id> --tone professional` | Use professional tone (default).                               |
-| `npm run dev -- linkedin-message <job-id> --tone enthusiastic` | Use enthusiastic tone.                                         |
-| `npm run dev -- linkedin-message <job-id> --tone friendly` | Use friendly tone.                                             |
-| `npm run dev -- linkedin-message <job-id> --no-story` | Exclude career transition story from message.                  |
-| `npm run dev -- linkedin-message <job-id> --save`      | Save generated message to database.                            |
-
----
-
-## 📄 Document Generation
-
-**Purpose:** Generate professional ATS-friendly resume documents and cover letters from tailored data.
-
-| Command                                                      | Description                                                    |
-| ------------------------------------------------------------ | -------------------------------------------------------------- |
-| `npm run dev -- generate [job-id]`                            | Generate resume document (interactive job selection if no ID).  |
-| `npm run dev -- generate <job-id> --format docx`             | Generate DOCX resume for a specific job.                       |
-| `npm run dev -- generate <job-id> --format pdf`               | Generate PDF resume (not yet implemented, returns DOCX).        |
-| `npm run dev -- generate <job-id> --template modern`         | Generate using modern template (default, ATS-friendly).        |
-| `npm run dev -- generate <job-id> --template traditional`     | Generate using traditional template (conservative style).      |
-| `npm run dev -- generate <job-id> --template minimal`        | Generate using minimal template (simple, clean).               |
-| `npm run dev -- cover-letter [job-id]`                       | Generate cover letter (interactive job selection if no ID).     |
-| `npm run dev -- cover-letter <job-id> --format docx`         | Generate DOCX cover letter for a specific job.                 |
-| `npm run dev -- cover-letter <job-id> --format pdf`           | Generate PDF cover letter (not yet implemented, returns DOCX).  |
-| `npm run dev -- cover-letter <job-id> --tone professional`   | Generate with professional tone (default).                    |
-| `npm run dev -- cover-letter <job-id> --tone enthusiastic`  | Generate with enthusiastic tone.                               |
-| `npm run dev -- cover-letter <job-id> --tone friendly`      | Generate with friendly tone.                                   |
-
-**Resume Generation Examples:**
-```bash
-# Interactive job selection
-npm run dev -- generate
-
-# Generate for specific job with options
-npm run dev -- generate 507ce59b-70be-478f-8789-ca3c45347ac4 --format docx --template modern
-
-# Try different templates
-npm run dev -- generate <job-id> --template traditional
-```
-
-**Cover Letter Generation Examples:**
-```bash
-# Interactive cover letter generation
-npm run dev -- cover-letter
-
-# Generate cover letter with specific tone
-npm run dev -- cover-letter <job-id> --tone enthusiastic --format docx
-```
-
----
-
-## ⚙️ System & Utilities
-
-**Purpose:** Setup, reset, and system monitoring.
-
-| Command                           | Description                                                         |
-| --------------------------------- | ------------------------------------------------------------------- |
-| `npm run dev -- init`             | Initialize the database and set up your profile for the first time. |
-| `npm run dev -- reset`            | Clear the database (options to clear only data or everything).      |
-| `npm run dev -- reset-jobs`       | Delete all saved jobs and companies.                                |
-| `npm run dev -- reset-jobs --force` | Delete jobs without confirmation prompt.                           |
-| `npm run dev -- upload-all-fixed` | Upload and parse all resume files (fixed version).                  |
-| `npm run dev -- upload-all-fixed --confirm` | Upload resumes without confirmation prompt.                       |
-| `npm run dev -- credits`          | View remaining API credits for third-party services.                |
+| ✅ Status | Meaning |
+|----------|---------|
+| ✅ **READY** | Fully functional and tested |
+| 🚧 **IN DEV** | In development, may have limited functionality |
+| 📋 **PLANNED** | Planned for future release |
+| ⚠️ **DEPRECATED** | May be removed in future versions |

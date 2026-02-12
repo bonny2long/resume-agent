@@ -148,12 +148,20 @@ export class ResumeTailorAgent {
 
       // Step 3: Find most relevant experiences using RAG
       logger.step(3, 5, "Selecting relevant experiences (RAG)...");
-      const relevantExperiences = await this.embeddings.findRelevantExperiences(
-        jobId,
-        3, // Top 3 most relevant
-      );
-
-      logger.success(`Selected ${relevantExperiences.length} experiences`);
+      let relevantExperiences;
+      try {
+        relevantExperiences = await this.embeddings.findRelevantExperiences(
+          jobId,
+          3, // Top 3 most relevant
+        );
+        logger.success(`Selected ${relevantExperiences.length} experiences`);
+      } catch (error) {
+        logger.warn("RAG selection failed, falling back to recent experiences");
+        relevantExperiences = masterResume.experiences.slice(0, 3).map((exp) => ({
+          experience: exp,
+          similarity: 1.0,
+        }));
+      }
 
       // Deduplicate experiences by company + title
       const experienceMap = new Map<string, any>();
@@ -218,12 +226,20 @@ export class ResumeTailorAgent {
 
       // Step 4: Find most relevant projects using RAG
       logger.step(4, 5, "Selecting relevant projects (RAG)...");
-      const relevantProjects = await this.embeddings.findRelevantProjects(
-        jobId,
-        2, // Top 2 most relevant
-      );
-
-      logger.success(`Selected ${relevantProjects.length} projects`);
+      let relevantProjects;
+      try {
+        relevantProjects = await this.embeddings.findRelevantProjects(
+          jobId,
+          2, // Top 2 most relevant
+        );
+        logger.success(`Selected ${relevantProjects.length} projects`);
+      } catch (error) {
+        logger.warn("RAG selection failed, falling back to recent projects");
+        relevantProjects = masterResume.projects.slice(0, 2).map((proj) => ({
+          project: proj,
+          similarity: 1.0,
+        }));
+      }
 
       // Step 5: Optimize everything with AI
       logger.step(5, 5, "Optimizing with AI...");
@@ -242,6 +258,44 @@ export class ResumeTailorAgent {
       };
     } catch (error: any) {
       logger.error("Resume tailoring failed", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Generate only the tailored summary for a job (public method)
+   * Useful for passing to other agents for cohesive messaging
+   */
+  async generateSummaryOnly(jobId: string): Promise<AgentResponse<string>> {
+    try {
+      const job = await this.prisma.job.findUnique({
+        where: { id: jobId },
+        include: { company: true },
+      });
+
+      if (!job) {
+        throw new Error("Job not found");
+      }
+
+      const masterResume = await this.prisma.masterResume.findFirst({
+        include: { skills: true, experiences: true },
+      });
+
+      if (!masterResume) {
+        throw new Error("No master resume found");
+      }
+
+      const summary = await this.generateTailoredSummary(job, masterResume);
+
+      return {
+        success: true,
+        data: summary,
+      };
+    } catch (error: any) {
+      logger.error("Summary generation failed", error);
       return {
         success: false,
         error: error.message,
@@ -591,36 +645,36 @@ Core Skills: ${masterResume.skills
       .map((s: any) => s.name)
       .join(", ")}
 
-Write a POWERFUL, COMPELLING resume summary with EXACTLY 3 DISTINCT PARAGRAPHS following this specific structure:
+Write a NATURAL, AUTHENTIC resume summary that sounds like a real person introducing themselves. Read the candidate's actual career story (storyContext) and create a genuine introduction based on their real journey.
 
-Paragraph 1: The "Who You Are" (Identity & Expertise)
-- Define professional identity immediately - your "elevator pitch"
-- Include your current title/role, years of experience, and your "superpower"
-- Focus on professional title, core industry, and high-level overview of expertise
-- Use strong adjectives: "Strategic," "Results-oriented," "Data-driven," "Systematic"
-- For career transition: Use the actual career story from the storyContext to create authentic, personalized introduction
+Paragraph 1: Your Actual Story
+- Use the candidate's real career transition story from storyContext  
+- Write naturally, like you would introduce yourself in conversation
+- Avoid corporate buzzwords ("strategic," "results-oriented," "superpower")
+- Focus on their genuine path from trades to software
+- Keep it conversational and authentic
 
-Paragraph 2: The "What You've Done" (Evidence & Achievements)
-- Back up claims with hard data and quantifiable achievements
-- Focus on major projects, leadership experience, or specific problems solved
-- Use Context-Action-Result format: "Managed X (Context), implemented Y (Action), achieved Z (Result)"
-- Include specific achievements from your actual projects using the achievement stories and quantifiable metrics
-- Reference the candidate's real project experiences from their portfolio
+Paragraph 2: What You've Actually Built
+- Use real achievements from the candidate's project database
+- Reference their actual projects with specific details from their achievement stories
+- Write in natural language, not resume-speak
+- Focus on what they genuinely accomplished
 
-Paragraph 3: The "What You Offer" (Skills & Future Value)
-- Bridge gap between your past and ${companyName}'s future
-- Highlight most relevant technical skills and soft skills that align with job description
-- Include specialized tools, certifications, and how you'll help ${companyName} reach goals
-- Mirror keywords from job posting to help pass ATS systems
-- Specific technical skills: Use the candidate's actual skills list from their resume data
+Paragraph 3: What You Bring to ${companyName}
+- Use the candidate's actual skills from their resume data
+- Naturally weave in key ATS keywords from the job description
+- Connect their real experience to the job requirements
+- Show how their specific skills (JavaScript, React, Node.js, databases, etc.) solve ${companyName}'s problems
+- Write conversationally but ensure keyword coverage for ATS systems
 
 CRITICAL REQUIREMENTS:
-- MUST be exactly 3 paragraphs (not 1 huge paragraph)
-- Each paragraph should be 3-5 sentences
-- Must be company-specific to ${companyName}
-- Include 2-3 keywords from: ${jobKeywords}
-- Focus on professional identity, quantifiable achievements, and future value
-- Show genuine interest in ${companyName}'s mission and work
+- Write naturally like a real person introducing themselves
+- IMPORTANT: Weave in ATS keywords naturally from: ${job.requiredSkills.slice(0, 8).join(", ")}
+- Include their actual story from storyContext
+- Mention their real projects and technologies
+- Sound conversational but include keywords naturally in sentences
+- Avoid corporate buzzwords but ensure ATS compatibility
+- Make it both human-readable and machine-scannable
 
 Return ONLY the complete 3-paragraph summary. Do NOT include any formatting, explanations, or extra text.`;
 

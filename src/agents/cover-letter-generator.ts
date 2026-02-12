@@ -9,6 +9,7 @@ export interface CoverLetterOptions {
   tone: "professional" | "enthusiastic" | "friendly";
   includeCareerStory: boolean;
   maxParagraphs: number;
+  tailoredSummary?: string;
 }
 
 export interface CoverLetter {
@@ -44,108 +45,109 @@ export class CoverLetterAgent {
   private prisma = getPrismaClient();
 
   /**
-   * Generate a cover letter for a specific job
-   */
-  async generateCoverLetter(
-    jobId: string,
-    options: CoverLetterOptions = {
-      tone: "professional",
-      includeCareerStory: true,
-      maxParagraphs: 3,
-    },
-  ): Promise<AgentResponse<CoverLetter>> {
-    try {
-      logger.header("Cover Letter Agent");
-      logger.info("Generating cover letter", { jobId, tone: options.tone });
+    * Generate a cover letter for a specific job
+    */
+   async generateCoverLetter(
+     jobId: string,
+     options: CoverLetterOptions = {
+       tone: "professional",
+       includeCareerStory: true,
+       maxParagraphs: 3,
+     },
+   ): Promise<AgentResponse<CoverLetter>> {
+     try {
+       logger.header("Cover Letter Agent");
+       logger.info("Generating cover letter", { jobId, tone: options.tone });
 
-      // Step 1: Load job and company data
-      logger.step(1, 4, "Loading job and company data...");
-      const job = await this.prisma.job.findUnique({
-        where: { id: jobId },
-        include: { company: true },
-      });
+       // Step 1: Load job and company data
+       logger.step(1, 4, "Loading job and company data...");
+       const job = await this.prisma.job.findUnique({
+         where: { id: jobId },
+         include: { company: true },
+       });
 
-      if (!job) {
-        throw new Error("Job not found");
-      }
+       if (!job) {
+         throw new Error("Job not found");
+       }
 
-      logger.success(`Job: ${job.title} at ${job.company?.name}`);
+       logger.success(`Job: ${job.title} at ${job.company?.name}`);
 
-      // Step 2: Load master resume
-      logger.step(2, 4, "Loading resume data...");
-      const masterResume = await this.prisma.masterResume.findFirst({
-        include: {
-          experiences: {
-            include: { achievements: true },
-            orderBy: { startDate: "desc" },
-          },
-          projects: true,
-        },
-      });
+       // Step 2: Load master resume
+       logger.step(2, 4, "Loading resume data...");
+       const masterResume = await this.prisma.masterResume.findFirst({
+         include: {
+           experiences: {
+             include: { achievements: true },
+             orderBy: { startDate: "desc" },
+           },
+           projects: true,
+           skills: true,
+         },
+       });
 
-      if (!masterResume) {
-        throw new Error("No master resume found");
-      }
+       if (!masterResume) {
+         throw new Error("No master resume found");
+       }
 
-      logger.success(`Resume: ${masterResume.fullName}`);
+       logger.success(`Resume: ${masterResume.fullName}`);
 
-      // Step 3: Load career story (if requested)
-      let careerStory = "";
-      if (options.includeCareerStory) {
-        logger.step(3, 4, "Loading career story...");
-        careerStory = await this.loadCareerStory();
-        logger.success("Career story loaded");
-      }
+       // Step 3: Load career story (if requested)
+       let careerStory = "";
+       if (options.includeCareerStory) {
+         logger.step(3, 4, "Loading career story...");
+         careerStory = await this.loadCareerStory();
+         logger.success("Career story loaded");
+       }
 
-      // Step 4: Generate cover letter content
-      logger.step(4, 4, "Generating cover letter with AI...");
-      const content = await this.generateContent(
-        job,
-        masterResume,
-        careerStory,
-        options,
-      );
+       // Step 4: Generate cover letter content
+       logger.step(4, 4, "Generating cover letter with AI...");
+       const content = await this.generateContent(
+         job,
+         masterResume,
+         careerStory,
+         options,
+       );
 
-      logger.success("Cover letter generated!");
+       logger.success("Cover letter generated!");
 
-      // Build final cover letter
-      const coverLetter: CoverLetter = {
-        yourName: masterResume.fullName,
-        yourAddress: masterResume.location,
-        yourEmail: masterResume.email,
-        yourPhone: masterResume.phone,
-        date: new Date().toLocaleDateString("en-US", {
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        }),
-        hiringManager: undefined, // Will be filled by hiring manager finder
-        recipientName: "Hiring Manager",
-        recipientTitle: job.title,
-        companyName: job.company?.name || "Hiring Team",
-        companyAddress: job.company?.headquarters || undefined,
-        greeting: content.greeting,
-        opening: content.opening,
-        body: content.body,
-        closing: content.closing,
-        signature: masterResume.fullName,
-        jobId: job.id,
-        jobTitle: job.title,
-        tone: options.tone,
-      };
+       // Build final cover letter
+       const coverLetter: CoverLetter = {
+         yourName: masterResume.fullName,
+         yourAddress: masterResume.location,
+         yourEmail: masterResume.email,
+         yourPhone: masterResume.phone,
+         date: new Date().toLocaleDateString("en-US", {
+           month: "long",
+           day: "numeric",
+           year: "numeric",
+         }),
+         hiringManager: undefined, // Will be filled by hiring manager finder
+         recipientName: "Hiring Manager",
+         recipientTitle: job.title,
+         companyName: job.company?.name || "Hiring Team",
+         companyAddress: job.company?.headquarters || undefined,
+         greeting: content.greeting,
+         opening: content.opening,
+         body: content.body,
+         closing: content.closing,
+         signature: masterResume.fullName,
+         jobId: job.id,
+         jobTitle: job.title,
+         tone: options.tone,
+       };
 
-      return {
-        success: true,
-        data: coverLetter,
-      };
-    } catch (error: any) {
-      logger.error("Cover letter generation failed", error);
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-  }
+       return {
+         success: true,
+         data: coverLetter,
+       };
+     } catch (error: any) {
+       logger.error("Cover letter generation failed", error);
+       return {
+         success: false,
+         error: error.message,
+       };
+     }
+   }
 
   /**
    * Load career transition story using shared loader
@@ -236,6 +238,9 @@ export class CoverLetterAgent {
     // Build prompt based on tone
     const toneGuidance = this.getToneGuidance(options.tone);
 
+    // ATS keywords from job requirements
+    const atsKeywords = job.requiredSkills?.slice(0, 8).join(", ") || "";
+
     const prompt = `You are writing a compelling cover letter for a job application. Write in a ${options.tone} tone.
 
 JOB INFORMATION:
@@ -248,6 +253,7 @@ Company Culture: ${job.company?.workStyle?.join(", ") || "not specified"}
 CANDIDATE INFORMATION:
 Name: ${masterResume.fullName}
 ${careerStory ? `Career Story: ${careerStory}` : ""}
+${options.tailoredSummary ? `Tailored Summary (use as reference for consistency): ${options.tailoredSummary}` : ""}
 
 Recent Achievements:
 ${topAchievements
@@ -267,13 +273,16 @@ Top Skills: ${
 ${toneGuidance}
 
 CRITICAL REQUIREMENTS:
-1. Opening paragraph: ${careerStory ? "Lead with career transition story if provided" : "Express enthusiasm for the role"}
-2. Body paragraphs (${options.maxParagraphs - 2}): Reference specific achievements and how they relate to job requirements
-3. Closing paragraph: Express interest in discussing further, reference company values/mission
-4. Keep it concise - total 3-4 paragraphs maximum
-5. Use active voice and strong verbs
-6. Reference specific job requirements
-7. Show you've researched the company
+1. ATS OPTIMIZATION: Naturally incorporate these keywords into your letter: ${atsKeywords}
+   - Use skills keywords in context, not just listed
+   - Include relevant job requirements naturally in achievements
+2. Opening paragraph: ${careerStory ? "Lead with career transition story if provided" : "Express enthusiasm for the role"}
+3. Body paragraphs (${options.maxParagraphs - 2}): Reference specific achievements and how they relate to job requirements
+4. Closing paragraph: Express interest in discussing further, reference company values/mission
+5. Keep it concise - total 3-4 paragraphs maximum
+6. Use active voice and strong verbs
+7. Reference specific job requirements
+8. Show you've researched the company
 
 Return a JSON object with this structure:
 {

@@ -213,6 +213,31 @@ export class StoryLoader {
   }
 
   /**
+   * Get unified story context - consistent data for all agents
+   * Returns all story elements in a structured format
+   */
+  async getUnifiedStoryContext(): Promise<{
+    motivation: string;
+    turningPoint: string;
+    uniqueValue: string;
+    skills: Array<{ trade: string; tech: string }>;
+    conciseStory: string;
+    detailedStory: string;
+  }> {
+    const story = await this.loadTransitionStory();
+    
+    return {
+      motivation: story.motivation,
+      turningPoint: story.turningPoint,
+      uniqueValue: story.uniqueValue,
+      skills: story.transferableSkills,
+      conciseStory: story.motivation || story.uniqueValue || 
+        "Career transitioner bringing systematic problem-solving from trades to software engineering",
+      detailedStory: `${story.motivation} ${story.turningPoint} ${story.uniqueValue}`.trim(),
+    };
+  }
+
+  /**
    * Extract field from markdown content
    */
   private extractField(content: string, fieldName: string): string | null {

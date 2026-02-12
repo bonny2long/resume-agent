@@ -9,6 +9,7 @@ export interface LinkedInMessageOptions {
   type: "connection_request" | "initial_message" | "follow_up";
   tone: "professional" | "enthusiastic" | "friendly";
   includeCareerStory: boolean;
+  tailoredSummary?: string;
 }
 
 export interface LinkedInMessageResult {
@@ -134,6 +135,7 @@ export class LinkedInMessageAgent {
           masterResume,
           careerStory,
           options.tone,
+          options.tailoredSummary,
         );
         tips.push("Keep it under 300 characters");
         tips.push("Mention the specific role or company");
@@ -147,6 +149,7 @@ export class LinkedInMessageAgent {
           masterResume,
           careerStory,
           options.tone,
+          options.tailoredSummary,
         );
         message = initialResult.message;
         subject = initialResult.subject;
@@ -188,6 +191,7 @@ export class LinkedInMessageAgent {
     masterResume: any,
     careerStory: string,
     tone: string,
+    tailoredSummary?: string,
   ): Promise<string> {
     const toneGuidance = this.getToneGuidance(tone);
 
@@ -201,6 +205,11 @@ export class LinkedInMessageAgent {
       job.company?.industry || job.company?.values?.slice(0, 1)[0] || "";
     const yourUniqueValue =
       careerStory || "Software engineer with strong problem-solving skills";
+
+    // Include tailored summary for consistency if provided
+    const summaryContext = tailoredSummary 
+      ? `Reference this summary for consistent messaging: ${tailoredSummary.substring(0, 200)}...`
+      : "";
 
     // Extract hiring manager insights if available
     let hmInsights = "";
@@ -239,6 +248,7 @@ ${hiringManager.title ? `Their Title: ${hiringManager.title}` : ""}
 ${hmInsights ? `About them: ${hmInsights}` : ""}
 Your Name: ${masterResume.fullName}
 Your unique value: ${yourUniqueValue}
+${summaryContext ? `\n${summaryContext}` : ""}
 
 ${toneGuidance}
 
@@ -307,6 +317,7 @@ Return ONLY the message text, no quotation marks, no preamble.`;
     masterResume: any,
     careerStory: string,
     tone: string,
+    tailoredSummary?: string,
   ): Promise<{ subject: string; message: string }> {
     const toneGuidance = this.getToneGuidance(tone);
 
@@ -339,6 +350,7 @@ ${hiringManager.department ? `Their Department: ${hiringManager.department}` : "
 Your Name: ${masterResume.fullName}
 ${careerStory ? `Your unique story: ${careerStory}` : ""}
 ${topSkills ? `Your top skills: ${topSkills}` : ""}
+${tailoredSummary ? `\nTailored Summary (use for consistent messaging): ${tailoredSummary}` : ""}
 
 ${toneGuidance}
 

@@ -204,6 +204,7 @@ model HiringManager {
   job           Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
   messages      LinkedInMessage[]
   applications  Application[]
+  emailMessages EmailMessage[]
   
   @@map("hiring_managers")
   @@unique([name, jobId]) // Prevent duplicates of same manager for same job
@@ -225,6 +226,26 @@ model LinkedInMessage {
   hiringManager       HiringManager @relation(fields: [hiringManagerId], references: [id], onDelete: Cascade)
 
   @@map("linkedin_messages")
+}
+
+model EmailMessage {
+  id             String       @id @default(uuid())
+  applicationId  String?
+  hiringManagerId String?
+  type           String       // initial_followup, post_interview, check_in
+  to             String
+  from           String?
+  subject        String
+  body           String
+  tone           String
+  status         String       @default("draft")
+  createdAt      DateTime     @default(now())
+  sentAt         DateTime?
+  responseAt     DateTime?
+  application    Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  hiringManager  HiringManager? @relation(fields: [hiringManagerId], references: [id], onDelete: Cascade)
+
+  @@map("email_messages")
 }
 
 model Application {
@@ -252,6 +273,7 @@ model Application {
   
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+  emailMessages   EmailMessage[]
   
   @@index([jobId])
   @@index([status])

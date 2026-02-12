@@ -162,6 +162,17 @@ export class ApplicationOrchestratorAgent {
 
       logger.success("Resume tailored successfully");
 
+      // Generate tailored summary for other agents
+      logger.info("Generating tailored summary for cohesive messaging...");
+      const summaryResult = await resumeTailor.generateSummaryOnly(jobId);
+      const tailoredSummary = summaryResult.success && summaryResult.data 
+        ? summaryResult.data 
+        : undefined;
+
+      if (tailoredSummary) {
+        logger.success("Tailored summary generated");
+      }
+
       // Step 3: Generate resume DOCX
       logger.step(3, 6, "Generating resume document...");
       const docGenerator = getDocumentGenerator();
@@ -188,6 +199,7 @@ export class ApplicationOrchestratorAgent {
           tone: "professional",
           includeCareerStory: true,
           maxParagraphs: 4,
+          tailoredSummary: tailoredSummary,
         },
       );
 
@@ -271,6 +283,7 @@ export class ApplicationOrchestratorAgent {
             type: "connection_request",
             tone: "professional",
             includeCareerStory: true,
+            tailoredSummary: tailoredSummary,
           },
         );
 

@@ -64,13 +64,14 @@ export class JobAnalyzerAgent {
    * Analyze a job posting from URL
    */
   async analyzeJobFromUrl(url: string): Promise<AgentResponse<JobAnalysis>> {
+    let scrapedData: any = null;
     try {
       logger.header("Job Analyzer Agent");
       logger.info("Analyzing job posting", { url });
 
       // Step 1: Scrape the job posting
       logger.step(1, 3, "Scraping job posting...");
-      const scrapedData = await this.scraper.scrapeJobPosting(url);
+      scrapedData = await this.scraper.scrapeJobPosting(url);
 
       // Step 2: Use AI to parse and structure the data
       logger.step(2, 3, "Parsing with AI...");
@@ -94,11 +95,125 @@ export class JobAnalyzerAgent {
       };
     } catch (error: any) {
       logger.error("Job analysis failed", error);
+
+      // If AI parsing fails, try to extract basic info with regex patterns
+      if (scrapedData && scrapedData.description) {
+        const basicInfo = {
+          title: scrapedData.title,
+          company: scrapedData.company,
+          location: scrapedData.location,
+          originalUrl: url,
+        };
+        const fallbackAnalysis = this.extractBasicInfoFromText(
+          scrapedData.description,
+          basicInfo,
+        );
+
+        return {
+          success: true, // Still return success with basic extraction
+          data: fallbackAnalysis,
+        };
+      }
+
       return {
         success: false,
         error: error.message,
       };
     }
+  }
+
+  /**
+   * Extract basic job info using regex patterns when AI parsing fails
+   */
+  private extractBasicInfoFromText(
+    jobText: string,
+    basicInfo?: Partial<JobAnalysis>,
+  ): JobAnalysis {
+    const analysis = basicInfo || {};
+
+    // Try to extract title
+    let title = analysis.title || "Software Engineer";
+    if (!analysis.title) {
+      const titleMatch =
+        jobText.match(/job\s+title[:\s]*["']([^"']+)["']/i) ||
+        jobText.match(/title["']([^"']+)["']/i) ||
+        jobText.match(/position["']([^"']+)["']/i);
+      if (titleMatch) title = titleMatch[1];
+    }
+
+    // Try to extract company
+    let company = analysis.company || "Unknown Company";
+    if (!analysis.company) {
+      const companyMatch =
+        jobText.match(/company[:\s]*["']([^"']+)["']/i) ||
+        jobText.match(/at\s+([^,\n]+)/i);
+      if (companyMatch) company = companyMatch[1];
+    }
+
+    // Try to extract location
+    let location = analysis.location || "Remote";
+    if (!analysis.location) {
+      const locationMatch =
+        jobText.match(/location[:\s]*["']([^"']+)["']/i) ||
+        jobText.match(/in\s+([^,\n]+)/i);
+      if (locationMatch) location = locationMatch[1];
+    }
+
+    // Extract technical skills commonly mentioned
+    const skills = this.extractSkillsFromText(jobText);
+
+    return {
+      title: title,
+      company: company,
+      location: location,
+      jobType: "Full-time",
+      remote: location.toLowerCase().includes("remote"),
+      requiredSkills: skills,
+      preferredSkills: [],
+      requiredYearsExperience: undefined,
+      educationRequired: undefined,
+      responsibilities: [],
+      qualifications: [],
+      benefits: [],
+      keywords: ["software", "engineering", "development"],
+      experienceLevel: this.inferExperienceLevel(title),
+      techStack: skills,
+      industryKeywords: ["technology", "software"],
+      ...analysis,
+      postedDate: new Date(),
+      originalUrl: analysis.originalUrl || "",
+    };
+  }
+
+  /**
+   * Extract skills from job text using common patterns
+   */
+  private extractSkillsFromText(jobText: string): string[] {
+    const commonSkills = [
+      "JavaScript",
+      "Python",
+      "Java",
+      "React",
+      "Node.js",
+      "HTML",
+      "CSS",
+      "SQL",
+      "NoSQL",
+      "Git",
+      "Docker",
+      "AWS",
+      "Azure",
+      "MongoDB",
+    ];
+
+    const foundSkills: string[] = [];
+    commonSkills.forEach((skill) => {
+      if (jobText.toLowerCase().includes(skill.toLowerCase())) {
+        foundSkills.push(skill);
+      }
+    });
+
+    return [...new Set(foundSkills)];
   }
 
   /**
@@ -134,11 +249,18 @@ export class JobAnalyzerAgent {
     jobText: string,
     basicInfo?: any,
   ): Promise<JobAnalysis> {
+    // Truncate job text to avoid context window issues and ensure enough tokens for response
+    const maxLength = 20000;
+    const truncatedText =
+      jobText.length > maxLength ?
+        jobText.substring(0, maxLength) + "\n...[truncated]"
+      : jobText;
+
     const prompt = `
 You are an expert job posting analyzer. Parse this job description and extract structured information.
 
 Job Description:
-${jobText}
+${truncatedText}
 
 ${basicInfo?.title ? `Title: ${basicInfo.title}` : ""}
 ${basicInfo?.company ? `Company: ${basicInfo.company}` : ""}
@@ -146,6 +268,7 @@ ${basicInfo?.location ? `Location: ${basicInfo.location}` : ""}
 
 Extract the following information and return ONLY valid JSON:
 
+Return a SINGLE JSON object (do not return an array):
 {
   "title": "Job title",
   "company": "Company name",
@@ -180,14 +303,21 @@ Rules:
 
     const response = await this.llm.completeJSON<JobAnalysis>(prompt, {
       temperature: 0.3, // Lower for more consistent extraction
+      maxTokens: 2000, // Ensure enough tokens for the full JSON response
     });
 
     if (!response.success || !response.data) {
       throw new Error("Failed to parse job with AI: " + response.error);
     }
 
+    // Handle case where model returns an array despite instructions
+    let data: any = response.data;
+    if (Array.isArray(data)) {
+      data = data[0];
+    }
+
     return {
-      ...response.data,
+      ...data,
       originalUrl: basicInfo?.url || "",
     };
   }

@@ -3,6 +3,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { logger } from "@/utils/logger";
 import { PrismaClient } from "@prisma/client";
+import inquirer from "inquirer";
 import { ResumeRepository } from "@/database/repositories/resume.repository";
 import {
   promptExperience,
@@ -14,6 +15,80 @@ import {
 export const resumeCommand = new Command("resume").description(
   "Manage your master resume",
 );
+
+// Update profile
+resumeCommand
+  .command("profile")
+  .description("Update personal profile information")
+  .action(async () => {
+    const prisma = new PrismaClient();
+    const resumeRepo = new ResumeRepository(prisma);
+
+    try {
+      const masterResume = await resumeRepo.getMasterResume();
+      if (!masterResume) {
+        console.log(chalk.red("❌ No master resume found."));
+        return;
+      }
+
+      console.log(chalk.bold.cyan("\n👤 Update Profile Information"));
+
+      const answers = await inquirer.prompt([
+        {
+          type: "input",
+          name: "fullName",
+          message: "Full Name:",
+          default: masterResume.fullName,
+        },
+        {
+          type: "input",
+          name: "email",
+          message: "Email:",
+          default: masterResume.email,
+        },
+        {
+          type: "input",
+          name: "phone",
+          message: "Phone:",
+          default: masterResume.phone,
+        },
+        {
+          type: "input",
+          name: "location",
+          message: "Location:",
+          default: masterResume.location,
+        },
+        {
+          type: "input",
+          name: "linkedInUrl",
+          message: "LinkedIn URL:",
+          default: masterResume.linkedInUrl,
+        },
+        {
+          type: "input",
+          name: "githubUrl",
+          message: "GitHub URL:",
+          default: masterResume.githubUrl,
+        },
+        {
+          type: "input",
+          name: "portfolioUrl",
+          message: "Portfolio URL:",
+          default: masterResume.portfolioUrl,
+        },
+      ]);
+
+      await resumeRepo.updateMasterResume(masterResume.id, answers);
+      console.log(chalk.green("\n✅ Profile updated successfully!"));
+    } catch (error) {
+      console.log(chalk.red("❌ Error updating profile:"));
+      console.log(
+        chalk.white(error instanceof Error ? error.message : "Unknown error"),
+      );
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
 
 // Add experience
 resumeCommand

@@ -153,8 +153,21 @@ export class WebScraperService {
           urlParams.get("jobTitle") || title || "Software Engineer";
         const location = urlParams.get("location") || "Remote";
 
+        // Extract company name from URL patterns
+        let companyName = "Unknown Company";
+        if (url.includes("inspiracareers")) {
+          companyName = "Inspira";
+        } else if (url.includes("myjobs.adp.com")) {
+          // Extract from subdomain or path
+          const urlParts = url.split('/');
+          const subdomain = urlParts[2]; // e.g., company.myjobs.adp.com
+          if (subdomain && subdomain !== 'myjobs.adp.com') {
+            companyName = subdomain.split('.')[0];
+          }
+        }
+
         // Create a basic job description with common tech keywords
-        finalContent = `Job posting for ${jobTitle} at ${location}. 
+        finalContent = `Job posting for ${jobTitle} at ${companyName} in ${location}. 
 This position appears to be a software engineering role requiring skills in software development, web technologies, and programming languages. 
 Common requirements for this type of position typically include:
 - Programming languages (JavaScript, Python, Java, etc.)
@@ -163,6 +176,8 @@ Common requirements for this type of position typically include:
 - Development tools (Git, Docker, CI/CD, etc.)
 - Software engineering best practices and methodologies
 
+Company: ${companyName}
+Location: ${location}
 Please visit the original URL for complete details: ${url}`;
 
         logger.warn("Using enhanced fallback content for ATS systems");
