@@ -4,6 +4,7 @@ import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
 import getPrismaClient from "@/database/client";
 import storyLoader from "@/utils/story-loader";
+import VoiceLoader from "@/utils/voice-loader";
 
 export interface CoverLetterOptions {
   tone: "professional" | "enthusiastic" | "friendly";
@@ -45,109 +46,109 @@ export class CoverLetterAgent {
   private prisma = getPrismaClient();
 
   /**
-    * Generate a cover letter for a specific job
-    */
-   async generateCoverLetter(
-     jobId: string,
-     options: CoverLetterOptions = {
-       tone: "professional",
-       includeCareerStory: true,
-       maxParagraphs: 3,
-     },
-   ): Promise<AgentResponse<CoverLetter>> {
-     try {
-       logger.header("Cover Letter Agent");
-       logger.info("Generating cover letter", { jobId, tone: options.tone });
+   * Generate a cover letter for a specific job
+   */
+  async generateCoverLetter(
+    jobId: string,
+    options: CoverLetterOptions = {
+      tone: "professional",
+      includeCareerStory: true,
+      maxParagraphs: 3,
+    },
+  ): Promise<AgentResponse<CoverLetter>> {
+    try {
+      logger.header("Cover Letter Agent");
+      logger.info("Generating cover letter", { jobId, tone: options.tone });
 
-       // Step 1: Load job and company data
-       logger.step(1, 4, "Loading job and company data...");
-       const job = await this.prisma.job.findUnique({
-         where: { id: jobId },
-         include: { company: true },
-       });
+      // Step 1: Load job and company data
+      logger.step(1, 4, "Loading job and company data...");
+      const job = await this.prisma.job.findUnique({
+        where: { id: jobId },
+        include: { company: true },
+      });
 
-       if (!job) {
-         throw new Error("Job not found");
-       }
+      if (!job) {
+        throw new Error("Job not found");
+      }
 
-       logger.success(`Job: ${job.title} at ${job.company?.name}`);
+      logger.success(`Job: ${job.title} at ${job.company?.name}`);
 
-       // Step 2: Load master resume
-       logger.step(2, 4, "Loading resume data...");
-       const masterResume = await this.prisma.masterResume.findFirst({
-         include: {
-           experiences: {
-             include: { achievements: true },
-             orderBy: { startDate: "desc" },
-           },
-           projects: true,
-           skills: true,
-         },
-       });
+      // Step 2: Load master resume
+      logger.step(2, 4, "Loading resume data...");
+      const masterResume = await this.prisma.masterResume.findFirst({
+        include: {
+          experiences: {
+            include: { achievements: true },
+            orderBy: { startDate: "desc" },
+          },
+          projects: true,
+          skills: true,
+        },
+      });
 
-       if (!masterResume) {
-         throw new Error("No master resume found");
-       }
+      if (!masterResume) {
+        throw new Error("No master resume found");
+      }
 
-       logger.success(`Resume: ${masterResume.fullName}`);
+      logger.success(`Resume: ${masterResume.fullName}`);
 
-       // Step 3: Load career story (if requested)
-       let careerStory = "";
-       if (options.includeCareerStory) {
-         logger.step(3, 4, "Loading career story...");
-         careerStory = await this.loadCareerStory();
-         logger.success("Career story loaded");
-       }
+      // Step 3: Load career story (if requested)
+      let careerStory = "";
+      if (options.includeCareerStory) {
+        logger.step(3, 4, "Loading career story...");
+        careerStory = await this.loadCareerStory();
+        logger.success("Career story loaded");
+      }
 
-       // Step 4: Generate cover letter content
-       logger.step(4, 4, "Generating cover letter with AI...");
-       const content = await this.generateContent(
-         job,
-         masterResume,
-         careerStory,
-         options,
-       );
+      // Step 4: Generate cover letter content
+      logger.step(4, 4, "Generating cover letter with AI...");
+      const content = await this.generateContent(
+        job,
+        masterResume,
+        careerStory,
+        options,
+      );
 
-       logger.success("Cover letter generated!");
+      logger.success("Cover letter generated!");
 
-       // Build final cover letter
-       const coverLetter: CoverLetter = {
-         yourName: masterResume.fullName,
-         yourAddress: masterResume.location,
-         yourEmail: masterResume.email,
-         yourPhone: masterResume.phone,
-         date: new Date().toLocaleDateString("en-US", {
-           month: "long",
-           day: "numeric",
-           year: "numeric",
-         }),
-         hiringManager: undefined, // Will be filled by hiring manager finder
-         recipientName: "Hiring Manager",
-         recipientTitle: job.title,
-         companyName: job.company?.name || "Hiring Team",
-         companyAddress: job.company?.headquarters || undefined,
-         greeting: content.greeting,
-         opening: content.opening,
-         body: content.body,
-         closing: content.closing,
-         signature: masterResume.fullName,
-         jobId: job.id,
-         jobTitle: job.title,
-         tone: options.tone,
-       };
+      // Build final cover letter
+      const coverLetter: CoverLetter = {
+        yourName: masterResume.fullName,
+        yourAddress: masterResume.location,
+        yourEmail: masterResume.email,
+        yourPhone: masterResume.phone,
+        date: new Date().toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+        hiringManager: undefined, // Will be filled by hiring manager finder
+        recipientName: "Hiring Manager",
+        recipientTitle: job.title,
+        companyName: job.company?.name || "Hiring Team",
+        companyAddress: job.company?.headquarters || undefined,
+        greeting: content.greeting,
+        opening: content.opening,
+        body: content.body,
+        closing: content.closing,
+        signature: masterResume.fullName,
+        jobId: job.id,
+        jobTitle: job.title,
+        tone: options.tone,
+      };
 
-       return {
-         success: true,
-         data: coverLetter,
-       };
-     } catch (error: any) {
-       logger.error("Cover letter generation failed", error);
-       return {
-         success: false,
-         error: error.message,
-       };
-     }
-   }
+      return {
+        success: true,
+        data: coverLetter,
+      };
+    } catch (error: any) {
+      logger.error("Cover letter generation failed", error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
 
   /**
    * Load career transition story using shared loader
@@ -238,10 +239,17 @@ export class CoverLetterAgent {
     // Build prompt based on tone
     const toneGuidance = this.getToneGuidance(options.tone);
 
+    // Load voice guidance for authentic writing
+    const voiceGuidance = await VoiceLoader.getVoiceGuidance();
+
     // ATS keywords from job requirements
     const atsKeywords = job.requiredSkills?.slice(0, 8).join(", ") || "";
 
-    const prompt = `You are writing a compelling cover letter for a job application. Write in a ${options.tone} tone.
+    const prompt = `${voiceGuidance}
+
+---
+
+You are writing a compelling cover letter for a job application. Write in a ${options.tone} tone.
 
 JOB INFORMATION:
 Title: ${job.title}
@@ -387,9 +395,8 @@ Return ONLY valid JSON, no markdown formatting.`;
     body: string[];
     closing: string;
   } {
-    const opening =
-      careerStory ?
-        careerStory +
+    const opening = careerStory
+      ? careerStory +
         ` I am writing to express my strong interest in the ${job.title} position at ${job.company?.name}.`
       : `I am writing to express my interest in the ${job.title} position at ${job.company?.name}. With my background in full-stack development and passion for building scalable applications, I am confident I would be a strong addition to your team.`;
 

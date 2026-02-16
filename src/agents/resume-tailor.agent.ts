@@ -5,6 +5,8 @@ import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
 import getPrismaClient from "@/database/client";
 import storyLoader from "@/utils/story-loader";
+import VoiceLoader from "@/utils/voice-loader";
+import { HumannessChecker } from "@/utils/humanness-checker";
 
 export interface TailoredResume {
   // Basic Info
@@ -157,10 +159,12 @@ export class ResumeTailorAgent {
         logger.success(`Selected ${relevantExperiences.length} experiences`);
       } catch (error) {
         logger.warn("RAG selection failed, falling back to recent experiences");
-        relevantExperiences = masterResume.experiences.slice(0, 3).map((exp) => ({
-          experience: exp,
-          similarity: 1.0,
-        }));
+        relevantExperiences = masterResume.experiences
+          .slice(0, 3)
+          .map((exp) => ({
+            experience: exp,
+            similarity: 1.0,
+          }));
       }
 
       // Deduplicate experiences by company + title
@@ -605,26 +609,29 @@ Return exactly 2 enhanced achievements in JSON format:
     // Load career transition story
     const storyContext = await this.loadCareerStory();
 
+    // Load voice guidance for authentic writing
+    const voiceGuidance = await VoiceLoader.getVoiceGuidance();
+
     // Extract company-specific details for tailored summary
     const companyName = job.company?.name || "this innovative company";
-    const companyTech =
-      job.company?.techStack ?
-        job.company.techStack.join(", ")
+    const companyTech = job.company?.techStack
+      ? job.company.techStack.join(", ")
       : "modern tech stack";
-    const companyValues =
-      job.company?.values ?
-        job.company.values.slice(0, 3).join(", ")
+    const companyValues = job.company?.values
+      ? job.company.values.slice(0, 3).join(", ")
       : "innovation and excellence";
-    const jobResponsibilities =
-      job.responsibilities ?
-        job.responsibilities.slice(0, 5).join("; ")
+    const jobResponsibilities = job.responsibilities
+      ? job.responsibilities.slice(0, 5).join("; ")
       : "developing innovative solutions";
-    const jobKeywords =
-      job.keywords ?
-        job.keywords.slice(0, 8).join(", ")
+    const jobKeywords = job.keywords
+      ? job.keywords.slice(0, 8).join(", ")
       : "software development, full-stack";
 
-    const prompt = `You are writing a HIGHLY TAILORED resume summary for a candidate applying specifically to ${companyName}. This summary must demonstrate deep understanding of the company's needs, culture, and technical requirements. Use the candidate's ACTUAL story and experiences - do not use generic templates.
+    const prompt = `${voiceGuidance}
+
+---
+
+You are writing a HIGHLY TAILORED resume summary for a candidate applying specifically to ${companyName}. This summary must demonstrate deep understanding of the company's needs, culture, and technical requirements. Use the candidate's ACTUAL story and experiences - do not use generic templates.
 
 Job Details:
 - Title: ${job.title}
@@ -686,13 +693,28 @@ Return ONLY the complete 3-paragraph summary. Do NOT include any formatting, exp
     if (response.success && response.data) {
       let summary = response.data.trim();
 
-      // 🛠️ CRITICAL FIX: Ensure paragraphs are separated by double newlines
-      // This splits the text by any number of newlines and rejoins them with distinct double breaks
+      // Ensure paragraphs are separated by double newlines
       summary = summary
-        .split(/\n+/) // Split by single or multiple newlines
-        .map((p) => p.trim()) // Clean up whitespace
-        .filter((p) => p.length > 0) // Remove empty lines
-        .join("\n\n"); // Rejoin with EXPLICIT double newlines
+        .split(/\n+/)
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0)
+        .join("\n\n");
+
+      // Validate humanness before returning
+      const humannessResult = await HumannessChecker.checkText(summary);
+
+      if (humannessResult.isHuman) {
+        logger.debug(
+          `Summary humanness check passed: ${humannessResult.score}/100`,
+        );
+      } else {
+        logger.warn(
+          `Summary humanness check failed: ${humannessResult.score}/100`,
+          {
+            issues: humannessResult.issues,
+          },
+        );
+      }
 
       // Validate that the summary doesn't contain fabricated experience
       if (
