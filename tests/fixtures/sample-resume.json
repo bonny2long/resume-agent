@@ -1,0 +1,158 @@
+{
+  "id": "test-resume-123",
+  "fullName": "John Doe",
+  "email": "john.doe@email.com",
+  "phone": "(555) 123-4567",
+  "location": "San Francisco, CA",
+  "linkedInUrl": "https://linkedin.com/in/johndoe",
+  "githubUrl": "https://github.com/johndoe",
+  "portfolioUrl": "https://johndoe.dev",
+  "summaryShort": "Full-stack software engineer with 3+ years of experience building scalable web applications.",
+  "summaryLong": "Full-stack software engineer with a strong background in JavaScript, React, and Node.js. Transitioned from electrical engineering to software development, bringing unique problem-solving skills and attention to detail. Passionate about building user-centric applications and continuously learning new technologies.",
+  "skills": [
+    {
+      "name": "JavaScript",
+      "category": "technical",
+      "proficiency": "advanced"
+    },
+    {
+      "name": "TypeScript",
+      "category": "technical",
+      "proficiency": "advanced"
+    },
+    { "name": "React", "category": "technical", "proficiency": "advanced" },
+    { "name": "Node.js", "category": "technical", "proficiency": "advanced" },
+    {
+      "name": "Python",
+      "category": "technical",
+      "proficiency": "intermediate"
+    },
+    {
+      "name": "PostgreSQL",
+      "category": "technical",
+      "proficiency": "intermediate"
+    },
+    {
+      "name": "MongoDB",
+      "category": "technical",
+      "proficiency": "intermediate"
+    },
+    { "name": "AWS", "category": "technical", "proficiency": "intermediate" },
+    {
+      "name": "Docker",
+      "category": "technical",
+      "proficiency": "intermediate"
+    },
+    { "name": "Git", "category": "technical", "proficiency": "advanced" },
+    { "name": "REST APIs", "category": "technical", "proficiency": "advanced" },
+    {
+      "name": "GraphQL",
+      "category": "technical",
+      "proficiency": "intermediate"
+    }
+  ],
+  "experiences": [
+    {
+      "id": "exp-1",
+      "company": "Tech Startup Inc",
+      "title": "Full Stack Developer",
+      "location": "San Francisco, CA",
+      "startDate": "2023-06-01",
+      "endDate": null,
+      "current": true,
+      "description": "Building and maintaining full-stack web applications",
+      "achievements": [
+        {
+          "description": "Led the redesign of the main dashboard, improving user engagement by 40%",
+          "metrics": "40% increase in user engagement",
+          "impact": "high"
+        },
+        {
+          "description": "Developed and deployed RESTful APIs serving 100k+ daily requests",
+          "metrics": "100k+ daily requests",
+          "impact": "high"
+        },
+        {
+          "description": "Implemented CI/CD pipeline reducing deployment time from 1 hour to 15 minutes",
+          "metrics": "75% reduction in deployment time",
+          "impact": "medium"
+        }
+      ],
+      "technologies": ["React", "Node.js", "PostgreSQL", "AWS", "Docker"]
+    },
+    {
+      "id": "exp-2",
+      "company": "Web Agency LLC",
+      "title": "Junior Developer",
+      "location": "Remote",
+      "startDate": "2022-01-01",
+      "endDate": "2023-05-31",
+      "current": false,
+      "description": "Developed client websites and web applications",
+      "achievements": [
+        {
+          "description": "Built 15+ responsive websites for clients across various industries",
+          "metrics": "15+ websites delivered",
+          "impact": "medium"
+        },
+        {
+          "description": "Optimized website performance achieving 90+ Lighthouse scores",
+          "metrics": "90+ Lighthouse scores",
+          "impact": "high"
+        }
+      ],
+      "technologies": ["JavaScript", "React", "HTML", "CSS", "WordPress"]
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj-1",
+      "name": "E-commerce Platform",
+      "description": "Full-featured e-commerce platform with cart, checkout, and payment integration",
+      "role": "Lead Developer",
+      "technologies": ["React", "Node.js", "PostgreSQL", "Stripe"],
+      "achievements": [
+        "Built RESTful API handling 500+ orders per day",
+        "Implemented real-time inventory management",
+        "Reduced page load time by 60% through optimization"
+      ],
+      "githubUrl": "https://github.com/johndoe/ecommerce",
+      "liveUrl": "https://ecommerce-demo.app"
+    },
+    {
+      "id": "proj-2",
+      "name": "Task Management App",
+      "description": "Collaborative task management application with real-time updates",
+      "role": "Full Stack Developer",
+      "technologies": ["React", "Firebase", "Material-UI"],
+      "achievements": [
+        "Created drag-and-drop kanban board interface",
+        "Implemented real-time notifications",
+        "Added collaboration features for teams"
+      ],
+      "githubUrl": "https://github.com/johndoe/taskapp"
+    }
+  ],
+  "education": [
+    {
+      "institution": "University of California",
+      "degree": "Bachelor of Science",
+      "field": "Electrical Engineering",
+      "startDate": "2017-09-01",
+      "endDate": "2021-05-15",
+      "gpa": "3.5"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "AWS Certified Solutions Architect",
+      "issuer": "Amazon Web Services",
+      "issueDate": "2024-01-15"
+    },
+    {
+      "name": "Meta Front-End Developer Certificate",
+      "issuer": "Meta",
+      "issueDate": "2023-06-01"
+    }
+  ]
+}

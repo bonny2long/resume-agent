@@ -1,0 +1,84 @@
+{
+  "id": "test-job-publicis-123",
+  "title": "Senior Software Engineer",
+  "company": "Publicis Groupe",
+  "location": "New York, NY (Hybrid)",
+  "salary": "$140,000 - $180,000",
+  "jobType": "Full-time",
+  "remote": true,
+  "requiredSkills": [
+    "JavaScript",
+    "TypeScript",
+    "React",
+    "Node.js",
+    "Python",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "PostgreSQL",
+    "MongoDB",
+    "GraphQL",
+    "REST APIs"
+  ],
+  "preferredSkills": [
+    "Java",
+    "Spring Boot",
+    "Kafka",
+    "Redis",
+    "GCP",
+    "Terraform",
+    "CI/CD",
+    "Agile"
+  ],
+  "requiredYearsExperience": 5,
+  "educationRequired": "Bachelor's degree in Computer Science or related field",
+  "responsibilities": [
+    "Design and implement scalable microservices architecture",
+    "Lead technical design discussions and code reviews",
+    "Mentor junior engineers and drive best practices",
+    "Collaborate with product and design teams",
+    "Ensure system reliability and performance"
+  ],
+  "qualifications": [
+    "5+ years of software development experience",
+    "Strong proficiency in JavaScript/TypeScript and React",
+    "Experience with cloud platforms (AWS/GCP/Azure)",
+    "Knowledge of distributed systems and microservices",
+    "Excellent problem-solving and communication skills"
+  ],
+  "benefits": [
+    "Health, dental, and vision insurance",
+    "401(k) matching",
+    "Unlimited PTO",
+    "Remote work flexibility",
+    "Professional development budget",
+    "Wellness programs"
+  ],
+  "keywords": [
+    "software engineer",
+    "full stack",
+    "React",
+    "Node.js",
+    "AWS",
+    "microservices"
+  ],
+  "experienceLevel": "senior",
+  "techStack": [
+    "React",
+    "Node.js",
+    "Python",
+    "AWS",
+    "Docker",
+    "Kubernetes",
+    "PostgreSQL",
+    "MongoDB"
+  ],
+  "industryKeywords": [
+    "advertising technology",
+    "martech",
+    "digital transformation"
+  ],
+  "postedDate": "2026-02-10",
+  "applicationDeadline": null,
+  "originalUrl": "https://careers.publicisgroupe.com/jobs/125448?lang=en-us&iis=Job+Board&iisn=LinkedIn+Apply"
+}

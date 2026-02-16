@@ -1,0 +1,45 @@
+{
+  "id": "test-company-publicis",
+  "name": "Publicis Groupe",
+  "domain": "publicisgroupe.com",
+  "industry": "Advertising & Marketing",
+  "size": "10000+ employees",
+  "founded": 1926,
+  "headquarters": "Paris, France",
+  "values": [
+    "Innovation",
+    "Collaboration",
+    "Creativity",
+    "Diversity & Inclusion",
+    "Client Focus"
+  ],
+  "workStyle": ["Hybrid", "Agile", "Fast-paced"],
+  "benefits": [
+    "Health insurance",
+    "401(k) matching",
+    "Unlimited PTO",
+    "Remote work",
+    "Professional development",
+    "Parental leave"
+  ],
+  "techStack": [
+    "Java",
+    "Python",
+    "JavaScript",
+    "React",
+    "AWS",
+    "Azure",
+    "Kubernetes",
+    "Spark"
+  ],
+  "recentNews": [
+    {
+      "title": "Publicis Groupe Reports Strong Q4 2025 Results",
+      "summary": "The company exceeded analyst expectations with 8% revenue growth."
+    },
+    {
+      "title": "Publicis Launches AI-Powered Marketing Platform",
+      "summary": "New platform promises to revolutionize personalized advertising."
+    }
+  ]
+}
