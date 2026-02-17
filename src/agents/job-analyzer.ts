@@ -190,25 +190,112 @@ export class JobAnalyzerAgent {
    */
   private extractSkillsFromText(jobText: string): string[] {
     const commonSkills = [
+      // Languages
       "JavaScript",
+      "TypeScript",
       "Python",
       "Java",
+      "C++",
+      "C#",
+      "PHP",
+      "Ruby",
+      "Go",
+      "Rust",
+      "Swift",
+      "Kotlin",
+      "Scala",
+      "R",
+      "Perl",
+      "Shell",
+      "Bash",
+      // Frontend
       "React",
-      "Node.js",
+      "Vue",
+      "Angular",
+      "Next.js",
+      "Nuxt",
+      "Svelte",
       "HTML",
       "CSS",
+      "Tailwind",
+      "Bootstrap",
+      "jQuery",
+      "Redux",
+      "Context API",
+      // Backend
+      "Node.js",
+      "Express",
+      "Django",
+      "Flask",
+      "Spring",
+      "Rails",
+      "Laravel",
+      "FastAPI",
+      "NestJS",
+      "ASP.NET",
+      "GraphQL",
+      "REST",
+      "RESTful",
+      // Databases
       "SQL",
-      "NoSQL",
-      "Git",
-      "Docker",
+      "MySQL",
+      "PostgreSQL",
+      "MongoDB",
+      "Redis",
+      "Elasticsearch",
+      "Firebase",
+      "Supabase",
+      "DynamoDB",
+      "Cassandra",
+      "SQLite",
+      "Oracle",
+      // Cloud & DevOps
       "AWS",
       "Azure",
-      "MongoDB",
+      "GCP",
+      "Google Cloud",
+      "Docker",
+      "Kubernetes",
+      "Terraform",
+      "Jenkins",
+      "GitHub Actions",
+      "CI/CD",
+      "Linux",
+      "Nginx",
+      // Tools & Methods
+      "Git",
+      "Jira",
+      "Agile",
+      "Scrum",
+      "TDD",
+      "OOP",
+      "API",
+      "JSON",
+      "XML",
+      "OAuth",
+      "JWT",
+      // Data & AI
+      "Machine Learning",
+      "AI",
+      "LLM",
+      "NLP",
+      "Data Analysis",
+      "Pandas",
+      "NumPy",
+      "TensorFlow",
+      "PyTorch",
+      // Mobile
+      "React Native",
+      "Flutter",
+      "iOS",
+      "Android",
     ];
 
     const foundSkills: string[] = [];
+    const jobTextLower = jobText.toLowerCase();
+
     commonSkills.forEach((skill) => {
-      if (jobText.toLowerCase().includes(skill.toLowerCase())) {
+      if (jobTextLower.includes(skill.toLowerCase())) {
         foundSkills.push(skill);
       }
     });
@@ -252,9 +339,9 @@ export class JobAnalyzerAgent {
     // Truncate job text to avoid context window issues and ensure enough tokens for response
     const maxLength = 20000;
     const truncatedText =
-      jobText.length > maxLength ?
-        jobText.substring(0, maxLength) + "\n...[truncated]"
-      : jobText;
+      jobText.length > maxLength
+        ? jobText.substring(0, maxLength) + "\n...[truncated]"
+        : jobText;
 
     const prompt = `
 You are an expert job posting analyzer. Parse this job description and extract structured information.
@@ -433,9 +520,9 @@ Rules:
 
     // Calculate score
     const requiredMatch =
-      requiredSkillsNormalized.length > 0 ?
-        (matched.length / requiredSkillsNormalized.length) * 100
-      : 100;
+      requiredSkillsNormalized.length > 0
+        ? (matched.length / requiredSkillsNormalized.length) * 100
+        : 100;
 
     const preferredBonus = extras.length * 2; // 2 points per preferred skill
 

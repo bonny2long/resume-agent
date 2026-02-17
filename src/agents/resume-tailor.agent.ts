@@ -7,6 +7,7 @@ import getPrismaClient from "@/database/client";
 import storyLoader from "@/utils/story-loader";
 import VoiceLoader from "@/utils/voice-loader";
 import { HumannessChecker } from "@/utils/humanness-checker";
+import { PrismaClient } from "@prisma/client";
 
 export interface TailoredResume {
   // Basic Info
@@ -59,6 +60,15 @@ export interface TailoredResume {
     matched: string[]; // Skills that match job requirements
     relevant: string[]; // Additional relevant skills
     other: string[]; // Other skills (optional)
+  };
+
+  // Engineering skills (system design, architecture, etc.)
+  engineeringSkills?: {
+    systemDesign: string[];
+    security: string[];
+    performance: string[];
+    architecture: string[];
+    database: string[];
   };
 
   // Education
@@ -223,8 +233,8 @@ export class ResumeTailorAgent {
 
       // Sort experiences by date (most recent first)
       deduplicatedExperiences.sort((a, b) => {
-        const dateA = new Date(a.experience.startDate).getTime();
-        const dateB = new Date(b.experience.startDate).getTime();
+        const dateA = new Date(a.experience.startDate).getTime() || 0;
+        const dateB = new Date(b.experience.startDate).getTime() || 0;
         return dateB - dateA;
       });
 
@@ -429,11 +439,22 @@ export class ResumeTailorAgent {
       allSkills = masterResume.skills;
     }
 
+    // Use job skills if available, otherwise use master resume skills for matching
+    const masterSkillNames = allSkills.map((s: any) => s.name).filter(Boolean);
+    const effectiveJobSkills =
+      (job.requiredSkills || []).length > 0 ?
+        job.requiredSkills
+      : masterSkillNames;
+
     const skills = this.filterAndOrderSkills(
       allSkills,
-      job.requiredSkills || [],
+      effectiveJobSkills,
       job.preferredSkills || [],
     );
+
+    // Extract engineering skills from achievement stories
+    const engineeringSkills =
+      await this.extractEngineeringSkills(relevantProjects);
 
     return {
       personalInfo: {
@@ -449,6 +470,7 @@ export class ResumeTailorAgent {
       experiences: optimizedExperiences,
       projects: optimizedProjects,
       skills,
+      engineeringSkills, // Add engineering skills
       education: masterResume.education.map((edu: any) => ({
         institution: edu.institution,
         degree: edu.degree,
@@ -614,18 +636,31 @@ Return exactly 2 enhanced achievements in JSON format:
 
     // Extract company-specific details for tailored summary
     const companyName = job.company?.name || "this innovative company";
-    const companyTech = job.company?.techStack
-      ? job.company.techStack.join(", ")
+    const companyTech =
+      job.company?.techStack ?
+        job.company.techStack.join(", ")
       : "modern tech stack";
-    const companyValues = job.company?.values
-      ? job.company.values.slice(0, 3).join(", ")
+    const companyValues =
+      job.company?.values ?
+        job.company.values.slice(0, 3).join(", ")
       : "innovation and excellence";
-    const jobResponsibilities = job.responsibilities
-      ? job.responsibilities.slice(0, 5).join("; ")
+    const jobResponsibilities =
+      job.responsibilities ?
+        job.responsibilities.slice(0, 5).join("; ")
       : "developing innovative solutions";
-    const jobKeywords = job.keywords
-      ? job.keywords.slice(0, 8).join(", ")
+    const jobKeywords =
+      job.keywords ?
+        job.keywords.slice(0, 8).join(", ")
       : "software development, full-stack";
+
+    // Use job skills if available, otherwise use master resume skills
+    const masterSkillNames = (masterResume.skills || [])
+      .map((s: any) => s.name)
+      .filter(Boolean);
+    const effectiveSkills =
+      (job.requiredSkills || []).length > 0 ?
+        job.requiredSkills
+      : masterSkillNames;
 
     const prompt = `${voiceGuidance}
 
@@ -638,7 +673,7 @@ Job Details:
 - Company: ${companyName}
 - Company Tech Stack: ${companyTech}
 - Company Values: ${companyValues}
-- Required Skills: ${job.requiredSkills.slice(0, 10).join(", ")}
+- Required Skills: ${effectiveSkills.slice(0, 10).join(", ")}
 - Experience Level: ${job.experienceLevel}
 - Key Responsibilities: ${jobResponsibilities}
 - Key Focus Areas: ${jobKeywords}
@@ -676,7 +711,7 @@ Paragraph 3: What You Bring to ${companyName}
 
 CRITICAL REQUIREMENTS:
 - Write naturally like a real person introducing themselves
-- IMPORTANT: Weave in ATS keywords naturally from: ${job.requiredSkills.slice(0, 8).join(", ")}
+- IMPORTANT: Weave in ATS keywords naturally from: ${effectiveSkills.slice(0, 8).join(", ")}
 - Include their actual story from storyContext
 - Mention their real projects and technologies
 - Sound conversational but include keywords naturally in sentences
@@ -862,6 +897,34 @@ Response format (strict JSON):
     const relevant: string[] = [];
     const other: string[] = [];
 
+    // Noise words to filter out - these are not real tech skills
+    const noiseWords = new Set([
+      "service",
+      "workflow",
+      "api",
+      "data",
+      "work",
+      "application",
+      "server",
+      "public",
+      "management",
+      "implementation",
+      "integration",
+      "optimization",
+      "requirements",
+      "analysis",
+      "documentation",
+      "version",
+      "control",
+      "problem",
+      "solving",
+      "communication",
+      "leadership",
+      "team",
+      "project",
+      " SDLC",
+    ]);
+
     // Handle both flat skills array and nested skills structure
     const extractSkillNames = (skills: any): string[] => {
       if (!skills) return [];
@@ -889,7 +952,26 @@ Response format (strict JSON):
       return [];
     };
 
-    const allSkillNames = extractSkillNames(allSkills);
+    // First filter out noise, then process
+    let allSkillNames = extractSkillNames(allSkills);
+
+    // Filter noise and deduplicate
+    allSkillNames = allSkillNames
+      .filter((name) => {
+        const normalized = normalizeSkill(name);
+        // Must be at least 2 chars
+        if (normalized.length < 2) return false;
+        // Filter out noise words
+        if (noiseWords.has(normalized)) return false;
+        // Filter out if it's just a common word
+        return true;
+      })
+      .map((s) => s.trim());
+
+    // Deduplicate after normalization
+    allSkillNames = [...new Set(allSkillNames.map((s) => s.toLowerCase()))].map(
+      (s) => allSkillNames.find((f) => f.toLowerCase() === s) || s,
+    );
 
     allSkillNames.forEach((skillName: string) => {
       const skillNormalized = normalizeSkill(skillName);
@@ -919,9 +1001,9 @@ Response format (strict JSON):
     });
 
     return {
-      matched: [...new Set(matched)].slice(0, 15), // Limit matched skills
-      relevant: [...new Set(relevant)].slice(0, 10), // Limit relevant skills
-      other: [...new Set(other)].slice(0, 10), // Limit other skills
+      matched: [...new Set(matched)].slice(0, 30), // Limit matched skills
+      relevant: [...new Set(relevant)].slice(0, 20), // Limit relevant skills
+      other: [...new Set(other)].slice(0, 20), // Limit other skills
     };
   }
 
@@ -1009,8 +1091,13 @@ Response format (strict JSON):
       ...(job.preferredSkills || []),
     ];
 
-    // Keyword matching
-    const keywords = job.keywords || [];
+    // Keyword matching - use requiredSkills (actual tech skills) instead of generic keywords
+    // If job has no requiredSkills, use master resume skills
+    const keywords =
+      job.requiredSkills && job.requiredSkills.length > 0 ?
+        job.requiredSkills
+      : [...tailored.skills.matched, ...tailored.skills.relevant];
+
     const keywordMatches = keywords.filter((keyword: string) =>
       resumeText.toLowerCase().includes(keyword.toLowerCase()),
     ).length;
@@ -1107,6 +1194,158 @@ Response format (strict JSON):
     if (!tailored.summary || tailored.summary.length < 50) score -= 10;
 
     return Math.max(0, score);
+  }
+
+  /**
+   * Extract engineering skills from GitHub READMEs
+   */
+  private async extractEngineeringSkills(relevantProjects: any[]): Promise<{
+    systemDesign: string[];
+    security: string[];
+    performance: string[];
+    architecture: string[];
+    database: string[];
+  }> {
+    const prisma = new PrismaClient();
+
+    const engineeringSkills = {
+      systemDesign: [] as string[],
+      security: [] as string[],
+      performance: [] as string[],
+      architecture: [] as string[],
+      database: [] as string[],
+    };
+
+    const projectToRepoMap: Record<string, string> = {
+      "Chef BonBon": "bonny2long/ChefBonBon",
+      ChefBonBon: "bonny2long/ChefBonBon",
+      SyncUp: "bonny2long/SyncUp",
+      syncup: "bonny2long/SyncUp",
+      "United Airlines": "bonny2long/Metis",
+      "Winning RFP": "bonny2long/Metis",
+      Metis: "bonny2long/Metis",
+    };
+
+    const keywordMap: Record<string, string[]> = {
+      systemDesign: [
+        "system design",
+        "scalable",
+        "load balancing",
+        "caching",
+        "microservices",
+        "distributed",
+        "concurrency",
+        "api gateway",
+        "service discovery",
+        "event-driven",
+      ],
+      security: [
+        "authentication",
+        "authorization",
+        "security",
+        "encryption",
+        "jwt",
+        "oauth",
+        "ssl",
+        "tls",
+        "hashing",
+        "salt",
+        "pepper",
+        "rbac",
+        "role-based",
+        "permission",
+      ],
+      performance: [
+        "performance",
+        "optimization",
+        "lazy loading",
+        "memoization",
+        "caching",
+        "cdn",
+        "compression",
+        "bundle",
+        "optimize",
+        "latency",
+      ],
+      architecture: [
+        "architecture",
+        "design pattern",
+        "mvc",
+        "clean code",
+        "solid",
+        "dry",
+        "kiss",
+        "microservice",
+        "monolith",
+        "serverless",
+        "container",
+        "docker",
+      ],
+      database: [
+        "database",
+        "sql",
+        "postgresql",
+        "mysql",
+        "mongodb",
+        "redis",
+        "supabase",
+        "query",
+        "index",
+        "schema",
+        "migration",
+        "orm",
+        "prisma",
+        "transaction",
+      ],
+    };
+
+    try {
+      for (const { project } of relevantProjects) {
+        let repoName: string | undefined = projectToRepoMap[project.name];
+        if (!repoName) {
+          const keys = Object.keys(projectToRepoMap);
+          const matchedKey = keys.find((k) =>
+            project.name.toLowerCase().includes(k.toLowerCase()),
+          );
+          repoName = matchedKey ? projectToRepoMap[matchedKey] : undefined;
+        }
+
+        if (repoName) {
+          const repo = await prisma.gitHubRepo.findUnique({
+            where: { fullName: repoName },
+            select: { readmeContent: true },
+          });
+
+          if (repo?.readmeContent) {
+            const readme = repo.readmeContent.toLowerCase();
+            for (const [category, keywords] of Object.entries(keywordMap)) {
+              for (const keyword of keywords) {
+                if (
+                  readme.includes(keyword) &&
+                  !engineeringSkills[
+                    category as keyof typeof engineeringSkills
+                  ].includes(keyword)
+                ) {
+                  engineeringSkills[
+                    category as keyof typeof engineeringSkills
+                  ].push(keyword);
+                }
+              }
+            }
+          }
+        }
+      }
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    for (const key of Object.keys(
+      engineeringSkills,
+    ) as (keyof typeof engineeringSkills)[]) {
+      engineeringSkills[key] = [...new Set(engineeringSkills[key])].slice(0, 6);
+    }
+
+    return engineeringSkills;
   }
 }
 

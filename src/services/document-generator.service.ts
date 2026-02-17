@@ -49,11 +49,242 @@ export class DocumentGeneratorService {
 
   /**
    * Group skills by category for modern template
+   * Filters out noise and properly categorizes tech skills
    */
   private groupSkillsByCategory(skills: string[]): {
     [category: string]: string[];
   } {
-    const categories = {
+    // Expanded noise words list
+    const noiseWords = new Set([
+      "service",
+      "workflow",
+      "api",
+      "data",
+      "work",
+      "application",
+      "server",
+      "public",
+      "management",
+      "development",
+      "design",
+      "testing",
+      "security",
+      "performance",
+      "implementation",
+      "integration",
+      "optimization",
+      "architecture",
+      "requirements",
+      "analysis",
+      "documentation",
+      "deployment",
+      "monitoring",
+      "version",
+      "control",
+      "type",
+      "action",
+      "engineering",
+      "engineering",
+      "config",
+      "github-config",
+      "client",
+      "roadmap",
+      "should",
+      "tagging",
+      "social",
+      "collaboration",
+      "docs",
+      "bridge",
+      "buddy",
+      "hooks",
+      "continuous",
+      "code",
+      "command",
+      "proxy",
+      "web",
+      "style",
+      "error",
+      "per",
+      "out",
+      "handle",
+      "delivery",
+      "subscribe",
+      "edge",
+      "modeling",
+      "ci",
+      "database",
+      "railway",
+      "ssl",
+      "business",
+      "programming",
+      "antigravity",
+      "postcss",
+      "autoprefixer",
+      "postman",
+      "parcel",
+      "dockerfile",
+      "eslint",
+      "prettier",
+      "webpack",
+      "next.js",
+      "tailwind",
+      "azure",
+      "google cloud",
+      "digitalocean",
+      "heroku",
+      "aws",
+      "react 19",
+      "react query",
+      "tanstack query",
+      "full-stack software engineering",
+      "application architecture",
+      "scalable engineering",
+      "responsive ui development",
+      "git/github",
+      "rest api development",
+      "data-driven decision-making",
+      "role-based access control",
+      "authentication & authorization",
+      "continuous deployment",
+      "ai/llm integration",
+      "power bi",
+      "ag charts",
+      "vs code",
+      "builder's mindset",
+      "node.js",
+      "github",
+      "sql",
+      "typescript",
+      "github-config",
+      "various ides",
+      "full-stack web development",
+      "microsoft power bi",
+    ]);
+
+    // Valid tech skills to KEEP (whitelist approach)
+    const validTechSkills = new Set([
+      // Languages
+      "javascript",
+      "python",
+      "java",
+      "c++",
+      "c#",
+      "php",
+      "ruby",
+      "go",
+      "rust",
+      "swift",
+      "kotlin",
+      "scala",
+      "r",
+      "perl",
+      "shell",
+      "bash",
+      "typescript",
+      // Frontend
+      "react",
+      "vue",
+      "angular",
+      "next",
+      "nuxt",
+      "svelte",
+      "html",
+      "css",
+      "tailwind",
+      "bootstrap",
+      "jquery",
+      "redux",
+      "react query",
+      "tanstack query",
+      // Backend
+      "node",
+      "node.js",
+      "express",
+      "django",
+      "flask",
+      "spring",
+      "rails",
+      "laravel",
+      "fastapi",
+      "nestjs",
+      "asp.net",
+      "graphql",
+      "rest",
+      // Databases
+      "sql",
+      "mysql",
+      "postgresql",
+      "mongodb",
+      "redis",
+      "elasticsearch",
+      "firebase",
+      "supabase",
+      "dynamodb",
+      "cassandra",
+      "sqlite",
+      "oracle",
+      "tsql",
+      // Cloud & DevOps
+      "docker",
+      "kubernetes",
+      "terraform",
+      "jenkins",
+      "github actions",
+      "ci/cd",
+      "linux",
+      "nginx",
+      // Tools
+      "git",
+      "github",
+      "vscode",
+      "vim",
+      "bash",
+      "powershell",
+      "npm",
+      "yarn",
+      "pnpm",
+      "webpack",
+      "babel",
+      "postman",
+      "playwright",
+      // Other
+      "prisma",
+      "websocket",
+      "vite",
+      "rest api",
+      "restful",
+      "oauth",
+      "jwt",
+      "rbac",
+      "llm",
+      "ai",
+    ]);
+
+    // Filter skills - must be in validTechSkills OR not in noiseWords
+    const validSkills = skills.filter((skill) => {
+      const lower = skill.toLowerCase().trim();
+      // Keep if in whitelist
+      if (validTechSkills.has(lower)) return true;
+      // Keep if not in noise words and has at least 3 chars
+      if (lower.length >= 3 && !noiseWords.has(lower)) return true;
+      return false;
+    });
+
+    // Deduplicate after normalization
+    const uniqueSkills = [...new Set(validSkills.map((s) => s.toLowerCase()))];
+
+    const categories: { [key: string]: string[] } = {
+      Languages: [],
+      Frameworks: [],
+      Libraries: [],
+      Databases: [],
+      Cloud: [],
+      Tools: [],
+      Other: [],
+    };
+
+    // Category definitions with more specific matching
+    const categoryMap: { [key: string]: string[] } = {
       Languages: [
         "javascript",
         "python",
@@ -67,12 +298,16 @@ export class DocumentGeneratorService {
         "rust",
         "swift",
         "kotlin",
+        "scala",
+        "r",
+        "perl",
+        "shell",
+        "bash",
       ],
       Frameworks: [
         "react",
         "vue",
         "angular",
-        "node",
         "express",
         "django",
         "flask",
@@ -81,22 +316,55 @@ export class DocumentGeneratorService {
         "rails",
         "next",
         "nuxt",
+        "svelte",
+        "fastapi",
+        "nestjs",
+        "adonis",
+        "echo",
+        "gin",
+      ],
+      Libraries: [
+        "node.js",
+        "node",
+        "react native",
+        "tailwind",
+        "bootstrap",
+        "jquery",
+        "lodash",
+        "axios",
+        "socket.io",
+        "prisma",
+        "mongoose",
+        "sequelize",
+        "typeorm",
+        "chart.js",
+        "d3",
+        "redux",
+        "zustand",
+        "recoil",
       ],
       Databases: [
         "sql",
         "mysql",
         "postgresql",
+        "postgres",
         "mongodb",
         "redis",
         "sqlite",
         "oracle",
         "elasticsearch",
         "cassandra",
+        "dynamodb",
+        "firebase",
+        "supabase",
+        "tsql",
+        "plsql",
       ],
       Cloud: [
         "aws",
         "azure",
         "gcp",
+        "google cloud",
         "digitalocean",
         "heroku",
         "vercel",
@@ -104,6 +372,11 @@ export class DocumentGeneratorService {
         "cloudflare",
         "docker",
         "kubernetes",
+        "k8s",
+        "terraform",
+        "ci/cd",
+        "jenkins",
+        "github actions",
       ],
       Tools: [
         "git",
@@ -118,45 +391,53 @@ export class DocumentGeneratorService {
         "yarn",
         "webpack",
         "babel",
+        "eslint",
+        "prettier",
+        "postman",
+        "insomnia",
+        "chrome devtools",
       ],
-      Other: [],
     };
 
-    const grouped: { [category: string]: string[] } = {};
-
-    // Initialize categories
-    Object.keys(categories).forEach((cat) => {
-      grouped[cat] = [];
-    });
-
     // Group skills
-    skills.forEach((skill) => {
+    uniqueSkills.forEach((skill) => {
       const skillLower = skill.toLowerCase();
       let categorized = false;
 
-      for (const [category, keywords] of Object.entries(categories)) {
-        if (category === "Other") continue;
-
-        if (keywords.some((keyword) => skillLower.includes(keyword))) {
-          grouped[category].push(skill);
+      // Check each category in order
+      for (const [category, keywords] of Object.entries(categoryMap)) {
+        if (
+          keywords.some(
+            (keyword) =>
+              skillLower === keyword ||
+              skillLower.includes(keyword + "s") ||
+              skillLower.includes(keyword),
+          )
+        ) {
+          // Don't add duplicates
+          if (!categories[category].includes(skill)) {
+            categories[category].push(skill);
+          }
           categorized = true;
           break;
         }
       }
 
       if (!categorized) {
-        grouped["Other"].push(skill);
+        if (!categories["Other"].includes(skill)) {
+          categories["Other"].push(skill);
+        }
       }
     });
 
     // Remove empty categories
-    Object.keys(grouped).forEach((category) => {
-      if (grouped[category].length === 0) {
-        delete grouped[category];
+    Object.keys(categories).forEach((category) => {
+      if (categories[category].length === 0) {
+        delete categories[category];
       }
     });
 
-    return grouped;
+    return categories;
   }
 
   /**
@@ -402,7 +683,7 @@ export class DocumentGeneratorService {
       );
     });
 
-    // Technical Skills
+    // Technical Skills (including engineering skills from GitHub READMEs)
     if (
       tailored.skills.matched.length > 0 ||
       tailored.skills.relevant.length > 0
@@ -423,10 +704,32 @@ export class DocumentGeneratorService {
         }),
       );
 
-      const allSkills = [
+      let allSkills = [
         ...tailored.skills.matched,
         ...tailored.skills.relevant,
-      ].slice(0, 20); // Limit to top 20
+        ...tailored.skills.other,
+      ];
+
+      // Add engineering skills from GitHub READMEs
+      if (tailored.engineeringSkills) {
+        const engSkills = tailored.engineeringSkills;
+        const extraSkills: string[] = [];
+
+        if (engSkills.systemDesign) extraSkills.push(...engSkills.systemDesign);
+        if (engSkills.security) extraSkills.push(...engSkills.security);
+        if (engSkills.performance) extraSkills.push(...engSkills.performance);
+        if (engSkills.architecture) extraSkills.push(...engSkills.architecture);
+        if (engSkills.database) extraSkills.push(...engSkills.database);
+
+        // Add unique engineering skills not already in list
+        extraSkills.forEach((skill) => {
+          if (!allSkills.some((s) => s.toLowerCase() === skill.toLowerCase())) {
+            allSkills.push(skill);
+          }
+        });
+      }
+
+      allSkills = allSkills.slice(0, 30); // Limit to top 30
 
       // Group skills by category
       const groupedSkills = this.groupSkillsByCategory(allSkills);
@@ -510,10 +813,9 @@ export class DocumentGeneratorService {
         const startMonth = exp.startDate.toLocaleString("default", {
           month: "short",
         });
-        const endDate =
-          exp.current ? "Present" : (
-            `${exp.endDate?.toLocaleString("default", { month: "short" })} ${exp.endDate?.getFullYear()}`
-          );
+        const endDate = exp.current
+          ? "Present"
+          : `${exp.endDate?.toLocaleString("default", { month: "short" })} ${exp.endDate?.getFullYear()}`;
 
         const locationText = exp.location ? `${exp.location} | ` : "";
 
@@ -945,10 +1247,9 @@ export class DocumentGeneratorService {
         const startMonth = exp.startDate.toLocaleString("default", {
           month: "short",
         });
-        const endDate =
-          exp.current ? "Present" : (
-            `${exp.endDate?.toLocaleString("default", { month: "short" })} ${exp.endDate?.getFullYear()}`
-          );
+        const endDate = exp.current
+          ? "Present"
+          : `${exp.endDate?.toLocaleString("default", { month: "short" })} ${exp.endDate?.getFullYear()}`;
 
         sections.push(
           new Paragraph({
@@ -1382,9 +1683,9 @@ export class DocumentGeneratorService {
         );
 
         const shortDescription =
-          project.description.length > 80 ?
-            project.description.substring(0, 77) + "..."
-          : project.description;
+          project.description.length > 80
+            ? project.description.substring(0, 77) + "..."
+            : project.description;
 
         sections.push(
           new Paragraph({

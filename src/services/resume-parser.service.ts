@@ -123,7 +123,7 @@ You are an expert resume parser with deep understanding of resume formats and pr
 CRITICAL PARSING RULES:
 1. **DEGREE EXTRACTION**: Always extract the specific degree type. Common examples: "Bachelor of Science", "Master of Science", "Bachelor of Arts", "Associate Degree", "Certificate", "Diploma". If unclear, use "Not Specified".
 
-2. **DATES**: Convert all dates to YYYY-MM-DD format. If only month/year, use YYYY-MM-01. For current positions, set "endDate" to null and "current" to true.
+2. **DATES**: Convert all dates to YYYY-MM-DD format. If only month/year, use YYYY-MM-01. For current positions, set "endDate" to null and "current" to true. Ensure dates are historically accurate and do not hallucinate future years (e.g. 2026+).
 
 3. **METRICS**: Extract ALL quantifiable achievements (percentages, dollar amounts, time saved, team sizes, etc.) from descriptions and achievements.
 
@@ -262,8 +262,9 @@ Return ONLY valid JSON in this exact structure:
    */
   private cleanupAndValidate(parsed: ParsedResume): ParsedResume {
     // Remove duplicates from skill arrays and normalize
-    const normalizeArray = (arr: string[]) => 
-      [...new Set(arr.map(item => item.trim()).filter(Boolean))];
+    const normalizeArray = (arr: string[]) => [
+      ...new Set(arr.map((item) => item.trim()).filter(Boolean)),
+    ];
 
     parsed.skills.technical = normalizeArray(parsed.skills.technical);
     parsed.skills.soft = normalizeArray(parsed.skills.soft);
@@ -273,36 +274,36 @@ Return ONLY valid JSON in this exact structure:
     parsed.skills.databases = normalizeArray(parsed.skills.databases);
 
     // Clean up experiences (no date changes)
-    parsed.experiences = parsed.experiences.map(exp => ({
+    parsed.experiences = parsed.experiences.map((exp) => ({
       ...exp,
       company: exp.company?.trim() || "Not Specified",
       title: exp.title?.trim() || "Not Specified",
       location: exp.location?.trim() || undefined,
       description: exp.description?.trim() || undefined,
-      achievements: exp.achievements.map(ach => ({
+      achievements: exp.achievements.map((ach) => ({
         ...ach,
         description: ach.description?.trim() || "Not Specified",
-        impact: ach.impact || 'medium' // Default to medium if not specified
+        impact: ach.impact || "medium", // Default to medium if not specified
       })),
-      technologies: normalizeArray(exp.technologies)
+      technologies: normalizeArray(exp.technologies),
     }));
 
     // Clean up projects (no date changes)
-    parsed.projects = parsed.projects.map(proj => ({
+    parsed.projects = parsed.projects.map((proj) => ({
       ...proj,
       name: proj.name?.trim() || "Not Specified",
       description: proj.description?.trim() || "Not Specified",
       role: proj.role?.trim() || undefined,
-      achievements: proj.achievements.map(a => a?.trim()).filter(Boolean),
-      technologies: normalizeArray(proj.technologies)
+      achievements: proj.achievements.map((a) => a?.trim()).filter(Boolean),
+      technologies: normalizeArray(proj.technologies),
     }));
 
     // Ensure education degrees are not null or empty (no date changes)
-    parsed.education = parsed.education.map(edu => ({
+    parsed.education = parsed.education.map((edu) => ({
       ...edu,
       degree: edu.degree || "Not Specified",
       institution: edu.institution || "Not Specified",
-      field: edu.field || "Not Specified"
+      field: edu.field || "Not Specified",
     }));
 
     // Clean up personal info
@@ -314,16 +315,16 @@ Return ONLY valid JSON in this exact structure:
       location: parsed.personalInfo.location?.trim() || "Not Specified",
       linkedInUrl: parsed.personalInfo.linkedInUrl?.trim() || undefined,
       githubUrl: parsed.personalInfo.githubUrl?.trim() || undefined,
-      portfolioUrl: parsed.personalInfo.portfolioUrl?.trim() || undefined
+      portfolioUrl: parsed.personalInfo.portfolioUrl?.trim() || undefined,
     };
 
     // Clean up certifications
-    parsed.certifications = parsed.certifications.map(cert => ({
+    parsed.certifications = parsed.certifications.map((cert) => ({
       ...cert,
       name: cert.name?.trim() || "Not Specified",
       issuer: cert.issuer?.trim() || "Not Specified",
       credentialId: cert.credentialId?.trim() || undefined,
-      url: cert.url?.trim() || undefined
+      url: cert.url?.trim() || undefined,
     }));
 
     return parsed;

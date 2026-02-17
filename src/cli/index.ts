@@ -26,6 +26,7 @@ import { findManagerCommand } from "./commands/find-manager"; // ← PHASE 5: Hi
 import { resetCommand } from "./commands/reset";
 import { linkedInMessageCommand } from "./commands/linkedin-message"; // ← PHASE 5: LinkedIn messages
 import { uploadAllFixedCommand } from "./commands/upload-all-fixed";
+import { extractSkillsCommand } from "./commands/extract-skills";
 import { emailCommand } from "./commands/email";
 
 const program = new Command();
@@ -82,6 +83,7 @@ async function main() {
     program.addCommand(listCommand);
     program.addCommand(resetCommand);
     program.addCommand(uploadAllFixedCommand);
+    program.addCommand(extractSkillsCommand);
 
     // Global error handler
     program.exitOverride((err) => {
