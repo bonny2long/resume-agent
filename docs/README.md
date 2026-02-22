@@ -1,316 +1,334 @@
-# Resume Agent 🤖
+# Resume Agent
 
 An AI-powered resume tailoring and job application assistant that helps you create custom resumes, cover letters, and LinkedIn outreach messages for each job application.
 
 ## Features
 
-- 📝 **Smart Resume Tailoring**: Automatically tailors your master resume to match job requirements
-- 💼 **Cover Letter Generation**: Creates personalized cover letters based on company research
-- 🔍 **Hiring Manager Research**: Finds and profiles hiring managers for direct outreach
-- 💬 **LinkedIn Message Generator**: Creates personalized connection requests and messages
-- 📊 **ATS Optimization**: Ensures resumes pass Applicant Tracking Systems
-- 🎯 **Application Tracking**: Tracks all applications and their status
-- 🔄 **GitHub Integration**: Automatically pulls project information from your repos
+- **Smart Resume Tailoring**: Automatically tailors your master resume to match job requirements using semantic similarity and RAG
+- **Cover Letter Generation**: Creates personalized cover letters based on company research with multiple tone options
+- **Hiring Manager Research**: Finds and profiles hiring managers for direct outreach using AI suggestions and third-party APIs
+- **LinkedIn Message Generator**: Creates personalized connection requests and messages optimized for LinkedIn's character limits
+- **Email Generation**: Generates professional follow-up emails for various application stages
+- **ATS Optimization**: Ensures resumes pass Applicant Tracking Systems with keyword matching
+- **Application Tracking**: Tracks all applications and their status in PostgreSQL
+- **GitHub Integration**: Automatically pulls project information and extracts engineering skills from your repos
+- **Multi-Provider AI**: Supports Anthropic Claude, Google Gemini, Cohere, and Hugging Face
+- **Vector Search**: pgvector-powered semantic search for experience/project matching
 
 ## Tech Stack
 
 - **Language**: TypeScript + Node.js
 - **Database**: PostgreSQL with pgvector
-- **AI/LLM**: Claude 4.5 (Anthropic)
+- **AI/LLM**: Anthropic Claude, Google Gemini, Cohere, Hugging Face
 - **ORM**: Prisma
 - **CLI**: Commander.js + Inquirer.js
+- **Document Processing**: docx, pdf-lib, mammoth
+- **Web Scraping**: Puppeteer, Cheerio, Axios
+- **Testing**: Vitest
 
 ## Prerequisites
 
 Before you begin, ensure you have:
 
 - **Node.js** 18.0.0 or higher
-- **PostgreSQL** 12.0 or higher
+- **PostgreSQL** 12.0 or higher with pgvector extension
 - **npm** or **yarn**
 - API Keys:
   - Anthropic API key (required)
+  - Gemini or Cohere API key (for embeddings)
   - GitHub Personal Access Token (optional)
-  - OpenAI API key (optional, for embeddings)
+  - Hunter.io / Apollo API key (optional, for contact finding)
 
 ## Installation
 
 ### 1. Clone the Repository
 
-\`\`\`bash
+```bash
 git clone <your-repo-url>
 cd resume-agent
-\`\`\`
+```
 
 ### 2. Install Dependencies
 
-\`\`\`bash
+```bash
 npm install
-\`\`\`
+```
 
 ### 3. Set Up PostgreSQL Database
 
 Create a new PostgreSQL database:
 
-\`\`\`bash
-
+```bash
 # Using psql
-
 psql -U postgres
 
 # In psql console
-
 CREATE DATABASE resume_agent;
 CREATE USER resume_user WITH PASSWORD 'your_password';
 GRANT ALL PRIVILEGES ON DATABASE resume_agent TO resume_user;
 \q
-\`\`\`
+```
 
 Install pgvector extension:
 
-\`\`\`bash
+```bash
 psql -U postgres -d resume_agent -c "CREATE EXTENSION IF NOT EXISTS vector;"
-\`\`\`
+```
 
 ### 4. Configure Environment Variables
 
-Create a \`.env\` file in the root directory:
+Copy the example environment file:
 
-\`\`\`bash
+```bash
 cp .env.example .env
-\`\`\`
+```
 
-Edit \`.env\` and add your credentials:
+Edit `.env` and add your credentials:
 
-\`\`\`env
-
+```env
 # Database
-
 DATABASE_URL="postgresql://resume_user:your_password@localhost:5432/resume_agent"
 
-# Anthropic API (Required)
-
+# LLM Provider (Required)
 ANTHROPIC_API_KEY="sk-ant-api03-..."
 
-# GitHub Token (Optional but recommended)
+# Embeddings Provider (Required for semantic search)
+GEMINI_API_KEY="..."
+# or
+COHERE_API_KEY="..."
 
-GITHUB*TOKEN="ghp*..."
+# GitHub Token (Optional)
+GITHUB_TOKEN="ghp_..."
 
-# OpenAI (Optional - for embeddings)
+# Contact Finding Services (Optional)
+HUNTER_API_KEY="..."
+APOLLO_API_KEY="..."
+```
 
-OPENAI_API_KEY="sk-..."
-\`\`\`
+### 5. Run Database Migrations
 
-### 5. Get Your API Keys
-
-#### Anthropic API Key (Required)
-
-1. Go to [Anthropic Console](https://console.anthropic.com/)
-2. Sign up or log in
-3. Navigate to Settings → API Keys
-4. Click "Create Key"
-5. Copy the key (starts with \`sk-ant-api03-\`)
-
-#### GitHub Personal Access Token (Optional)
-
-1. Go to [GitHub Settings](https://github.com/settings/tokens)
-2. Click "Generate new token" → "Generate new token (classic)"
-3. Give it a name (e.g., "Resume Agent")
-4. Select scopes:
-   - ✅ \`repo\` (for private repos)
-   - ✅ \`read:user\`
-5. Click "Generate token"
-6. Copy the token (starts with \`ghp\_\`)
-
-### 6. Run Database Migrations
-
-\`\`\`bash
+```bash
 npx prisma migrate dev --name init
 npx prisma generate
-\`\`\`
+```
 
-### 7. Build the Project
+### 6. Build the Project
 
-\`\`\`bash
+```bash
 npm run build
-\`\`\`
+```
 
 ## Usage
 
 ### Initialize Your Master Resume
 
-\`\`\`bash
+```bash
 npm run dev init
-\`\`\`
-
-This will guide you through creating your master resume with:
-
-- Personal information
-- Professional summary
-- Contact details
+```
 
 ### Add Work Experience
 
-\`\`\`bash
+```bash
 npm run dev resume add-experience
-\`\`\`
+```
 
 ### Add Projects
 
-\`\`\`bash
+```bash
 npm run dev resume add-project
-\`\`\`
+```
 
-### Apply for a Job
+### Analyze a Job Posting
 
-\`\`\`bash
+```bash
+npm run dev analyze <job-url>
+```
+
+### Tailor Resume to a Job
+
+```bash
+npm run dev tailor <job-id>
+```
+
+### Generate Cover Letter
+
+```bash
+npm run dev cover-letter <job-id>
+```
+
+### Find Hiring Manager
+
+```bash
+npm run dev find-manager <job-id>
+```
+
+### Generate LinkedIn Message
+
+```bash
+npm run dev linkedin-message <job-id>
+```
+
+### Generate Email
+
+```bash
+npm run dev email <job-id>
+```
+
+### Full Application Workflow
+
+```bash
 npm run dev apply <job-url>
-\`\`\`
-
-This will:
-
-1. Analyze the job posting
-2. Research the company
-3. Tailor your resume
-4. Generate a cover letter
-5. Find hiring managers
-6. Create LinkedIn messages
+```
 
 ### View Application Status
 
-\`\`\`bash
+```bash
 npm run dev status
-\`\`\`
+```
 
 ### Research a Company
 
-\`\`\`bash
+```bash
 npm run dev research "Company Name"
-\`\`\`
+```
+
+### Check API Credits
+
+```bash
+npm run dev credits
+```
 
 ## Project Structure
 
-\`\`\`
+```
 resume-agent/
 ├── src/
-│ ├── agents/ # AI agents for different tasks
-│ ├── services/ # Core services (LLM, GitHub, etc.)
-│ ├── database/ # Database client and repositories
-│ ├── cli/ # CLI commands
-│ ├── utils/ # Utility functions
-│ ├── types/ # TypeScript type definitions
-│ ├── config/ # Configuration
-│ └── templates/ # Document templates
+│   ├── agents/           # AI agents for different tasks
+│   │   ├── base-agent.ts
+│   │   ├── resume-tailor.agent.ts
+│   │   ├── job-analyzer.ts
+│   │   ├── cover-letter-generator.ts
+│   │   ├── linkedin-message-generator.ts
+│   │   ├── email-agent.ts
+│   │   ├── company-researcher.agent.ts
+│   │   ├── hiring-manager-finder.ts
+│   │   └── application-orchestrator.agent.ts
+│   ├── services/        # Core services
+│   │   ├── llm.service.ts          # Multi-provider LLM
+│   │   ├── embeddings.service.ts   # Vector embeddings
+│   │   ├── web-scraper.service.ts  # Job posting scraping
+│   │   ├── resume-parser.service.ts
+│   │   ├── pdf-parser.service.ts
+│   │   ├── docx-parser.service.ts
+│   │   ├── document-generator.service.ts
+│   │   ├── export.service.ts
+│   │   ├── github.service.ts
+│   │   ├── github-skills.service.ts
+│   │   ├── hunter.service.ts
+│   │   ├── apollo.service.ts
+│   │   └── rocketreach.service.ts
+│   ├── database/        # Database client and repositories
+│   ├── cli/             # CLI commands
+│   ├── orchestrator/    # Workflow orchestration
+│   ├── utils/           # Utility functions
+│   ├── types/           # TypeScript type definitions
+│   ├── config/          # Configuration
+│   └── templates/       # Document templates
 ├── data/
-│ ├── outputs/ # Generated resumes and cover letters
-│ ├── cache/ # Cached data
-│ └── uploads/ # User uploads
+│   ├── resumes/         # Master resume data
+│   ├── outputs/         # Generated resumes and cover letters
+│   ├── cache/           # Cached data
+│   └── uploads/         # User uploads
 ├── prisma/
-│ └── schema.prisma # Database schema
-└── tests/ # Tests
-\`\`\`
+│   └── schema.prisma    # Database schema
+└── tests/               # Test files
+```
 
-## Development Roadmap
+## CLI Commands
 
-### ✅ Phase 0: Foundation (Week 1)
+| Command | Description |
+|---------|-------------|
+| `init` | Initialize project |
+| `resume` | Manage master resume (add-experience, add-project, etc.) |
+| `upload` | Upload a resume file (PDF/DOCX) |
+| `analyze` | Analyze a job posting URL |
+| `jobs` | List and manage analyzed jobs |
+| `tailor` | Tailor resume to a specific job |
+| `generate` | Generate DOCX/PDF output |
+| `cover-letter` | Generate a cover letter |
+| `find-manager` | Find hiring manager for a job |
+| `linkedin-message` | Generate LinkedIn outreach message |
+| `email` | Generate follow-up email |
+| `apply` | Full application workflow |
+| `status` | View application status |
+| `research` | Research a company |
+| `credits` | Check API usage |
+| `github` | Sync GitHub repositories |
+| `list` | List resources |
+| `export` | Export data |
+| `import` | Import data |
+| `reset` | Reset database |
 
-- [x] Project setup
-- [x] Database schema
-- [x] CLI foundation
-- [x] LLM service
-- [x] Basic configuration
+## Development
 
-### 🚧 Phase 1: Master Resume (Week 2)
+### Run in Development Mode
 
-- [ ] Experience management
-- [ ] Project management
-- [ ] Skills management
-- [ ] GitHub integration
-- [ ] Embedding generation
+```bash
+npm run dev
+```
 
-### 📅 Phase 2: Job Analysis (Week 3)
+### Run Tests
 
-- [ ] Job posting parser
-- [ ] Company research agent
-- [ ] Match scoring
-- [ ] Keyword extraction
+```bash
+npm run test
+npm run test:watch   # Watch mode
+npm run test:coverage # Coverage report
+```
 
-### 📅 Phase 3: Resume Generation (Week 4)
+### Lint and Format
 
-- [ ] Resume tailoring agent
-- [ ] ATS optimization
-- [ ] Document generation (PDF/DOCX)
-- [ ] Template system
+```bash
+npm run lint
+npm run format
+```
 
-### 📅 Phase 4: Cover Letters (Week 5)
+### Open Prisma Studio
 
-- [ ] Cover letter generator
-- [ ] Personalization engine
-- [ ] Multiple variants
-
-### 📅 Phase 5: Hiring Manager Research (Week 6)
-
-- [ ] LinkedIn search queries
-- [ ] Company website scraping
-- [ ] Screenshot upload/OCR
-- [ ] Confidence scoring
-
-### 📅 Phase 6: LinkedIn Messages (Week 7)
-
-- [ ] Message generation
-- [ ] Personalization
-- [ ] Variant creation
-
-### 📅 Phase 7: Orchestration (Week 8)
-
-- [ ] Complete workflow
-- [ ] Application packages
-- [ ] Strategy generation
-
-### 📅 Phase 8: Tracking (Week 9)
-
-- [ ] Status dashboard
-- [ ] Analytics
-- [ ] Follow-up system
+```bash
+npm run db:studio
+```
 
 ## Troubleshooting
 
 ### Database Connection Issues
 
-\`\`\`bash
-
+```bash
 # Check if PostgreSQL is running
-
 sudo service postgresql status
 
 # Restart PostgreSQL
-
 sudo service postgresql restart
 
 # Test connection
-
 psql -U resume_user -d resume_agent
-\`\`\`
+```
 
 ### Prisma Issues
 
-\`\`\`bash
-
+```bash
 # Reset database
-
 npx prisma migrate reset
 
 # Re-generate Prisma client
-
 npx prisma generate
 
 # View database in browser
-
 npx prisma studio
-\`\`\`
+```
 
 ### API Key Issues
 
-- Make sure your \`.env\` file is in the root directory
+- Make sure your `.env` file is in the root directory
 - Check that API keys don't have extra spaces
 - Verify keys are valid in their respective consoles
 
@@ -324,12 +342,6 @@ MIT
 
 ## Acknowledgments
 
-- Built with [Claude 4.5](https://www.anthropic.com/) by Anthropic
+- Built with Claude by Anthropic
 - Inspired by modern job search challenges
 - Designed for full-stack engineers
-
----
-
-**Current Status**: Phase 0 Complete ✅
-
-Next up: Implementing master resume management in Week 2!
