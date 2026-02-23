@@ -36,14 +36,19 @@ export class ApplicationOrchestratorAgent {
 
   /**
    * Run complete application workflow
+   * @param jobUrl - The job posting URL
+   * @param options - Options including enhanced flag
    */
-  async applyToJob(jobUrl: string): Promise<AgentResponse<ApplicationPackage>> {
+  async applyToJob(jobUrl: string, options?: { enhanced?: boolean }): Promise<AgentResponse<ApplicationPackage>> {
+    const enhanced = options?.enhanced || false;
+    const totalSteps = enhanced ? 7 : 6;
+    
     try {
       logger.header("Complete Application Workflow");
-      logger.info("Starting automated application process", { jobUrl });
+      logger.info("Starting automated application process", { jobUrl, enhanced });
 
       // Step 1: Analyze job
-      logger.step(1, 6, "Analyzing job posting...");
+      logger.step(1, totalSteps, "Analyzing job posting...");
       const jobAnalyzer = getJobAnalyzerAgent();
       const analysisResult = await jobAnalyzer.analyzeJobFromUrl(jobUrl);
 
@@ -84,6 +89,8 @@ export class ApplicationOrchestratorAgent {
         return this.processWorkflowAfterJobCreated(
           updatedJob,
           analysisResult.data.company,
+          enhanced,
+          totalSteps,
         );
       }
 
@@ -120,6 +127,8 @@ export class ApplicationOrchestratorAgent {
       return this.processWorkflowAfterJobCreated(
         job,
         analysisResult.data.company,
+        enhanced,
+        totalSteps,
       );
     } catch (error: any) {
       logger.error("Application workflow failed", error);
@@ -136,6 +145,8 @@ export class ApplicationOrchestratorAgent {
   private async processWorkflowAfterJobCreated(
     job: any,
     companyName: string,
+    enhanced: boolean = false,
+    totalSteps: number = 6,
   ): Promise<AgentResponse<ApplicationPackage>> {
     try {
       const jobId = job.id;
@@ -146,10 +157,10 @@ export class ApplicationOrchestratorAgent {
         `Job analyzed: ${jobTitle} at ${companyName} (${matchScore}% match)`,
       );
 
-      // Step 2: Tailor resume
-      logger.step(2, 6, "Tailoring resume with RAG...");
+      // Step 2: Tailor resume (with enhanced pipeline if requested)
+      logger.step(2, totalSteps, enhanced ? "Running enhanced pipeline (quantify + Harvard + ATS + cover letter + interview)..." : "Tailoring resume with RAG...");
       const resumeTailor = getResumeTailorAgent();
-      const tailorResult = await resumeTailor.tailorResume(jobId);
+      const tailorResult = await resumeTailor.tailorResume(jobId, { enhanced });
 
       if (!tailorResult.success || !tailorResult.data) {
         // If tailoring fails, suggest running with embeddings
@@ -174,7 +185,7 @@ export class ApplicationOrchestratorAgent {
       }
 
       // Step 3: Generate resume DOCX
-      logger.step(3, 6, "Generating resume document...");
+      logger.step(3, totalSteps, "Generating resume document...");
       const docGenerator = getDocumentGenerator();
       const resumeResult = await docGenerator.generateResume(
         tailorResult.data,
@@ -191,7 +202,7 @@ export class ApplicationOrchestratorAgent {
       logger.success(`Resume created: ${resumeResult.filepath}`);
 
       // Step 4: Generate cover letter
-      logger.step(4, 6, "Generating cover letter...");
+      logger.step(4, totalSteps, "Generating cover letter...");
       const coverLetterAgent = getCoverLetterAgent();
       const coverLetterResult = await coverLetterAgent.generateCoverLetter(
         jobId,
@@ -222,7 +233,7 @@ export class ApplicationOrchestratorAgent {
       logger.success(`Cover letter created: ${coverLetterDocResult.filepath}`);
 
       // Step 5: Find hiring manager
-      logger.step(5, 6, "Finding hiring manager...");
+      logger.step(5, totalSteps, "Finding hiring manager...");
       const hiringManagerFinder = getHiringManagerFinderAgent();
       const hmResult = await hiringManagerFinder.findHiringManager(jobId);
 
@@ -274,7 +285,7 @@ export class ApplicationOrchestratorAgent {
       let linkedInMessage: string | undefined;
 
       if (hiringManagerId) {
-        logger.step(6, 6, "Generating LinkedIn message...");
+        logger.step(6, totalSteps, "Generating LinkedIn message...");
         const linkedInAgent = getLinkedInMessageAgent();
         const messageResult = await linkedInAgent.generateMessage(
           jobId,
@@ -307,7 +318,7 @@ export class ApplicationOrchestratorAgent {
           logger.warn("LinkedIn message generation failed, continuing");
         }
       } else {
-        logger.step(6, 6, "Skipping LinkedIn message (no hiring manager)");
+        logger.step(6, totalSteps, "Skipping LinkedIn message (no hiring manager)");
       }
 
       // Step 7: Create application record

@@ -10,7 +10,8 @@ export const applyCommand = new Command("apply")
   .description("Apply for a job (complete automated workflow)")
   .argument("[job-url]", "URL of the job posting")
   .option("--skip-hiring-manager", "Skip hiring manager search", false)
-  .action(async (jobUrl?: string) => {
+  .option("--enhanced", "Run enhanced pipeline (McKinsey quant + Harvard summaries + ATS + cover letter + interview prep)", false)
+  .action(async (jobUrl?: string, options?: { skipHiringManager?: boolean; enhanced?: boolean }) => {
     try {
       // Get job URL if not provided
       if (!jobUrl) {
@@ -37,10 +38,14 @@ export const applyCommand = new Command("apply")
       console.log();
 
       // Start workflow
-      const workflowSpinner = ora("Running complete workflow...").start();
+      const enhanced = options?.enhanced || false;
+      if (enhanced) {
+        console.log(chalk.cyan("  ✨ Running enhanced pipeline (McKinsey + Harvard + ATS + Cover Letter + Interview Prep)"));
+      }
+      const workflowSpinner = ora(enhanced ? "Running enhanced workflow..." : "Running complete workflow...").start();
 
       const orchestrator = getApplicationOrchestrator();
-      const result = await orchestrator.applyToJob(jobUrl!);
+      const result = await orchestrator.applyToJob(jobUrl!, { enhanced });
 
       if (!result.success || !result.data) {
         workflowSpinner.fail("Workflow failed");
@@ -60,7 +65,7 @@ export const applyCommand = new Command("apply")
         return;
       }
 
-      workflowSpinner.succeed("Workflow complete!");
+      workflowSpinner.succeed(enhanced ? "Enhanced workflow complete! ✨" : "Workflow complete!");
 
       const pkg = result.data;
 

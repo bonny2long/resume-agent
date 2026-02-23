@@ -8,6 +8,7 @@ import storyLoader from "@/utils/story-loader";
 import VoiceLoader from "@/utils/voice-loader";
 import { HumannessChecker } from "@/utils/humanness-checker";
 import { PrismaClient } from "@prisma/client";
+import chalk from "chalk";
 
 export interface TailoredResume {
   // Basic Info
@@ -335,21 +336,73 @@ export class ResumeTailorAgent {
     relevantExperiences: Array<{ experience: any; similarity: number }>,
     relevantProjects: Array<{ project: any; similarity: number }>,
   ): Promise<TailoredResume> {
-    // Generate tailored summary
-    const summary = await this.generateTailoredSummary(job, masterResume);
+    // Try to use Harvard summary from DB first, otherwise generate new
+    let summary: string;
+    const { getHarvardSummaryAgent } = await import("./resume/harvard-summary.agent");
+    const summaryAgent = getHarvardSummaryAgent();
+    
+    // Try job-specific first, then fall back to any summary for this resume
+    let dbSummaries = await summaryAgent.getFromDatabase(masterResume.id, job.id);
+    if (!dbSummaries || dbSummaries.length === 0) {
+      dbSummaries = await summaryAgent.getFromDatabase(masterResume.id);
+    }
+    
+    if (dbSummaries && dbSummaries.length > 0) {
+      const recommended = dbSummaries.find(s => s.bestFor === "Recommended") || dbSummaries[0];
+      summary = recommended.summary;
+      console.log(chalk.gray("  → Using Harvard summary from database"));
+    } else {
+      summary = await this.generateTailoredSummary(job, masterResume);
+    }
+
+    // Try to use quantified achievements from DB first
+    const { getAchievementQuantifierAgent } = await import("./resume/achievement-quantifier.agent");
+    const quantifier = getAchievementQuantifierAgent();
+    const dbQuantified = await quantifier.getQuantifiedFromDatabase(masterResume.id);
+    const hasQuantifiedData = dbQuantified && dbQuantified.length > 0;
+    
+    if (hasQuantifiedData) {
+      logger.info(`Using ${dbQuantified.length} quantified achievements from database`);
+    }
 
     // Distribute optimized achievements back to experiences
     const optimizedExperiences = await Promise.all(
       relevantExperiences.map(async ({ experience, similarity }) => {
         let currentAchievements = experience.achievements;
 
-        // Enhance trades experience with tech relevance
-        if (
+        // If we have quantified achievements from DB, use them
+        if (hasQuantifiedData) {
+          // Match quantified achievements to this experience based on original text similarity
+          const expText = `${experience.title} ${experience.company} ${experience.achievements?.map((a: any) => a.description).join(" ")}`.toLowerCase();
+          const expWords = expText.split(/\s+/).filter(w => w.length > 3);
+          
+          const matchedQuantified = dbQuantified.filter((q) => {
+            const qOriginal = q.original?.toLowerCase() || "";
+            return expWords.some((word) => qOriginal.includes(word)) || 
+                   qOriginal.split(/\s+/).some((word: string) => word.length > 4 && expText.includes(word));
+          });
+
+          if (matchedQuantified.length > 0) {
+            currentAchievements = matchedQuantified.map((q) => ({
+              description: q.rewritten,
+              metrics: q.metrics?.percentage ? `${q.metrics.percentage}%` : q.metrics?.scale || q.metrics?.revenue || "",
+              impact: "high" as const,
+            }));
+          } else {
+            // Use any available quantified achievements as fallback
+            currentAchievements = dbQuantified.slice(0, 3).map((q) => ({
+              description: q.rewritten,
+              metrics: q.metrics?.percentage ? `${q.metrics.percentage}%` : q.metrics?.scale || q.metrics?.revenue || "",
+              impact: "high" as const,
+            }));
+          }
+        } else if (
           experience.title &&
           (experience.title.toLowerCase().includes("insulator") ||
             experience.title.toLowerCase().includes("electrical") ||
             experience.title.toLowerCase().includes("technician"))
         ) {
+          // Enhance trades experience with tech relevance
           currentAchievements = await this.enhanceTradesExperience(
             experience.achievements,
             job.requiredSkills,
@@ -1371,7 +1424,7 @@ Response format (strict JSON):
     }
 
     // STEP A: Quantify Achievements (McKinsey)
-    logger.step(1, 3, "Quantifying achievements (McKinsey)...");
+    logger.step(1, 5, "Quantifying achievements (McKinsey)...");
     const { getAchievementQuantifierAgent } = await import("./resume/achievement-quantifier.agent");
     const quantifier = getAchievementQuantifierAgent();
     const quantifyResult = await quantifier.quantifyResumeAchievements();
@@ -1382,7 +1435,7 @@ Response format (strict JSON):
     }
 
     // STEP C: Harvard Summary
-    logger.step(2, 3, "Generating Harvard summaries...");
+    logger.step(2, 5, "Generating Harvard summaries...");
     const { getHarvardSummaryAgent } = await import("./resume/harvard-summary.agent");
     const summaryAgent = getHarvardSummaryAgent();
     const summaryResult = await summaryAgent.generateSummaries(jobId);
@@ -1393,7 +1446,7 @@ Response format (strict JSON):
     }
 
     // STEP B: ATS Optimization
-    logger.step(3, 3, "Running ATS optimization (Google)...");
+    logger.step(3, 5, "Running ATS optimization (Google)...");
     const { getATSOptimizerAgent } = await import("./resume/ats-optimizer.agent");
     const atsAgent = getATSOptimizerAgent();
     const atsResult = await atsAgent.optimizeForATS(jobId);
@@ -1401,6 +1454,50 @@ Response format (strict JSON):
     if (atsResult.success && atsResult.data) {
       await atsAgent.saveToDatabase(masterResume.id, jobId, atsResult.data);
       logger.success(`ATS Score: ${atsResult.data.overallScore}/100`);
+    }
+
+    // STEP D: Cover Letter Generation (Bain Style)
+    logger.step(4, 5, "Generating cover letter (Bain Style)...");
+    const { getCoverLetterAgent } = await import("@/agents/cover-letter-generator");
+    const coverLetterAgent = getCoverLetterAgent();
+    const coverLetterResult = await coverLetterAgent.generateCoverLetter(jobId, {
+      tone: "professional",
+      includeCareerStory: true,
+      maxParagraphs: 4,
+    });
+
+    if (coverLetterResult.success && coverLetterResult.data) {
+      logger.success(`Cover letter generated for ${coverLetterResult.data.companyName}`);
+    }
+
+    // STEP E: Interview Prep (FAANG Style)
+    logger.step(5, 5, "Generating interview prep (FAANG Style)...");
+    const { getBehavioralCoachAgent } = await import("./interview/behavioral-coach.agent");
+    const behavioralCoach = getBehavioralCoachAgent();
+    const storyBankResult = await behavioralCoach.generateStoryBank();
+
+    if (storyBankResult.success && storyBankResult.data) {
+      // Save STAR stories to database
+      try {
+        for (const story of storyBankResult.data.stories) {
+          await this.prisma.sTARStory.create({
+            data: {
+              resumeId: masterResume.id,
+              title: story.title,
+              category: story.category,
+              situation: story.situation,
+              task: story.task,
+              action: story.action,
+              result: story.result,
+              metrics: story.metrics || undefined,
+              lessons: story.lessons || undefined,
+            },
+          });
+        }
+        logger.success(`Generated ${storyBankResult.data.stories.length} STAR stories`);
+      } catch (error) {
+        logger.warn("Failed to save STAR stories to database", error);
+      }
     }
 
     logger.success("Enhanced pipeline complete - all data saved to database");
