@@ -104,11 +104,20 @@ export class ResumeTailorAgent {
 
   /**
    * Generate a tailored resume for a specific job
+   * @param jobId - The job ID to tailor for
+   * @param options - Optional parameters including enhanced mode
    */
-  async tailorResume(jobId: string): Promise<AgentResponse<TailoredResume>> {
+  async tailorResume(jobId: string, options?: { enhanced?: boolean }): Promise<AgentResponse<TailoredResume>> {
+    const enhanced = options?.enhanced || false;
+
     try {
       logger.header("Resume Tailor Agent");
-      logger.info("Tailoring resume for job", { jobId });
+      logger.info("Tailoring resume for job", { jobId, enhanced });
+
+      // ENHANCED PIPELINE: Run all enhancements first
+      if (enhanced) {
+        await this.runEnhancedPipeline(jobId);
+      }
 
       // Step 1: Get job details
       logger.step(1, 5, "Loading job details...");
@@ -1346,6 +1355,55 @@ Response format (strict JSON):
     }
 
     return engineeringSkills;
+  }
+
+  /**
+   * Enhanced Pipeline: Run all enhancement agents and save to database
+   * Priority: A) Quantify Achievements → C) Harvard Summary → B) ATS Optimization
+   */
+  private async runEnhancedPipeline(jobId: string): Promise<void> {
+    logger.info("Starting enhanced pipeline");
+
+    // Get master resume
+    const masterResume = await this.prisma.masterResume.findFirst();
+    if (!masterResume) {
+      throw new Error("No master resume found");
+    }
+
+    // STEP A: Quantify Achievements (McKinsey)
+    logger.step(1, 3, "Quantifying achievements (McKinsey)...");
+    const { getAchievementQuantifierAgent } = await import("./resume/achievement-quantifier.agent");
+    const quantifier = getAchievementQuantifierAgent();
+    const quantifyResult = await quantifier.quantifyResumeAchievements();
+    
+    if (quantifyResult.success && quantifyResult.data) {
+      await quantifier.saveToDatabase(masterResume.id, quantifyResult.data.achievements);
+      logger.success(`Quantified ${quantifyResult.data.achievements.length} achievements`);
+    }
+
+    // STEP C: Harvard Summary
+    logger.step(2, 3, "Generating Harvard summaries...");
+    const { getHarvardSummaryAgent } = await import("./resume/harvard-summary.agent");
+    const summaryAgent = getHarvardSummaryAgent();
+    const summaryResult = await summaryAgent.generateSummaries(jobId);
+
+    if (summaryResult.success && summaryResult.data) {
+      await summaryAgent.saveToDatabase(masterResume.id, jobId, summaryResult.data.versions);
+      logger.success(`Generated ${summaryResult.data.versions.length} summary versions`);
+    }
+
+    // STEP B: ATS Optimization
+    logger.step(3, 3, "Running ATS optimization (Google)...");
+    const { getATSOptimizerAgent } = await import("./resume/ats-optimizer.agent");
+    const atsAgent = getATSOptimizerAgent();
+    const atsResult = await atsAgent.optimizeForATS(jobId);
+
+    if (atsResult.success && atsResult.data) {
+      await atsAgent.saveToDatabase(masterResume.id, jobId, atsResult.data);
+      logger.success(`ATS Score: ${atsResult.data.overallScore}/100`);
+    }
+
+    logger.success("Enhanced pipeline complete - all data saved to database");
   }
 }
 

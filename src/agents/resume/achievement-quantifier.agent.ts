@@ -219,6 +219,54 @@ Return ONLY valid JSON array.`;
       withPercentageGains: achievements.filter(a => a.metrics.percentage).length,
     };
   }
+
+  async saveToDatabase(resumeId: string, achievements: QuantifiedAchievement[]): Promise<void> {
+    try {
+      // Delete old quantified achievements for this resume
+      await this.prisma.quantifiedAchievement.deleteMany({
+        where: { resumeId },
+      });
+
+      // Save new quantified achievements
+      await this.prisma.quantifiedAchievement.createMany({
+        data: achievements.map((ach) => ({
+          resumeId,
+          originalText: ach.original,
+          rewrittenText: ach.rewritten,
+          category: ach.category,
+          revenueImpact: ach.metrics?.revenue || null,
+          scaleMetrics: ach.metrics?.scale || null,
+          timeImprovement: ach.metrics?.time || null,
+          percentageGain: ach.metrics?.percentage || null,
+          context: ach.context || null,
+        })),
+      });
+
+      logger.debug(`Saved ${achievements.length} quantified achievements to database`);
+    } catch (error) {
+      logger.warn("Failed to save quantified achievements to database", error);
+    }
+  }
+
+  async getQuantifiedFromDatabase(resumeId: string): Promise<QuantifiedAchievement[]> {
+    const records = await this.prisma.quantifiedAchievement.findMany({
+      where: { resumeId },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return records.map((r) => ({
+      original: r.originalText,
+      rewritten: r.rewrittenText,
+      category: r.category as any,
+      metrics: {
+        revenue: r.revenueImpact || undefined,
+        scale: r.scaleMetrics || undefined,
+        time: r.timeImprovement || undefined,
+        percentage: r.percentageGain || undefined,
+      },
+      context: r.context || "",
+    }));
+  }
 }
 
 let achievementQuantifierAgent: AchievementQuantifierAgent | null = null;

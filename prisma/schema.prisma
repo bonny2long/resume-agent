@@ -323,6 +323,63 @@ model STARStory {
   @@map("star_stories")
 }
 
+model QuantifiedAchievement {
+  id              String   @id @default(uuid())
+  resumeId        String
+  experienceId    String?
+  originalText    String
+  rewrittenText   String
+  category        String?  // leadership, technical, collaboration, innovation, impact
+  revenueImpact   String?
+  scaleMetrics    String?
+  timeImprovement String?
+  percentageGain  String?
+  context         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([resumeId])
+  @@index([experienceId])
+  @@map("quantified_achievements")
+}
+
+model ATSAnalysis {
+  id              String   @id @default(uuid())
+  resumeId        String
+  jobId           String?
+  overallScore    Int
+  atsMatchScore   Int
+  summaryScore    Int
+  experienceScore Int
+  skillsScore     Int
+  educationScore  Int
+  keywordAnalysis Json?
+  recommendations String[]
+  formatGuidance  Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([resumeId])
+  @@index([jobId])
+  @@map("ats_analyses")
+}
+
+model EnhancedSummary {
+  id              String   @id @default(uuid())
+  resumeId        String
+  jobId           String?
+  angle           String   // leadership, technical, results, industry, vision
+  summary         String
+  recommended     Boolean  @default(false)
+  atsKeywords     String[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([resumeId])
+  @@index([jobId])
+  @@map("enhanced_summaries")
+}
+
 enum Proficiency {
   beginner
   intermediate

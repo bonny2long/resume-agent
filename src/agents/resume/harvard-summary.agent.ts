@@ -266,6 +266,49 @@ Return ONLY valid JSON.`;
       },
     ];
   }
+
+  async saveToDatabase(resumeId: string, jobId: string | null, versions: SummaryVersion[]): Promise<void> {
+    try {
+      // Delete old summaries for this resume/job combo
+      await this.prisma.enhancedSummary.deleteMany({
+        where: { resumeId, jobId: jobId || undefined },
+      });
+
+      // Save new summaries
+      await this.prisma.enhancedSummary.createMany({
+        data: versions.map((v, index) => ({
+          resumeId,
+          jobId: jobId || null,
+          angle: v.angle,
+          summary: v.summary,
+          recommended: index === 0, // First one is recommended
+          atsKeywords: v.atsKeywords || [],
+        })),
+      });
+
+      logger.debug(`Saved ${versions.length} summaries to database`);
+    } catch (error) {
+      logger.warn("Failed to save summaries to database", error);
+    }
+  }
+
+  async getFromDatabase(resumeId: string, jobId?: string): Promise<SummaryVersion[]> {
+    const records = await this.prisma.enhancedSummary.findMany({
+      where: { 
+        resumeId,
+        jobId: jobId || undefined,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return records.map((r) => ({
+      angle: r.angle as any,
+      summary: r.summary,
+      bestFor: r.recommended ? "Recommended" : "Alternative",
+      keyFocus: r.angle,
+      atsKeywords: r.atsKeywords,
+    }));
+  }
 }
 
 let harvardSummaryAgent: HarvardSummaryAgent | null = null;

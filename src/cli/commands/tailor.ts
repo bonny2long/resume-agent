@@ -15,6 +15,7 @@ export const tailorCommand = new Command("tailor")
   .argument("[job-id]", "ID of the analyzed job")
   .option("--generate-embeddings", "Generate embeddings first", false)
   .option("--format <format>", "Output format (json|text)", "text")
+  .option("--enhanced", "Use enhanced pipeline: quantify achievements + Harvard summary + ATS optimization", false)
   .action(async (jobId?: string, options?: any) => {
     try {
       // If no job ID provided, show recent jobs
@@ -85,12 +86,18 @@ export const tailorCommand = new Command("tailor")
         }
       }
 
-      // Step 2: Tailor the resume
+// Step 2: Tailor the resume
       const tailorSpinner = ora("Tailoring resume...").start();
       const tailorAgent = getResumeTailorAgent();
 
+      const enhancedMode = options?.enhanced || false;
+      
+      if (enhancedMode) {
+        tailorSpinner.text = "Running enhanced pipeline...";
+      }
+
       // Ensure jobId is treated as string since we validated it above
-      const result = await tailorAgent.tailorResume(jobId!);
+      const result = await tailorAgent.tailorResume(jobId!, { enhanced: enhancedMode });
 
       if (!result.success || !result.data) {
         tailorSpinner.fail("Failed to tailor resume");

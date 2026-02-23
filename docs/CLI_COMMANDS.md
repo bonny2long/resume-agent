@@ -169,6 +169,33 @@ npm run dev -- credits
 
 ---
 
+## 🎯 **Enhanced Resume & Career Tools**
+
+**Advanced tools powered by elite career consultants**
+
+```bash
+# Resume Enhancement Tools
+npm run dev -- enhance quantify                    # McKinsey-style achievement quantification
+npm run dev -- enhance ats <job-id>              # Google ATS optimization report
+npm run dev -- enhance summary <job-id>          # Harvard 5-version summary generator
+
+# Interview Preparation
+npm run dev -- enhance interview "Full Stack Engineer"              # FAANG-style STAR stories
+npm run dev -- enhance interview "Full Stack Engineer" --export     # + export to DOCX
+
+# LinkedIn Optimization
+npm run dev -- enhance linkedin "Full Stack Engineer"              # Spencer Stuart profile optimizer
+
+# Career Tools
+npm run dev -- enhance salary <job-id>           # Robert Half salary negotiation strategy
+npm run dev -- enhance salary --export            # + export to DOCX
+npm run dev -- enhance brand "Tech Lead"         # Heidrick & Struggles personal brand
+npm run dev -- enhance pivot                      # Korn Ferry career pivot plan
+npm run dev -- enhance pivot --export            # + export to DOCX
+```
+
+---
+
 ## 📚 **Complete Command Reference**
 
 | ✅ Status | Command | Description | Category |
@@ -201,10 +228,86 @@ npm run dev -- credits
 | ✅ **READY** | `tailor <id>` | Tailor resume for job | 📊 Jobs |
 | ✅ **READY** | `upload <file>` | Upload resume file | 📁 Data |
 | ✅ **READY** | `upload-all` | Upload all resume files | 📁 Data |
+| ✅ **READY** | `enhance quantify` | McKinsey achievement quantifier | 🎯 Tools |
+| ✅ **READY** | `enhance ats <id>` | Google ATS optimizer | 🎯 Tools |
+| ✅ **READY** | `enhance summary <id>` | Harvard summary generator | 🎯 Tools |
+| ✅ **READY** | `enhance interview <role>` | FAANG interview coach | 🎯 Tools |
+| ✅ **READY** | `enhance interview <role> --export` | Interview stories → DOCX | 🎯 Tools |
+| ✅ **READY** | `enhance linkedin <role>` | LinkedIn profile optimizer | 🎯 Tools |
+| ✅ **READY** | `enhance salary <id>` | Salary negotiation strategy | 🎯 Tools |
+| ✅ **READY** | `enhance salary --export` | Salary strategy → DOCX | 🎯 Tools |
+| ✅ **READY** | `enhance brand <role>` | Personal brand strategy | 🎯 Tools |
+| ✅ **READY** | `enhance pivot` | Career pivot plan | 🎯 Tools |
+| ✅ **READY** | `enhance pivot --export` | Career pivot → DOCX | 🎯 Tools |
 
 ---
 
-## 🎯 **Popular Command Examples**
+## 🎯 **Enhanced Tools - Detailed Guide**
+
+### Quantify Achievements (McKinsey Style)
+```bash
+# Quantify all resume achievements with metrics
+npm run dev -- enhance quantify
+```
+**Output:** Achievements rewritten with revenue impact, scale metrics, time improvements, percentage gains
+
+### ATS Optimization (Google Style)
+```bash
+# Analyze ATS compatibility for a job
+npm run dev -- enhance ats <job-id>
+```
+**Output:** Keyword analysis, section scores, format recommendations, ATS match percentage
+
+### Professional Summaries (Harvard Style)
+```bash
+# Generate 5 summary versions tailored to job
+npm run dev -- enhance summary <job-id>
+```
+**Output:** 5 versions (Leadership, Technical, Results, Industry, Vision) + recommendation
+
+### Interview Preparation (FAANG Style)
+```bash
+# Generate STAR story bank
+npm run dev -- enhance interview "Software Engineer"
+
+# Export to DOCX for interview
+npm run dev -- enhance interview "Software Engineer" --export
+```
+**Output:** 8-10 STAR stories, question-to-story mapping, delivery tips
+
+### LinkedIn Optimization (Spencer Stuart Style)
+```bash
+# Optimize LinkedIn profile
+npm run dev -- enhance linkedin "Full Stack Engineer"
+```
+**Output:** Headline, About section, skills ranking, content strategy
+
+### Salary Negotiation (Robert Half Style)
+```bash
+# Prepare negotiation strategy
+npm run dev -- enhance salary <job-id>
+
+# Export negotiation playbook
+npm run dev -- enhance salary --export
+```
+**Output:** Market analysis, scripts, objection handling, email templates
+
+### Personal Brand (Heidrick & Struggles Style)
+```bash
+# Build personal brand strategy
+npm run dev -- enhance brand "Tech Lead"
+```
+**Output:** Positioning, thought leadership topics, 90-day action plan
+
+### Career Pivot (Korn Ferry Style)
+```bash
+# Plan career transition
+npm run dev -- enhance pivot
+
+# Export pivot plan
+npm run dev -- enhance pivot --export
+```
+**Output:** Pivot narrative, transferable skills, gap analysis, timeline
 
 **Complete Application:**
 ```bash
@@ -327,3 +430,21 @@ These commands exist but may not be fully functional yet:
 | 🚧 **IN DEV** | In development, may have limited functionality |
 | 📋 **PLANNED** | Planned for future release |
 | ⚠️ **DEPRECATED** | May be removed in future versions |
+
+---
+
+## 🏆 **Elite Career Consultant Prompt Coverage**
+
+This system implements prompts inspired by top career consulting firms:
+
+| Firm | Agent | Command |
+|------|-------|---------|
+| McKinsey & Co | Achievement Quantifier | `enhance quantify` |
+| Google | ATS Optimizer | `enhance ats` |
+| Harvard Business School | Summary Writer | `enhance summary` |
+| Bain & Company | Cover Letter | `cover-letter` (enhanced!) |
+| Robert Half | Salary Negotiator | `enhance salary` |
+| Spencer Stuart | LinkedIn Optimizer | `enhance linkedin` |
+| Meta (FAANG) | Interview Coach | `enhance interview` |
+| Heidrick & Struggles | Personal Brand | `enhance brand` |
+| Korn Ferry | Career Pivot | `enhance pivot` |

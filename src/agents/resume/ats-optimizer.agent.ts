@@ -288,6 +288,57 @@ Analyze and provide ATS optimization report with:
       atsEstimatedMatch: 50,
     };
   }
+
+  async saveToDatabase(resumeId: string, jobId: string | null, analysis: ATSOptimizationReport): Promise<void> {
+    try {
+      // Save new ATS analysis
+      await this.prisma.aTSAnalysis.create({
+        data: {
+          resumeId,
+          jobId: jobId || null,
+          overallScore: analysis.overallScore,
+          atsMatchScore: analysis.atsEstimatedMatch,
+          summaryScore: analysis.sectionScores.summary,
+          experienceScore: analysis.sectionScores.experience,
+          skillsScore: analysis.sectionScores.skills,
+          educationScore: analysis.sectionScores.education,
+          keywordAnalysis: analysis.keywordAnalysis as any,
+          recommendations: analysis.recommendations,
+          formatGuidance: analysis.formatGuidance as any,
+        },
+      });
+
+      logger.debug("Saved ATS analysis to database");
+    } catch (error) {
+      logger.warn("Failed to save ATS analysis to database", error);
+    }
+  }
+
+  async getFromDatabase(resumeId: string, jobId?: string): Promise<ATSOptimizationReport | null> {
+    const record = await this.prisma.aTSAnalysis.findFirst({
+      where: {
+        resumeId,
+        jobId: jobId || undefined,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!record) return null;
+
+    return {
+      overallScore: record.overallScore,
+      keywordAnalysis: record.keywordAnalysis as any,
+      sectionScores: {
+        summary: record.summaryScore,
+        experience: record.experienceScore,
+        skills: record.skillsScore,
+        education: record.educationScore,
+      },
+      recommendations: record.recommendations,
+      formatGuidance: record.formatGuidance as any,
+      atsEstimatedMatch: record.atsMatchScore,
+    };
+  }
 }
 
 let atsOptimizerAgent: ATSOptimizerAgent | null = null;
