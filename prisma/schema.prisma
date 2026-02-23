@@ -303,6 +303,26 @@ model GitHubRepo {
   @@map("github_repos")
 }
 
+model STARStory {
+  id              String   @id @default(uuid())
+  resumeId        String
+  title           String
+  category        String   // leadership, conflict, failure, innovation, collaboration, pressure, customer, growth
+  situation       String
+  task            String
+  action          String
+  result          String
+  metrics         String?
+  lessons         String?
+  targetRole      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([resumeId])
+  @@index([category])
+  @@map("star_stories")
+}
+
 enum Proficiency {
   beginner
   intermediate

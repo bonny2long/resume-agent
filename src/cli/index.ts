@@ -28,6 +28,7 @@ import { linkedInMessageCommand } from "./commands/linkedin-message"; // ← PHA
 import { uploadAllFixedCommand } from "./commands/upload-all-fixed";
 import { extractSkillsCommand } from "./commands/extract-skills";
 import { emailCommand } from "./commands/email";
+import { enhanceCommand } from "./commands/enhance";
 
 const program = new Command();
 
@@ -84,6 +85,7 @@ async function main() {
     program.addCommand(resetCommand);
     program.addCommand(uploadAllFixedCommand);
     program.addCommand(extractSkillsCommand);
+    program.addCommand(enhanceCommand);
 
     // Global error handler
     program.exitOverride((err) => {

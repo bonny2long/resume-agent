@@ -194,8 +194,8 @@ export class CoverLetterAgent {
     }
   }
 
-  /**
-   * Generate cover letter content using AI
+/**
+   * Generate cover letter content using AI - Bain Style
    */
   private async generateContent(
     job: any,
@@ -242,28 +242,31 @@ export class CoverLetterAgent {
     // Load voice guidance for authentic writing
     const voiceGuidance = await VoiceLoader.getVoiceGuidance();
 
-    // ATS keywords from job requirements
-    const atsKeywords = job.requiredSkills?.slice(0, 8).join(", ") || "";
+    // Get job's top 3 requirements for alignment
+    const jobRequirements = job.responsibilities?.slice(0, 3).join("; ") || "";
 
     const prompt = `${voiceGuidance}
 
 ---
 
-You are writing a compelling cover letter for a job application. Write in a ${options.tone} tone.
+You are a senior hiring partner at Bain & Company who reads hundreds of cover letters per recruiting cycle and can spot a generic template in two seconds flat.
 
-JOB INFORMATION:
+Write a compelling cover letter that feels personal, specific, and impossible to ignore.
+
+## JOB INFORMATION:
 Title: ${job.title}
 Company: ${job.company?.name || "the company"}
 Required Skills: ${job.requiredSkills?.slice(0, 8).join(", ") || "not specified"}
 Company Values: ${job.company?.values?.join(", ") || "not specified"}
 Company Culture: ${job.company?.workStyle?.join(", ") || "not specified"}
+Key Responsibilities: ${jobRequirements}
 
-CANDIDATE INFORMATION:
+## CANDIDATE INFORMATION:
 Name: ${masterResume.fullName}
 ${careerStory ? `Career Story: ${careerStory}` : ""}
-${options.tailoredSummary ? `Tailored Summary (use as reference for consistency): ${options.tailoredSummary}` : ""}
+${options.tailoredSummary ? `Tailored Summary: ${options.tailoredSummary}` : ""}
 
-Recent Achievements:
+Top Achievements (connect to job requirements):
 ${topAchievements
   .map(
     (a: any, i: number) =>
@@ -280,24 +283,42 @@ Top Skills: ${
 
 ${toneGuidance}
 
-CRITICAL REQUIREMENTS:
-1. ATS OPTIMIZATION: Naturally incorporate these keywords into your letter: ${atsKeywords}
-   - Use skills keywords in context, not just listed
-   - Include relevant job requirements naturally in achievements
-2. Opening paragraph: ${careerStory ? "Lead with career transition story if provided" : "Express enthusiasm for the role"}
-3. Body paragraphs (${options.maxParagraphs - 2}): Reference specific achievements and how they relate to job requirements
-4. Closing paragraph: Express interest in discussing further, reference company values/mission
-5. Keep it concise - total 3-4 paragraphs maximum
-6. Use active voice and strong verbs
-7. Reference specific job requirements
-8. Show you've researched the company
+## BAIN-STYLE REQUIREMENTS:
+
+1. **OPENING HOOK**: First sentence must be bold and specific - NOT "I am writing to apply for" (the kiss of death)
+   - Grab attention immediately with a specific achievement or connection to the company
+
+2. **COMPANY-SPECIFIC CONNECTION**: Prove you've researched this exact company
+   - Reference something specific about the company (recent news, values, mission, product)
+   - Show why THIS company specifically interests you
+
+3. **ROLE ALIGNMENT**: Connect YOUR top 3 achievements directly to the job's top 3 requirements
+   - Map each achievement to a job requirement
+   - Use the exact language from the job posting
+
+4. **STORY ELEMENT**: Include one brief narrative that shows character and problem-solving ability
+   - Something that reveals who you are beyond the resume
+
+5. **QUANTIFIED PROOF**: Weave in 2-3 numbers/metrics that demonstrate measurable impact
+   - Revenue generated, time saved, % improvement, team size, etc.
+
+6. **CULTURAL FIT**: Mirror the company's values and language from their website/job posting
+   - Use similar words/phrases they use
+
+7. **UNIQUENESS**: One thing you bring that 95% of other applicants cannot claim
+   - Your unique angle (career transition story, specific background, etc.)
+
+8. **CONFIDENT CLOSE**: End with a clear call to action that assumes forward momentum
+   - NOT "Thank you for your consideration" - be bold
+
+9. **LENGTH**: One page maximum, 3-4 paragraphs, every sentence earning its place
 
 Return a JSON object with this structure:
 {
-  "greeting": "Dear Hiring Manager," (or personalized if you have a name),
-  "opening": "first paragraph text",
-  "body": ["second paragraph", "third paragraph if needed"],
-  "closing": "final paragraph text"
+  "greeting": "Dear [Name] or Dear Hiring Manager,",
+  "opening": "Bold first paragraph - hook + company connection",
+  "body": ["Achievement paragraph 1", "Achievement paragraph 2"],
+  "closing": "Confident close with call to action"
 }
 
 Return ONLY valid JSON, no markdown formatting.`;
