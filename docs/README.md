@@ -1,19 +1,37 @@
 # Resume Agent
 
-An AI-powered resume tailoring and job application assistant that helps you create custom resumes, cover letters, and LinkedIn outreach messages for each job application.
+An AI-powered job application assistant that helps you create custom resumes, cover letters, and LinkedIn outreach messages. Features elite career consultant-powered tools inspired by McKinsey, Harvard, Google, Bain, and other top firms.
 
 ## Features
 
+### Core Application Workflow
 - **Smart Resume Tailoring**: Automatically tailors your master resume to match job requirements using semantic similarity and RAG
-- **Cover Letter Generation**: Creates personalized cover letters based on company research with multiple tone options
-- **Hiring Manager Research**: Finds and profiles hiring managers for direct outreach using AI suggestions and third-party APIs
-- **LinkedIn Message Generator**: Creates personalized connection requests and messages optimized for LinkedIn's character limits
+- **Cover Letter Generation**: Creates personalized cover letters based on company research
+- **Hiring Manager Research**: Finds and profiles hiring managers for direct outreach
+- **LinkedIn Message Generator**: Creates personalized connection requests optimized for LinkedIn
 - **Email Generation**: Generates professional follow-up emails for various application stages
-- **ATS Optimization**: Ensures resumes pass Applicant Tracking Systems with keyword matching
-- **Application Tracking**: Tracks all applications and their status in PostgreSQL
-- **GitHub Integration**: Automatically pulls project information and extracts engineering skills from your repos
+
+### Enhanced Pipeline (Elite Career Consultants)
+Power your applications with prompts inspired by top career consulting firms:
+
+| Firm | Feature | Command |
+|------|---------|---------|
+| McKinsey & Co | Achievement Quantifier | `enhance quantify` |
+| Google | ATS Optimizer | `enhance ats <job-id>` |
+| Harvard Business School | Summary Generator | `enhance summary <job-id>` |
+| Bain & Company | Cover Letter | `cover-letter <job-id>` |
+| Meta (FAANG) | Interview Coach | `enhance interview <role>` |
+| Spencer Stuart | LinkedIn Optimizer | `enhance linkedin <role>` |
+| Robert Half | Salary Negotiator | `enhance salary <job-id>` |
+| Heidrick & Struggles | Personal Brand | `enhance brand <role>` |
+| Korn Ferry | Career Pivot | `enhance pivot` |
+
+### Technical Features
+- **RAG-Based Matching**: Semantic similarity matching for relevant experiences/projects
 - **Multi-Provider AI**: Supports Anthropic Claude, Google Gemini, Cohere, and Hugging Face
-- **Vector Search**: pgvector-powered semantic search for experience/project matching
+- **Vector Search**: pgvector-powered semantic search
+- **Application Tracking**: Tracks all applications in PostgreSQL
+- **GitHub Integration**: Pulls project info and extracts engineering skills
 
 ## Tech Stack
 
@@ -23,43 +41,26 @@ An AI-powered resume tailoring and job application assistant that helps you crea
 - **ORM**: Prisma
 - **CLI**: Commander.js + Inquirer.js
 - **Document Processing**: docx, pdf-lib, mammoth
-- **Web Scraping**: Puppeteer, Cheerio, Axios
-- **Testing**: Vitest
 
 ## Prerequisites
 
-Before you begin, ensure you have:
-
 - **Node.js** 18.0.0 or higher
-- **PostgreSQL** 12.0 or higher with pgvector extension
-- **npm** or **yarn**
-- API Keys:
-  - Anthropic API key (required)
-  - Gemini or Cohere API key (for embeddings)
-  - GitHub Personal Access Token (optional)
-  - Hunter.io / Apollo API key (optional, for contact finding)
+- **PostgreSQL** 12.0+ with pgvector extension
+- **API Keys** (see installation below)
 
 ## Installation
 
-### 1. Clone the Repository
+### 1. Clone and Install
 
 ```bash
 git clone <your-repo-url>
 cd resume-agent
-```
-
-### 2. Install Dependencies
-
-```bash
 npm install
 ```
 
-### 3. Set Up PostgreSQL Database
-
-Create a new PostgreSQL database:
+### 2. Set Up PostgreSQL
 
 ```bash
-# Using psql
 psql -U postgres
 
 # In psql console
@@ -67,23 +68,18 @@ CREATE DATABASE resume_agent;
 CREATE USER resume_user WITH PASSWORD 'your_password';
 GRANT ALL PRIVILEGES ON DATABASE resume_agent TO resume_user;
 \q
-```
 
-Install pgvector extension:
-
-```bash
+# Install pgvector extension
 psql -U postgres -d resume_agent -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
-### 4. Configure Environment Variables
-
-Copy the example environment file:
+### 3. Configure Environment Variables
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your credentials:
+Edit `.env`:
 
 ```env
 # Database
@@ -92,110 +88,92 @@ DATABASE_URL="postgresql://resume_user:your_password@localhost:5432/resume_agent
 # LLM Provider (Required)
 ANTHROPIC_API_KEY="sk-ant-api03-..."
 
-# Embeddings Provider (Required for semantic search)
+# Embeddings Provider (Required)
 GEMINI_API_KEY="..."
 # or
 COHERE_API_KEY="..."
 
-# GitHub Token (Optional)
+# Optional
 GITHUB_TOKEN="ghp_..."
-
-# Contact Finding Services (Optional)
 HUNTER_API_KEY="..."
 APOLLO_API_KEY="..."
 ```
 
-### 5. Run Database Migrations
+### 4. Initialize Database
 
 ```bash
 npx prisma migrate dev --name init
 npx prisma generate
-```
-
-### 6. Build the Project
-
-```bash
 npm run build
 ```
 
-## Usage
-
-### Initialize Your Master Resume
+### 5. Initialize Your Master Resume
 
 ```bash
 npm run dev init
 ```
 
-### Add Work Experience
-
-```bash
-npm run dev resume add-experience
-```
-
-### Add Projects
-
-```bash
-npm run dev resume add-project
-```
-
-### Analyze a Job Posting
-
-```bash
-npm run dev analyze <job-url>
-```
-
-### Tailor Resume to a Job
-
-```bash
-npm run dev tailor <job-id>
-```
-
-### Generate Cover Letter
-
-```bash
-npm run dev cover-letter <job-id>
-```
-
-### Find Hiring Manager
-
-```bash
-npm run dev find-manager <job-id>
-```
-
-### Generate LinkedIn Message
-
-```bash
-npm run dev linkedin-message <job-id>
-```
-
-### Generate Email
-
-```bash
-npm run dev email <job-id>
-```
+## Quick Start
 
 ### Full Application Workflow
 
 ```bash
-npm run dev apply <job-url>
+# Standard 6-step workflow
+npm run dev -- apply <job-url>
+
+# Enhanced 7-step workflow (includes McKinsey quant, Harvard summaries, ATS, interview prep)
+npm run dev -- apply <job-url> --enhanced
 ```
 
-### View Application Status
+### Step-by-Step
 
 ```bash
-npm run dev status
+# 1. Analyze a job
+npm run dev -- analyze <job-url>
+
+# 2. Tailor resume (use --enhanced for full pipeline)
+npm run dev -- tailor <job-id>
+npm run dev -- tailor <job-id> --enhanced
+
+# 3. Generate documents
+npm run dev -- generate <job-id>
+
+# 4. Generate cover letter
+npm run dev -- cover-letter <job-id>
+
+# 5. Find hiring manager
+npm run dev -- find-manager <job-id>
+
+# 6. Generate LinkedIn message
+npm run dev -- linkedin-message <job-id>
 ```
 
-### Research a Company
+### Enhanced Pipeline Commands
 
 ```bash
-npm run dev research "Company Name"
-```
+# Quantify achievements with McKinsey-style metrics
+npm run dev -- enhance quantify
 
-### Check API Credits
+# ATS optimization report
+npm run dev -- enhance ats <job-id>
 
-```bash
-npm run dev credits
+# Generate 5 Harvard-style summaries
+npm run dev -- enhance summary <job-id>
+
+# FAANG-style interview prep
+npm run dev -- enhance interview "Software Engineer"
+
+# LinkedIn profile optimization
+npm run dev -- enhance linkedin "Full Stack Engineer"
+
+# Salary negotiation strategy
+npm run dev -- enhance salary <job-id>
+
+# Personal brand strategy
+npm run dev -- enhance brand "Tech Lead"
+
+# Career pivot plan
+npm run dev -- enhance pivot
 ```
 
 ## Project Structure
@@ -203,145 +181,101 @@ npm run dev credits
 ```
 resume-agent/
 ├── src/
-│   ├── agents/           # AI agents for different tasks
-│   │   ├── base-agent.ts
+│   ├── agents/                    # AI agents
+│   │   ├── resume/               # Resume enhancement agents
+│   │   │   ├── achievement-quantifier.agent.ts    # McKinsey-style
+│   │   │   ├── harvard-summary.agent.ts           # Harvard-style
+│   │   │   └── ats-optimizer.agent.ts             # Google-style
+│   │   ├── interview/           # Interview prep agents
+│   │   │   └── behavioral-coach.agent.ts          # FAANG-style
+│   │   ├── career/             # Career development agents
+│   │   │   ├── salary-negotiator.agent.ts         # Robert Half
+│   │   │   ├── personal-brand.agent.ts            # Heidrick & Struggles
+│   │   │   └── career-pivot.agent.ts              # Korn Ferry
+│   │   ├── linkedin/           # LinkedIn optimization
+│   │   │   └── linkedin-optimizer.agent.ts        # Spencer Stuart
 │   │   ├── resume-tailor.agent.ts
-│   │   ├── job-analyzer.ts
 │   │   ├── cover-letter-generator.ts
-│   │   ├── linkedin-message-generator.ts
-│   │   ├── email-agent.ts
-│   │   ├── company-researcher.agent.ts
-│   │   ├── hiring-manager-finder.ts
-│   │   └── application-orchestrator.agent.ts
-│   ├── services/        # Core services
-│   │   ├── llm.service.ts          # Multi-provider LLM
-│   │   ├── embeddings.service.ts   # Vector embeddings
-│   │   ├── web-scraper.service.ts  # Job posting scraping
-│   │   ├── resume-parser.service.ts
-│   │   ├── pdf-parser.service.ts
-│   │   ├── docx-parser.service.ts
+│   │   ├── job-analyzer.ts
+│   │   ├── application-orchestrator.agent.ts
+│   │   └── ...
+│   ├── services/               # Core services
+│   │   ├── llm.service.ts
+│   │   ├── embeddings.service.ts
 │   │   ├── document-generator.service.ts
-│   │   ├── export.service.ts
-│   │   ├── github.service.ts
-│   │   ├── github-skills.service.ts
-│   │   ├── hunter.service.ts
-│   │   ├── apollo.service.ts
-│   │   └── rocketreach.service.ts
-│   ├── database/        # Database client and repositories
-│   ├── cli/             # CLI commands
-│   ├── orchestrator/    # Workflow orchestration
-│   ├── utils/           # Utility functions
-│   ├── types/           # TypeScript type definitions
-│   ├── config/          # Configuration
-│   └── templates/       # Document templates
-├── data/
-│   ├── resumes/         # Master resume data
-│   ├── outputs/         # Generated resumes and cover letters
-│   ├── cache/           # Cached data
-│   └── uploads/         # User uploads
+│   │   └── ...
+│   ├── cli/                   # CLI commands
+│   └── database/              # Prisma client
 ├── prisma/
-│   └── schema.prisma    # Database schema
-└── tests/               # Test files
+│   └── schema.prisma          # Database schema
+└── docs/                      # Documentation
+    ├── README.md              # This file
+    ├── CLI_COMMANDS.md        # Full CLI reference
+    └── AGENTS/                # Agent documentation
 ```
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `init` | Initialize project |
-| `resume` | Manage master resume (add-experience, add-project, etc.) |
-| `upload` | Upload a resume file (PDF/DOCX) |
-| `analyze` | Analyze a job posting URL |
-| `jobs` | List and manage analyzed jobs |
-| `tailor` | Tailor resume to a specific job |
-| `generate` | Generate DOCX/PDF output |
-| `cover-letter` | Generate a cover letter |
-| `find-manager` | Find hiring manager for a job |
-| `linkedin-message` | Generate LinkedIn outreach message |
-| `email` | Generate follow-up email |
-| `apply` | Full application workflow |
-| `status` | View application status |
-| `research` | Research a company |
+| `init` | Initialize project and master resume |
+| `resume` | Manage master resume |
+| `analyze <url>` | Analyze job posting |
+| `jobs list` | List all jobs |
+| `tailor <job-id>` | Tailor resume to job |
+| `tailor <job-id> --enhanced` | Tailor with enhanced pipeline |
+| `generate <job-id>` | Generate DOCX resume |
+| `cover-letter <job-id>` | Generate cover letter |
+| `find-manager <job-id>` | Find hiring manager |
+| `linkedin-message <job-id>` | Generate LinkedIn message |
+| `email <job-id>` | Generate follow-up email |
+| `apply <url>` | Full application workflow |
+| `apply <url> --enhanced` | Enhanced application workflow |
+| `enhance quantify` | McKinsey achievement quantifier |
+| `enhance ats <job-id>` | ATS optimization |
+| `enhance summary <job-id>` | Harvard summaries |
+| `enhance interview <role>` | FAANG interview prep |
+| `enhance linkedin <role>` | LinkedIn optimization |
+| `enhance salary <job-id>` | Salary negotiation |
+| `enhance brand <role>` | Personal brand |
+| `enhance pivot` | Career pivot plan |
 | `credits` | Check API usage |
-| `github` | Sync GitHub repositories |
-| `list` | List resources |
-| `export` | Export data |
-| `import` | Import data |
-| `reset` | Reset database |
+| `status` | View application status |
 
 ## Development
 
-### Run in Development Mode
-
 ```bash
+# Run in development mode
 npm run dev
-```
 
-### Run Tests
+# Build
+npm run build
 
-```bash
-npm run test
-npm run test:watch   # Watch mode
-npm run test:coverage # Coverage report
-```
-
-### Lint and Format
-
-```bash
-npm run lint
-npm run format
-```
-
-### Open Prisma Studio
-
-```bash
+# Open database studio
 npm run db:studio
+
+# Reset database
+npm run reset
 ```
+
+## Documentation
+
+- **[CLI_COMMANDS.md](CLI_COMMANDS.md)** - Complete CLI command reference
+- **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Technical architecture overview
+- **[AGENTS/](AGENTS/)** - Agent-specific documentation
 
 ## Troubleshooting
 
-### Database Connection Issues
-
+### Database Issues
 ```bash
-# Check if PostgreSQL is running
-sudo service postgresql status
-
-# Restart PostgreSQL
-sudo service postgresql restart
-
-# Test connection
-psql -U resume_user -d resume_agent
-```
-
-### Prisma Issues
-
-```bash
-# Reset database
 npx prisma migrate reset
-
-# Re-generate Prisma client
 npx prisma generate
-
-# View database in browser
-npx prisma studio
 ```
 
 ### API Key Issues
-
-- Make sure your `.env` file is in the root directory
-- Check that API keys don't have extra spaces
+- Ensure `.env` is in the root directory
 - Verify keys are valid in their respective consoles
-
-## Contributing
-
-This is a personal project, but suggestions and feedback are welcome!
 
 ## License
 
 MIT
-
-## Acknowledgments
-
-- Built with Claude by Anthropic
-- Inspired by modern job search challenges
-- Designed for full-stack engineers
