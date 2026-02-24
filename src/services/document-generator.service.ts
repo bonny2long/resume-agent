@@ -499,7 +499,7 @@ export class DocumentGeneratorService {
       .replace(/[^a-z0-9]/g, "-");
     const filename = `resume_${sanitizedCompany}_${template}_${timestamp}.docx`;
 
-    const outputDir = path.join(process.cwd(), "data", "outputs");
+      const outputDir = path.join(process.cwd(), "data", "outputs", "cover-letters");
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
@@ -2040,7 +2040,7 @@ export class DocumentGeneratorService {
         .replace(/[^a-z0-9]/g, "-");
       const filename = `cover-letter_${sanitizedCompany}_${timestamp}.docx`;
 
-      const outputDir = path.join(process.cwd(), "data", "outputs");
+    const outputDir = path.join(process.cwd(), "data", "outputs", "resumes");
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }

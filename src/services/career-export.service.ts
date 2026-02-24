@@ -20,7 +20,7 @@ export class CareerExportService {
         orderBy: { createdAt: "desc" },
       });
 
-      const outputDir = path.join(process.cwd(), "data", "outputs");
+      const outputDir = path.join(process.cwd(), "data", "outputs", "interview");
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
@@ -218,7 +218,7 @@ export class CareerExportService {
         throw new Error("No master resume found");
       }
 
-      const outputDir = path.join(process.cwd(), "data", "outputs");
+      const outputDir = path.join(process.cwd(), "data", "outputs", "interview");
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }

@@ -43,7 +43,7 @@ export class InterviewExportService {
 
   private async createPDF(stories: STARStory[], candidateName: string, targetRole?: string): Promise<{ success: boolean; filepath?: string; error?: string }> {
     try {
-      const outputDir = path.join(process.cwd(), "data", "outputs");
+      const outputDir = path.join(process.cwd(), "data", "outputs", "interview");
       if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
       }
