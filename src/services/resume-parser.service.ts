@@ -261,10 +261,20 @@ Return ONLY valid JSON in this exact structure:
    * Cleanup and validate parsed resume data
    */
   private cleanupAndValidate(parsed: ParsedResume): ParsedResume {
-    // Remove duplicates from skill arrays and normalize
-    const normalizeArray = (arr: string[]) => [
-      ...new Set(arr.map((item) => item.trim()).filter(Boolean)),
-    ];
+    // Remove duplicates from skill arrays with case-insensitive deduplication
+    // Normalize to title-case, keep first occurrence as canonical
+    const normalizeArray = (arr: string[]): string[] => {
+      const seen = new Map<string, string>();
+      for (const item of arr) {
+        const trimmed = item.trim();
+        if (!trimmed) continue;
+        const lower = trimmed.toLowerCase();
+        if (!seen.has(lower)) {
+          seen.set(lower, trimmed);
+        }
+      }
+      return Array.from(seen.values());
+    };
 
     parsed.skills.technical = normalizeArray(parsed.skills.technical);
     parsed.skills.soft = normalizeArray(parsed.skills.soft);
