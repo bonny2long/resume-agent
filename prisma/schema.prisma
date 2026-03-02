@@ -8,8 +8,178 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==================== USER MODELS ====================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Auth providers
+  emailVerified DateTime?
+  accounts      Account[]
+  sessions      Session[]
+  
+  // User data
+  resumes       MasterResume[]
+  stories       UserStory[]
+  achievementStories UserAchievementStory[]
+  voiceProfiles UserVoiceProfile[]
+  settings      UserSettings?
+  coverLetters CoverLetter[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// User-specific career story (replaces hardcoded markdown files)
+model UserStory {
+  id            String   @id @default(uuid())
+  userId        String
+  type          StoryType
+  title         String?
+  content       String   @db.Text
+  
+  // Specific fields for career transition story
+  motivation    String?  @db.Text
+  turningPoint  String?  @db.Text
+  uniqueValue   String?  @db.Text
+  
+  // Transferable skills mapping (JSON)
+  transferableSkills Json?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_stories")
+}
+
+enum StoryType {
+  career_transition
+  achievement
+  project
+  general
+}
+
+// User-specific project achievement stories
+model UserAchievementStory {
+  id            String   @id @default(uuid())
+  userId        String
+  projectName   String
+  role          String?
+  timeline      String?
+  status        String?
+  
+  quantifiableAchievements Json?
+  technicalAchievements    Json?
+  keyImpact     String?  @db.Text
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectName])
+  @@index([userId])
+  @@map("user_achievement_stories")
+}
+
+// User's writing style/voice profile
+model UserVoiceProfile {
+  id              String   @id @default(uuid())
+  userId          String
+  
+  tone            String?
+  style           String?
+  examples        String?  @db.Text
+  avoidPhrases    String?  @db.Text
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@map("user_voice_profiles")
+}
+
+// User settings/preferences
+model UserSettings {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  
+  // API preferences
+  preferredLlm    String?  // anthropic, openai, cohere, gemini
+  
+  // Feature flags
+  enableWebScraping Boolean @default(true)
+  enableGithubSync  Boolean @default(true)
+  enableLinkedIn    Boolean @default(false)
+  
+  // API keys (encrypted in production)
+  anthropicKey String?
+  openaiKey   String?
+  cohereKey   String?
+  geminiKey   String?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// ==================== EXISTING MODELS ====================
+
 model MasterResume {
   id             String          @id @default(uuid())
+  userId         String?
   version        Int             @default(1)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
@@ -22,11 +192,25 @@ model MasterResume {
   portfolioUrl   String?
   summaryShort   String
   summaryLong    String
+  
+  // Full AI response - all data including partial/unknown sections (for agents)
+  resumeData     Json?
+  
+  // Raw extracted text from PDF/DOCX - can re-parse with improved prompts
+  rawText        String?         @db.Text
+  
+  // Optional: track if this was tailored for a specific job
+  jobDescription String?
+  tailoredFromId String?
+  
   certifications Certification[]
   education      Education[]
   experiences    Experience[]
   projects       Project[]
   skills         Skill[]
+  coverLetters   CoverLetter[]
+
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@map("master_resumes")
 }
@@ -138,6 +322,25 @@ model Certification {
   resume       MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
 
   @@map("certifications")
+}
+
+model CoverLetter {
+  id           String   @id @default(uuid())
+  userId       String
+  resumeId     String
+  jobTitle     String?
+  companyName  String?
+  jobDescription String? @db.Text
+  subject      String
+  body         String   @db.Text
+  tone         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  resume       MasterResume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cover_letters")
 }
 
 model Company {

@@ -1,0 +1,8 @@
+{
+  "/not-found": "app/not-found.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/stories/page": "app/dashboard/stories/page.js",
+  "/dashboard/cover-letter/page": "app/dashboard/cover-letter/page.js",
+  "/dashboard/upload/page": "app/dashboard/upload/page.js",
+  "/dashboard/resumes/[id]/page": "app/dashboard/resumes/[id]/page.js"
+}
