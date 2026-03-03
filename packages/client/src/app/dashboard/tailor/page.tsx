@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileText, Wand2, Loader2, Check } from "lucide-react";
+import { ArrowLeft, FileText, Wand2, Loader2, Check, Link2 } from "lucide-react";
 
 interface Resume {
   id: string;
@@ -30,6 +30,8 @@ export default function TailorPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
+  const [parsingUrl, setParsingUrl] = useState(false);
 
   useEffect(() => {
     fetchResumes();
@@ -106,6 +108,58 @@ export default function TailorPage() {
       setMessage({ type: "error", text: "Something went wrong" });
     }
     setSubmitting(false);
+  };
+
+  const handleParseJobUrl = async () => {
+    if (!jobUrl.trim()) {
+      setMessage({ type: "error", text: "Please enter a job posting URL first" });
+      return;
+    }
+
+    setParsingUrl(true);
+    setMessage(null);
+
+    try {
+      const token =
+        localStorage.getItem("next-auth.session-token") ||
+        localStorage.getItem("auth_token") ||
+        "dev-token";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/jobs/parse-url`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ url: jobUrl.trim() }),
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage({ type: "error", text: data.message || "Failed to parse job URL" });
+        return;
+      }
+
+      const parsed = data.job || {};
+      if (typeof parsed.jobDescription === "string" && parsed.jobDescription.trim()) {
+        setJobDescription(parsed.jobDescription.trim());
+      }
+      if (!jobTitle && typeof parsed.jobTitle === "string" && parsed.jobTitle.trim()) {
+        setJobTitle(parsed.jobTitle.trim());
+      }
+      if (!companyName && typeof parsed.companyName === "string" && parsed.companyName.trim()) {
+        setCompanyName(parsed.companyName.trim());
+      }
+
+      setMessage({ type: "success", text: "Imported job description from URL" });
+    } catch (error) {
+      setMessage({ type: "error", text: "Failed to fetch job posting URL" });
+    }
+
+    setParsingUrl(false);
   };
 
   if (loading) {
@@ -199,13 +253,40 @@ export default function TailorPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Job Posting URL (optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={jobUrl}
+                      onChange={(e) => setJobUrl(e.target.value)}
+                      placeholder="https://jobs.company.com/..."
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleParseJobUrl}
+                      disabled={parsingUrl || !jobUrl.trim()}
+                      className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {parsingUrl ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Link2 className="w-4 h-4" />
+                      )}
+                      {parsingUrl ? "Importing..." : "Import URL"}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Job Description *
                   </label>
                   <textarea
                     value={jobDescription}
                     onChange={(e) => setJobDescription(e.target.value)}
                     rows={12}
-                    placeholder="Paste the full job description here..."
+                    placeholder="Paste the full job description, or import it from a URL above..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

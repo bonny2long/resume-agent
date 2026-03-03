@@ -8,6 +8,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { prisma } from "@resume-agent/shared/src/client.js";
 import { parseResumeFile } from "./parser.js";
+import { getJobAnalyzerAgent } from "./agents/job-analyzer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1532,6 +1533,77 @@ fastify.put(
 );
 
 // ==================== APPLICATION ROUTES ====================
+
+// Parse job posting from URL
+fastify.post<{
+  Body: { url: string };
+}>(
+  "/api/jobs/parse-url",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const url = (request.body?.url || "").trim();
+    if (!url) {
+      return reply.status(400).send({ message: "Job URL is required" });
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      return reply.status(400).send({ message: "Invalid URL format" });
+    }
+
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return reply.status(400).send({ message: "Only http(s) URLs are supported" });
+    }
+
+    const settings = await prisma.userSettings.findUnique({
+      where: { userId: request.user.id },
+      select: { enableWebScraping: true },
+    });
+
+    if (settings && settings.enableWebScraping === false) {
+      return reply.status(403).send({
+        message: "Web scraping is disabled in Settings. Enable it to import job descriptions from URLs.",
+      });
+    }
+
+    try {
+      const analysisResult = await getJobAnalyzerAgent().analyzeJobFromUrl(
+        parsedUrl.toString(),
+      );
+      if (!analysisResult.success || !analysisResult.data) {
+        return reply.status(500).send({
+          message: analysisResult.error || "Failed to parse job posting",
+        });
+      }
+
+      const analysis = analysisResult.data;
+      const parsed = {
+        sourceUrl: analysis.originalUrl,
+        jobTitle: analysis.title,
+        companyName: analysis.company,
+        jobDescription: analysis.rawDescription,
+        location: analysis.location,
+      };
+
+      if (!parsed.jobDescription || parsed.jobDescription.length < 120) {
+        return reply.status(422).send({
+          message: "Could not extract a complete job description from that page",
+          job: parsed,
+        });
+      }
+
+      return { job: parsed };
+    } catch (error: any) {
+      return reply
+        .status(500)
+        .send({ message: error?.message || "Failed to fetch and parse job URL" });
+    }
+  },
+);
 
 // Get all applications
 fastify.get(

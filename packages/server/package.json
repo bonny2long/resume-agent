@@ -13,12 +13,22 @@
     "@resume-agent/shared": "workspace:*",
     "@fastify/cors": "^9.0.0",
     "@fastify/jwt": "^8.0.0",
+    "@google/generative-ai": "^0.24.1",
+    "@huggingface/inference": "^4.7.1",
+    "@prisma/client": "^6.16.2",
     "fastify": "^4.26.0",
     "zod": "^3.23.0",
+    "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
+    "chalk": "^4.1.2",
+    "cheerio": "^1.0.0",
+    "cohere-ai": "^7.17.1",
+    "docx": "^8.6.0",
+    "dotenv": "^16.4.7",
     "pdf-parse": "^1.1.1",
     "mammoth": "^1.7.0",
-    "@anthropic-ai/sdk": "^0.24.0"
+    "@anthropic-ai/sdk": "^0.24.0",
+    "puppeteer": "^24.9.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
