@@ -1,350 +1,116 @@
 # Resume Agent - Knowledge Transfer
 
-## Project Overview
+## Purpose
+This document captures the current migration state from legacy CLI-first agent architecture to UI/API-first architecture, and defines the exact next steps.
 
-AI-powered resume tailoring application that helps users land their dream job. Users upload resumes, add their career story, and get personalized applications for every job using AI agents.
+## Current Direction
+- Target architecture: UI (`packages/client`) + API (`packages/server`) as the primary runtime.
+- Legacy CLI code under `src/` is being migrated into `packages/server/src/`.
+- CLI removal should happen only after endpoint parity is complete.
 
-## Architecture
-
-### Monorepo Structure
-
-```
+## Monorepo Structure
+```text
 resume-agent/
-├── packages/
-│   ├── client/        # Next.js 14 UI (port 3000)
-│   ├── server/        # Fastify API (port 4000)
-│   └── shared/       # Prisma client & types
-├── prisma/           # Database schema
-├── data/             # Uploaded files, outputs
-├── docs/             # Documentation
-└── scripts/           # Utility scripts
+|-- packages/
+|   |-- client/      # Next.js UI
+|   |-- server/      # Fastify API (migration target runtime)
+|   `-- shared/      # Prisma client/types
+|-- src/             # Legacy CLI runtime (to be deprecated after parity)
+|-- prisma/
+`-- docs/
 ```
 
-### Tech Stack
+## Migration Status (As of March 3, 2026)
 
-- **Client**: Next.js 14, TypeScript, Tailwind CSS, React Query
-- **Server**: Fastify, TypeScript, JWT auth, Prisma
-- **Database**: PostgreSQL
-- **AI**: Claude (Anthropic), various LLM providers
+### 1) Agent File Migration
+- Legacy `src/agents/**` files: 18
+- Migrated into `packages/server/src/agents/**`: 18 matching files
+- Additional preserved copy: `packages/server/src/agents/job-analyzer.legacy.ts`
 
----
+Result:
+- File-level migration complete for all legacy agent files.
 
-## Running the Project
+### 2) Supporting Code Migration
+The following legacy directories were copied into `packages/server/src/` for compatibility:
+- `config/`
+- `database/`
+- `services/`
+- `types/`
+- `utils/`
 
-### Start Server
+### 3) DB Client Bridge
+`packages/server/src/database/client.ts` now bridges legacy agent DB usage to monorepo shared Prisma:
+- Uses `@resume-agent/shared/src/client.js` instead of creating a second PrismaClient runtime.
 
-```bash
-cd packages/server
-pnpm dev
-# Runs on http://localhost:4000
-```
+### 4) Endpoint Wiring Completed
+`POST /api/jobs/parse-url` is now wired to migrated server agent code:
+- Route: `packages/server/src/index.ts`
+- Runtime path: `packages/server/src/agents/job-analyzer.ts`
+- Scraper used by analyzer: `packages/server/src/services/job-web-scraper.ts`
 
-### Start Client
+This is the first fully connected legacy-to-UI migration path.
 
-```bash
-cd packages/client
-pnpm dev
-# Runs on http://localhost:3000
-```
+### 5) Dependencies Added to Server Package
+`packages/server/package.json` updated to support migrated agent stack:
+- `axios`, `cheerio`, `chalk`, `dotenv`, `docx`, `puppeteer`
+- `cohere-ai`, `@google/generative-ai`, `@huggingface/inference`
+- `@prisma/client`
 
-### Database
+## What Is Not Done Yet
+- Most migrated agents are not yet wired to API routes in `packages/server/src/index.ts`.
+- Current `/api/agents/*` routes still use inline Anthropic prompting logic in `index.ts` instead of migrated class-based agents.
+- Legacy code under `src/` has not been deleted yet.
 
-- PostgreSQL at `localhost:5432/resume_agent`
-- Credentials in `.env`
+## Route Parity Plan (Next)
 
----
+### Phase 2: Wire Resume Enhancement Agents
+Wire existing routes to migrated agents:
+1. `/api/agents/quantify-achievements` -> `packages/server/src/agents/resume/achievement-quantifier.agent.ts`
+2. `/api/agents/harvard-summary` -> `packages/server/src/agents/resume/harvard-summary.agent.ts`
+3. `/api/agents/ats-optimize` -> `packages/server/src/agents/resume/ats-optimizer.agent.ts`
+4. `/api/agents/behavioral-coach` -> `packages/server/src/agents/interview/behavioral-coach.agent.ts`
 
-## What We Built (Completed)
+### Phase 3: Wire Application/Tailor Orchestration
+Integrate migrated:
+- `resume-tailor.agent.ts`
+- `cover-letter-generator.ts`
+- `application-orchestrator.agent.ts`
+- supporting manager/linkedin/email agents
 
-### Phase 1: Monorepo Setup ✅
+### Phase 4: Cleanup
+After parity is verified:
+1. Remove dead inline agent logic from `packages/server/src/index.ts`
+2. Remove legacy CLI entrypoints under `src/cli`
+3. Remove remaining duplicate runtime under `src/` (agents/services/utils/config/database) if fully unused
+4. Keep docs updated to UI-first architecture only
 
-- Created pnpm workspaces structure
-- Set up packages: client, server, shared
-- Configured Turborepo
-- Moved data folder to root
+## Quality and Safety Rules During Migration
+- Keep endpoint contracts stable so UI does not break.
+- Migrate internals first, endpoint shape second (only if needed).
+- Preserve factual safety:
+  - no fabricated claims,
+  - preserve in-progress vs completed tense,
+  - preserve source dates when tailoring experiences.
+- Do not remove legacy runtime until route-by-route parity is proven.
 
-### Phase 2: Database Schema ✅
-
-- Added User, Account, Session tables
-- Added UserStory, UserAchievementStory tables
-- Added UserVoiceProfile, UserSettings tables
-- Linked MasterResume to User via userId
-
-### Phase 3: Server API ✅
-
-- Auth routes (register, login, me)
-- Resume CRUD endpoints
-- Resume upload with AI parsing
-- Story endpoints
-- Dev mode bypass (use `Bearer dev-token`)
-
-### Phase 4: Client Auth Pages ✅
-
-- NextAuth setup with credentials provider
-- Login page (/auth/login)
-- Register page (/auth/register)
-- Dashboard layout with sidebar
-- Dev mode (no auth required)
-
-### Phase 5: Resume Bank UI ✅
-
-- Upload page with drag-drop
-- Resume list page (grid view)
-- Resume detail/edit page
-- Tabs for: Details, Experience, Projects, Skills, Education
-
-### Resume Parser (In Progress ⚠️)
-
-- Located at: `packages/server/src/parser.ts`
-- Uses AI (Claude Sonnet) first
-- Falls back to regex patterns
-- Has 80+ skills dictionary
-- **ISSUE**: Sometimes misses experiences/projects/education
-
----
-
-## Current Status
-
-### Working Features
-
-- ✅ User registration/login (dev mode bypassed)
-- ✅ Resume upload with AI parsing
-- ✅ Resume bank (list, view)
-- ✅ Resume detail/edit page with Raw Data tab
-- ✅ Full AI response stored (`resumeData` JSON)
-- ✅ Raw text stored for re-parsing
-- ✅ Career story management
-- ✅ Voice profile management
-- ✅ Settings page (API keys, preferences)
-- ✅ Tailor resume to job (AI-powered)
-- ✅ Cover letter generator (AI-powered)
-- ✅ Applications tracking page
-- ✅ Dashboard with stats and quick actions
-
-### Data Storage (Option B)
-
-Now storing full resume data for agents:
-- `rawText` - Original extracted text from PDF/DOCX
-- `resumeData` - Full AI JSON response (all sections including partial)
-- `jobDescription` - Job description for tailored resumes
-- `tailoredFromId` - Link to master resume
-
-### Known Issues
-
-- Parser: AI can still miss some sections - but data is preserved in resumeData
-- Server TypeScript: Some pre-existing config issues (not blocking)
-
----
-
-## What We Built (March 2026)
-
-### Phase 1: Data Foundation ✅
-- Added `resumeData` JSON + `rawText` to MasterResume schema
-- Updated parser to return full AI response
-- Updated server to store complete data
-
-### Phase 2: Stories & Settings ✅
-- `/dashboard/stories` - Career story, achievements, voice profile
-- `/dashboard/settings` - API keys, feature toggles
-- API endpoints for all story types
-
-### Phase 3: Tailor Workflow ✅
-- `POST /api/resumes/:id/tailor` - AI-powered resume tailoring
-- `/dashboard/tailor` - UI for tailoring workflow
-
-### Phase 4: Cover Letters ✅
-- `POST /api/cover-letter` - AI cover letter generation
-- `/dashboard/cover-letter` - UI with preview & copy
-
-### Phase 5: Dashboard & Tracking ✅
-- Improved dashboard with stats and quick actions
-- `/dashboard/applications` - Track job applications
-- Organized sidebar navigation
-
----
-
-## API Endpoints
-
-- Generate cover letters using AI
-- Based on user's story + job description
-
-### Priority 5: Settings Page
-
-- User preferences
-- API key management
-- LLM provider selection
-
----
-
-## API Endpoints
-
-### Auth
-
-- `POST /api/auth/register` - Create account
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Get current user
-
-### Resumes
-
-- `GET /api/resumes` - List user's resumes
-- `GET /api/resumes/:id` - Get single resume
-- `POST /api/resumes` - Create resume
-- `PUT /api/resumes/:id` - Update resume
-- `DELETE /api/resumes/:id` - Delete resume
-- `POST /api/resumes/upload` - Upload & parse resume
-
-### Stories
-
-- `GET /api/stories` - Get user's stories
-- `POST /api/stories/career` - Save career story
-
----
-
-## UI Pages (Routes)
-
-| Route                       | Page                | Status |
-| --------------------------- | ------------------- | ------ |
-| `/`                         | Landing            | ✅     |
-| `/auth/login`               | Login              | ✅     |
-| `/auth/register`            | Register           | ✅     |
-| `/dashboard`                | Dashboard          | ✅     |
-| `/dashboard/upload`         | Upload             | ✅     |
-| `/dashboard/resumes`        | Resume List        | ✅     |
-| `/dashboard/resumes/[id]`   | Resume Detail      | ✅     |
-| `/dashboard/stories`       | Stories            | ✅     |
-| `/dashboard/settings`      | Settings           | ✅     |
-| `/dashboard/tailor`        | Tailor Resume      | ✅     |
-| `/dashboard/cover-letter`  | Cover Letter       | ✅     |
-| `/dashboard/applications`  | Applications       | ✅     |
-
----
-
-## API Endpoints
-
-### Auth
-- `POST /api/auth/register` - Create account
-- `POST /api/auth/login` - Login
-- `GET /api/auth/me` - Get current user
-
-### Resumes
-- `GET /api/resumes` - List user's resumes
-- `GET /api/resumes/:id` - Get single resume
-- `POST /api/resumes` - Create resume
-- `PUT /api/resumes/:id` - Update resume
-- `DELETE /api/resumes/:id` - Delete resume
-- `POST /api/resumes/upload` - Upload & parse resume
-- `POST /api/resumes/:id/tailor` - Tailor resume to job
-- `GET /api/resumes/:id/tailored` - Get tailored versions
-
-### Cover Letter
-- `POST /api/cover-letter` - Generate cover letter
-
-### Stories
-- `GET /api/stories` - Get user's stories
-- `POST /api/stories/career` - Save career story
-- `POST /api/stories/voice` - Save voice profile
-
-### Settings
-- `GET /api/settings` - Get user settings
-- `PUT /api/settings` - Update settings
-
-### Applications
-- `GET /api/applications` - List applications
-- `POST /api/applications` - Track application
-
----
+## Validation Checklist
+For each migrated route:
+1. Endpoint returns expected JSON shape.
+2. UI page using that endpoint works without frontend changes.
+3. No regression in truthfulness/tense/date handling.
+4. Results are readable (no raw JSON blob rendering regressions).
 
 ## Key Files
+- API server: `packages/server/src/index.ts`
+- Migrated job analyzer: `packages/server/src/agents/job-analyzer.ts`
+- Migrated scraper for analyzer path: `packages/server/src/services/job-web-scraper.ts`
+- Legacy agents source: `src/agents/`
+- Migrated agents target: `packages/server/src/agents/`
 
-| File                                 | Purpose                       |
-| ------------------------------------ | ----------------------------- |
-| `packages/server/src/index.ts`       | Main Fastify server           |
-| `packages/server/src/parser.ts`      | Resume parser (AI + patterns) |
-| `packages/client/src/app/dashboard/` | Dashboard pages               |
-| `packages/shared/schema.prisma`      | Database schema               |
-| `.env`                               | API keys, database URL        |
-
----
-
-## Database Schema
-
-### User Tables (New)
-
-```prisma
-User
-Account
-Session
-UserStory
-UserAchievementStory
-UserVoiceProfile
-UserSettings
-```
-
-### Existing Tables (linked to User)
-
-```prisma
-MasterResume (userId)
-Experience (resumeId)
-Project (resumeId)
-Skill (resumeId)
-Education (resumeId)
-Certification (resumeId)
-```
+## Operational Notes
+- Server dev: `pnpm -C packages/server dev`
+- Client dev: `pnpm -C packages/client dev`
+- Shared Prisma source of truth: `@resume-agent/shared/src/client.js`
 
 ---
-
-## Environment Variables
-
-```env
-# Server
-PORT=4000
-JWT_SECRET=dev-secret-change-in-production
-
-# Database
-DATABASE_URL=postgresql://resume_user:pass@localhost:5432/resume_agent
-
-# AI Providers
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-proj-...
-COHERE_API_KEY=...
-GEMINI_API_KEY=...
-
-# Client
-NEXT_PUBLIC_API_URL=http://localhost:4000
-```
-
----
-
-## Development Notes
-
-### Dev Mode Bypass
-
-Server accepts `Authorization: Bearer dev-token` for testing without login. This auto-creates/finds a dev user in the database.
-
-### Testing Upload
-
-1. Start server: `cd packages/server && pnpm dev`
-2. Start client: `cd packages/client && pnpm dev`
-3. Go to http://localhost:3000/dashboard/upload
-4. Upload a PDF resume
-
-### Database Changes
-
-1. Edit `packages/shared/schema.prisma`
-2. Copy to `prisma/schema.prisma`
-3. Run `cd packages/shared && pnpm prisma generate`
-4. Run `cd packages/shared && pnpm prisma db push`
-
----
-
-## Next Steps
-
-1. **Fix Parser** → Make it extract experiences/projects/education reliably
-2. **Stories UI** → Add career story management
-3. **Agent** → Integrate AI agents for tailoring
-4. **Cover Letters** → Generate cover letters
-5. **Settings** → API keys, preferences
-
----
-
-_Last updated: March 2026_
+Last updated: March 3, 2026
