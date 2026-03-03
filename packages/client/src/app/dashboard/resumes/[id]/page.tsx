@@ -16,7 +16,6 @@ import {
   Link as LinkIcon,
   Wand2,
   Target,
-  MessageSquare,
   Users,
   Loader2,
 } from "lucide-react";
@@ -98,6 +97,7 @@ export default function ResumeDetailPage() {
     "details" | "experience" | "projects" | "skills" | "education" | "data" | "agents"
   >("details");
   const [agentRunning, setAgentRunning] = useState<string | null>(null);
+  const [lastAgentType, setLastAgentType] = useState<string | null>(null);
   const [agentResults, setAgentResults] = useState<any>(null);
 
   useEffect(() => {
@@ -203,6 +203,7 @@ export default function ResumeDetailPage() {
     if (!resume) return;
     
     setAgentRunning(agentType);
+    setLastAgentType(agentType);
     setAgentResults(null);
     
     try {
@@ -241,6 +242,89 @@ export default function ResumeDetailPage() {
       console.error("Agent failed:", error);
     }
     setAgentRunning(null);
+  };
+
+  const renderAgentResults = () => {
+    if (!agentResults) return null;
+
+    if (lastAgentType === "harvard" && Array.isArray(agentResults.summaries)) {
+      return (
+        <div className="space-y-3">
+          {agentResults.summaries.map((item: any, index: number) => (
+            <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                {item.style || `Version ${index + 1}`}
+              </p>
+              <p className="text-sm text-gray-800">{item.text || ""}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (lastAgentType === "quantify" && Array.isArray(agentResults.achievements)) {
+      return (
+        <div className="space-y-3">
+          {agentResults.achievements.map((item: any, index: number) => (
+            <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">
+                {item.category || "achievement"}
+              </p>
+              <p className="text-sm text-gray-700 mb-2">{item.original || ""}</p>
+              <p className="text-sm text-gray-900 font-medium">{item.rewritten || ""}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (lastAgentType === "behavioral" && Array.isArray(agentResults.stories)) {
+      return (
+        <div className="space-y-3">
+          {agentResults.stories.map((story: any, index: number) => (
+            <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">
+                {story.category || "story"}
+              </p>
+              <p className="text-sm text-gray-900 font-medium mb-2">{story.question || ""}</p>
+              <p className="text-sm text-gray-700"><span className="font-medium">Situation:</span> {story.situation || ""}</p>
+              <p className="text-sm text-gray-700"><span className="font-medium">Task:</span> {story.task || ""}</p>
+              <p className="text-sm text-gray-700"><span className="font-medium">Action:</span> {story.action || ""}</p>
+              <p className="text-sm text-gray-700"><span className="font-medium">Result:</span> {story.result || ""}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (lastAgentType === "ats") {
+      return (
+        <div className="space-y-4">
+          {typeof agentResults.score === "number" && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-900">
+                ATS Score: <span className="font-semibold">{agentResults.score}/100</span>
+              </p>
+            </div>
+          )}
+          {Array.isArray(agentResults.suggestions) && agentResults.suggestions.length > 0 && (
+            <div className="space-y-2">
+              {agentResults.suggestions.map((suggestion: any, index: number) => (
+                <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-sm text-gray-800">{suggestion.text || ""}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <pre className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg max-h-[500px] overflow-y-auto">
+        {JSON.stringify(agentResults, null, 2)}
+      </pre>
+    );
   };
 
   const handleAddExperience = async () => {
@@ -301,6 +385,20 @@ export default function ResumeDetailPage() {
       </div>
     );
   }
+
+  const displayProjects =
+    resume.projects.length > 0
+      ? resume.projects
+      : Array.isArray(resume.resumeData?.projects)
+        ? resume.resumeData.projects.map((project: any, index: number) => ({
+            id: `resume-data-${index}`,
+            name: project?.name || `Project ${index + 1}`,
+            description: project?.description || "",
+            url: "",
+            startDate: "",
+            endDate: null,
+          }))
+        : [];
 
   return (
     <div>
@@ -535,14 +633,14 @@ export default function ResumeDetailPage() {
 
       {activeTab === "projects" && (
         <div className="space-y-4">
-          {resume.projects.length === 0 ? (
+          {displayProjects.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
               <Code className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500">No projects added yet</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {resume.projects.map((project) => (
+              {displayProjects.map((project: Project) => (
                 <div
                   key={project.id}
                   className="bg-white border border-gray-200 rounded-lg p-6"
@@ -660,82 +758,79 @@ export default function ResumeDetailPage() {
               <p className="text-gray-500">No raw data stored for this resume</p>
             </div>
           )}
+        </div>
+      )}
 
-          {/* AI Agents Tab */}
-          {activeTab === "agents" && (
-            <div className="space-y-6">
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">Resume Enhancement Agents</h3>
-                <p className="text-sm text-gray-600 mb-6">
-                  Run AI agents to enhance your resume with quantifiable achievements, professional summaries, ATS optimization, and interview prep.
-                </p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    onClick={() => runAgent("quantify")}
-                    disabled={agentRunning !== null}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition text-left disabled:opacity-50"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <Target className="w-5 h-5 text-blue-600" />
-                      <span className="font-medium text-gray-900">Quantify Achievements</span>
-                    </div>
-                    <p className="text-sm text-gray-500">Add metrics and quantifiable impact to your achievements (McKinsey-style)</p>
-                  </button>
-
-                  <button
-                    onClick={() => runAgent("harvard")}
-                    disabled={agentRunning !== null}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition text-left disabled:opacity-50"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <FileText className="w-5 h-5 text-green-600" />
-                      <span className="font-medium text-gray-900">Harvard Summaries</span>
-                    </div>
-                    <p className="text-sm text-gray-500">Generate 5 professional summary versions</p>
-                  </button>
-
-                  <button
-                    onClick={() => runAgent("ats")}
-                    disabled={agentRunning !== null}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition text-left disabled:opacity-50"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <Code className="w-5 h-5 text-purple-600" />
-                      <span className="font-medium text-gray-900">ATS Optimizer</span>
-                    </div>
-                    <p className="text-sm text-gray-500">Optimize for applicant tracking systems (Google-style)</p>
-                  </button>
-
-                  <button
-                    onClick={() => runAgent("behavioral")}
-                    disabled={agentRunning !== null}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition text-left disabled:opacity-50"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <Users className="w-5 h-5 text-orange-600" />
-                      <span className="font-medium text-gray-900">Interview Coach</span>
-                    </div>
-                    <p className="text-sm text-gray-500">Generate STAR method stories for behavioral interviews</p>
-                  </button>
+      {activeTab === "agents" && (
+        <div className="space-y-6">
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h3 className="font-semibold text-gray-900 mb-4">Resume Enhancement Agents</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Run AI agents to enhance your resume with quantifiable achievements, professional summaries, ATS optimization, and interview prep.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                onClick={() => runAgent("quantify")}
+                disabled={agentRunning !== null}
+                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition text-left disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <Target className="w-5 h-5 text-blue-600" />
+                  <span className="font-medium text-gray-900">Quantify Achievements</span>
                 </div>
+                <p className="text-sm text-gray-500">Add metrics and quantifiable impact to your achievements (McKinsey-style)</p>
+              </button>
 
-                {agentRunning && (
-                  <div className="mt-6 p-4 bg-blue-50 rounded-lg flex items-center gap-3">
-                    <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                    <span className="text-blue-700">Running {agentRunning} agent...</span>
-                  </div>
-                )}
+              <button
+                onClick={() => runAgent("harvard")}
+                disabled={agentRunning !== null}
+                className="p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition text-left disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <FileText className="w-5 h-5 text-green-600" />
+                  <span className="font-medium text-gray-900">Harvard Summaries</span>
+                </div>
+                <p className="text-sm text-gray-500">Generate 5 professional summary versions</p>
+              </button>
+
+              <button
+                onClick={() => runAgent("ats")}
+                disabled={agentRunning !== null}
+                className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition text-left disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <Code className="w-5 h-5 text-purple-600" />
+                  <span className="font-medium text-gray-900">ATS Optimizer</span>
+                </div>
+                <p className="text-sm text-gray-500">Optimize for applicant tracking systems (Google-style)</p>
+              </button>
+
+              <button
+                onClick={() => runAgent("behavioral")}
+                disabled={agentRunning !== null}
+                className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition text-left disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <Users className="w-5 h-5 text-orange-600" />
+                  <span className="font-medium text-gray-900">Interview Coach</span>
+                </div>
+                <p className="text-sm text-gray-500">Generate STAR method stories for behavioral interviews</p>
+              </button>
+            </div>
+
+            {agentRunning && (
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg flex items-center gap-3">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                <span className="text-blue-700">Running {agentRunning} agent...</span>
               </div>
+            )}
+          </div>
 
-              {agentResults && (
-                <div className="bg-white border border-gray-200 rounded-lg p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Results</h3>
-                  <pre className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg max-h-[500px] overflow-y-auto">
-                    {JSON.stringify(agentResults, null, 2)}
-                  </pre>
-                </div>
-              )}
+          {agentResults && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h3 className="font-semibold text-gray-900 mb-4">Results</h3>
+              {renderAgentResults()}
             </div>
           )}
         </div>

@@ -60,7 +60,7 @@ export default function ApplicationsPage() {
         "dev-token";
 
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/resumes`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/applications`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -70,8 +70,7 @@ export default function ApplicationsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        const tailored = (data.resumes || []).filter((r: any) => r.tailoredFromId || r.jobDescription);
-        setApplications(tailored);
+        setApplications(data.applications || []);
       }
     } catch (error) {
       console.error("Failed to fetch applications:", error);

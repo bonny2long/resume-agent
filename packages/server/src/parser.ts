@@ -92,6 +92,7 @@ export async function parseResumeFile(
   console.log("Text length:", rawText.length);
 
   const aiResult = await parseWithAI(rawText);
+  const fallbackResult = universalFallback(rawText);
 
   const hasData =
     (aiResult.experiences?.length ?? 0) > 0 ||
@@ -103,10 +104,10 @@ export async function parseResumeFile(
   if (hasData) {
     console.log("✓ AI parsed successfully");
     mergeContactFallback(aiResult, rawText);
-    parsed = normalizeResult(aiResult);
+    parsed = normalizeResult(mergeParsedData(aiResult, fallbackResult));
   } else {
     console.log("⚠ AI failed — using universal fallback parser");
-    parsed = universalFallback(rawText);
+    parsed = fallbackResult;
   }
 
   return {
@@ -116,12 +117,47 @@ export async function parseResumeFile(
   };
 }
 
+function mergeParsedData(primary: ParsedResume, fallback: ParsedResume): ParsedResume {
+  const skills = {
+    technical: [] as string[],
+    languages: [] as string[],
+    frameworks: [] as string[],
+    tools: [] as string[],
+  };
+  mergeSkills(skills, primary.skills ?? createEmpty().skills);
+  mergeSkills(skills, fallback.skills ?? createEmpty().skills);
+
+  return {
+    personalInfo: {
+      ...(fallback.personalInfo ?? {}),
+      ...(primary.personalInfo ?? {}),
+    },
+    summary: {
+      short: primary.summary?.short || fallback.summary?.short || "",
+      long: primary.summary?.long || fallback.summary?.long || "",
+    },
+    experiences:
+      (primary.experiences?.length ?? 0) > 0
+        ? primary.experiences
+        : fallback.experiences,
+    projects:
+      (primary.projects?.length ?? 0) > 0
+        ? primary.projects
+        : fallback.projects,
+    skills,
+    education:
+      (primary.education?.length ?? 0) > 0
+        ? primary.education
+        : fallback.education,
+  };
+}
+
 // ─── AI Parsing (Updated with Tool Use) ───────────────────────────────────────
 
 async function parseWithAI(text: string): Promise<ParsedResume> {
-  const systemPrompt = `You are an expert resume parser. Extract structured data from ANY resume format — traditional, creative, academic, international, or unconventional. Make your best guess rather than leaving things empty. Extract EVERY bullet point as an achievement with metrics if present.`;
+  const systemPrompt = `You are an expert resume parser. Extract structured data from ANY resume format: traditional, creative, academic, international, hybrid, and non-standard layouts.\n\nRules:\n1) Be resume-agnostic and do not rely on strict section names.\n2) If content is in unusual places, map it to the closest field.\n3) Extract ALL projects if present, including side projects, open-source work, capstones, and portfolio items.\n4) Extract EVERY achievement bullet with metrics when present.\n5) summary.short must be 2-3 sentences (concise value proposition).\n6) summary.long must be 4-6 sentences (deeper narrative and strengths).\n7) Do NOT invent facts, numbers, outcomes, or claims not present in text.\n8) Preserve tense/status from source wording (e.g., "building" must not become "built").\n9) Prefer original wording and avoid marketing buzzwords when possible.`;
 
-  const userPrompt = `Parse every piece of information from this resume. Handle ALL formats. Resume text:\n\n${text.slice(0, 15000)}`;
+  const userPrompt = `Parse every piece of information from this resume. Handle ALL formats and inconsistent spacing/layout. Ensure projects are extracted even when embedded under experience or portfolio wording.\n\nResume text:\n\n${text.slice(0, 15000)}`;
 
   try {
     const response = await anthropic.messages.create({
@@ -324,6 +360,11 @@ function universalFallback(text: string): ParsedResume {
 
   if (result.skills.technical.length === 0)
     mergeSkills(result.skills, extractSkills(text));
+  if (!result.summary.short && !result.summary.long) {
+    const inferredSummary = deriveSummaryFromText(text);
+    result.summary.short = inferredSummary.short;
+    result.summary.long = inferredSummary.long;
+  }
   return normalizeResult(result);
 }
 
@@ -495,28 +536,114 @@ function parseJobBlock(lines: string[], startIndex: number): any {
 
 function extractProjects(text: string): ParsedResume["projects"] {
   const projects: ParsedResume["projects"] = [];
-  const blocks = text.split(/\n\n+/);
-  for (const block of blocks) {
-    const lines = block
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (!lines.length) continue;
-    const name = lines[0];
-    if (name.length > 80 || name.length < 3) continue;
-    if (/^(experience|education|skills|summary)/i.test(name)) continue;
-    const description = lines
-      .slice(1)
-      .map((l) => BULLET_PATTERN.exec(l)?.[1] ?? l)
-      .join(" ")
-      .slice(0, 400);
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!isProjectHeader(line)) {
+      i++;
+      continue;
+    }
+
+    const name = cleanProjectName(line);
+    const descriptionLines: string[] = [];
+    let techSource = line;
+    i++;
+
+    while (i < lines.length) {
+      const current = lines[i];
+      if (!current) {
+        i++;
+        if (descriptionLines.length > 0) break;
+        continue;
+      }
+
+      if (isProjectHeader(current) && descriptionLines.length > 0) {
+        break;
+      }
+
+      const bullet = BULLET_PATTERN.exec(current);
+      if (bullet) {
+        descriptionLines.push(bullet[1]);
+        techSource += ` ${bullet[1]}`;
+        i++;
+        continue;
+      }
+
+      if (/^(tech|tools|stack)\s*:/i.test(current)) {
+        techSource += ` ${current}`;
+        i++;
+        continue;
+      }
+
+      if (descriptionLines.length === 0 || current.length <= 180) {
+        descriptionLines.push(current);
+        techSource += ` ${current}`;
+        i++;
+        continue;
+      }
+
+      break;
+    }
+
+    const description = descriptionLines.join(" ").slice(0, 450).trim();
+    if (!name || name.length < 3 || name.length > 90) continue;
+    if (!description) continue;
+
     projects.push({
       name,
       description,
-      technologies: extractTechFromText(block),
+      technologies: extractTechFromText(techSource),
     });
   }
-  return projects.slice(0, 15);
+
+  return dedupeProjects(projects).slice(0, 15);
+}
+
+function isProjectHeader(line: string): boolean {
+  if (!line) return false;
+  if (line.length < 3 || line.length > 100) return false;
+  if (BULLET_PATTERN.test(line)) return false;
+  if (/[.!?]$/.test(line)) return false;
+  if (/^(experience|education|skills|summary|certifications?)/i.test(line))
+    return false;
+  if (/^(responsibilities|achievements|technologies|tools)\b/i.test(line))
+    return false;
+  if (
+    /^(architected|built|building|created|developed|design(?:ed|ing)|implemented|led|managed|delivered)\b/i.test(
+      line,
+    )
+  ) {
+    return false;
+  }
+  if (line.split(/\s+/).length > 9) return false;
+  return /[A-Za-z]/.test(line);
+}
+
+function cleanProjectName(line: string): string {
+  let name = line
+    .replace(/^projects?\s*[:\-]\s*/i, "")
+    .replace(/^project\s*[:\-]\s*/i, "")
+    .trim();
+
+  if (name.includes("|")) name = name.split("|")[0].trim();
+  if (name.includes(" - ")) name = name.split(" - ")[0].trim();
+
+  return name.replace(/\s{2,}/g, " ").slice(0, 90).trim();
+}
+
+function dedupeProjects(projects: ParsedResume["projects"]): ParsedResume["projects"] {
+  const seen = new Set<string>();
+  return projects.filter((project) => {
+    const key = project.name.toLowerCase().trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 // ─── Skills ───────────────────────────────────────────────────────────────────
@@ -785,7 +912,10 @@ function normalizeResult(result: ParsedResume): ParsedResume {
     achievements: e.achievements ?? [],
     technologies: e.technologies ?? [],
   }));
-  result.projects = result.projects ?? [];
+  result.projects = dedupeProjects(result.projects ?? []);
+  if (result.projects.length === 0 && (result.experiences?.length ?? 0) > 0) {
+    result.projects = deriveProjectsFromExperiences(result.experiences);
+  }
   result.education = result.education ?? [];
   result.skills = result.skills ?? {
     technical: [],
@@ -793,8 +923,159 @@ function normalizeResult(result: ParsedResume): ParsedResume {
     frameworks: [],
     tools: [],
   };
-  result.summary = result.summary ?? { short: "", long: "" };
+  result.summary = ensureSummaryLengths(result.summary);
   return result;
+}
+
+function ensureSummaryLengths(summary?: {
+  short?: string;
+  long?: string;
+}): { short: string; long: string } {
+  const shortRaw = removeRepeatedLead((summary?.short || "").trim());
+  const longRaw = removeRepeatedLead((summary?.long || "").trim());
+  const base = longRaw || shortRaw;
+
+  if (!base) {
+    return { short: "", long: "" };
+  }
+
+  const short = buildShortSummary(shortRaw, longRaw);
+  const long = buildLongSummary(short, longRaw || shortRaw);
+
+  return { short, long };
+}
+
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function buildShortSummary(shortText: string, longText: string): string {
+  const source = ((shortText || "").trim() || (longText || "").trim()).trim();
+  if (!source) return "";
+
+  const sentences = splitSentences(source);
+  const firstSentence = sentences[0] || source;
+  let short = trimToCompleteSentence(firstSentence, 210, 45);
+
+  if (short.length < 60 && sentences.length > 1) {
+    short = trimToCompleteSentence(`${firstSentence} ${sentences[1]}`, 210, 70);
+  }
+
+  return short;
+}
+
+function buildLongSummary(shortText: string, longText: string): string {
+  const source = (longText || "").trim() || shortText;
+  if (!source) return "";
+
+  const sentences = splitSentences(source);
+  let long =
+    sentences.length > 0 ? sentences.slice(0, 4).join(" ").trim() : source;
+
+  if (splitSentences(long).length < 2 && shortText && !long.includes(shortText)) {
+    long = `${shortText} ${long}`.trim();
+  }
+
+  return trimToCompleteSentence(long, 560, 120);
+}
+
+function trimAtWordBoundary(text: string, maxChars: number): string {
+  const clean = (text || "").trim();
+  if (clean.length <= maxChars) return clean;
+  const slice = clean.slice(0, maxChars);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace < 0) return slice.trim();
+  return slice.slice(0, lastSpace).trim();
+}
+
+function trimToCompleteSentence(
+  text: string,
+  maxChars: number,
+  minCharsForSentenceCut: number,
+): string {
+  const wordTrimmed = trimAtWordBoundary(text, maxChars);
+  const punctuationIndexes = [
+    wordTrimmed.lastIndexOf("."),
+    wordTrimmed.lastIndexOf("!"),
+    wordTrimmed.lastIndexOf("?"),
+  ];
+  const lastPunctuation = Math.max(...punctuationIndexes);
+  if (lastPunctuation >= minCharsForSentenceCut) {
+    return wordTrimmed.slice(0, lastPunctuation + 1).trim();
+  }
+  return wordTrimmed;
+}
+
+function removeRepeatedLead(text: string): string {
+  const clean = (text || "").replace(/\s+/g, " ").trim();
+  const repeatedMatch = clean.match(/^(.{8,90}?)\s+\1(\b|$)/i);
+  if (repeatedMatch) {
+    return clean.slice(repeatedMatch[1].length).trim();
+  }
+  return clean;
+}
+
+function deriveProjectsFromExperiences(
+  experiences: ParsedResume["experiences"],
+): ParsedResume["projects"] {
+  return dedupeProjects(
+    experiences
+      .map((exp) => {
+        const candidates = [exp.title, exp.company]
+          .map((value) => (value || "").replace(/\s+/g, " ").trim())
+          .filter(Boolean);
+
+        const preferred =
+          candidates.find(
+            (value) =>
+              value.length >= 3 &&
+              value.length <= 70 &&
+              value.split(/\s+/).length <= 10 &&
+              !/^(architected|built|building|created|developed|design(?:ed|ing)|implemented|led|managed|delivered)\b/i.test(
+                value,
+              ),
+          ) || candidates[0] || "";
+
+        const name = preferred.slice(0, 90).trim();
+        const description = (exp.description || "").replace(/\s+/g, " ").slice(0, 420).trim();
+        if (!name || name.length < 3 || !description) return null;
+
+        return {
+          name,
+          description,
+          technologies: exp.technologies ?? [],
+        };
+      })
+      .filter((project): project is NonNullable<typeof project> => Boolean(project)),
+  ).slice(0, 6);
+}
+
+function deriveSummaryFromText(text: string): { short: string; long: string } {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter(
+      (line) =>
+        !/^[\w.+%-]+@[\w.-]+\.[a-z]{2,}$/i.test(line) &&
+        !/(linkedin\.com|github\.com|portfolio|^\+?\d[\d\s().-]{8,}$)/i.test(line) &&
+        !/^[A-Z][A-Z\s.'-]{2,40}$/.test(line) &&
+        !SECTION_PATTERNS.summary.test(line) &&
+        !SECTION_PATTERNS.experience.test(line) &&
+        !SECTION_PATTERNS.projects.test(line) &&
+        !SECTION_PATTERNS.skills.test(line) &&
+        !SECTION_PATTERNS.education.test(line),
+    );
+
+  const paragraph = lines.slice(0, 6).join(" ").replace(/\s+/g, " ").trim();
+  if (!paragraph) return { short: "", long: "" };
+
+  const short = buildShortSummary("", paragraph);
+  const long = buildLongSummary(short, paragraph);
+  return { short, long };
 }
 
 function createEmpty(): ParsedResume {

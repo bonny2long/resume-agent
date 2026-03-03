@@ -165,6 +165,162 @@ fastify.get(
 
 // ==================== RESUME ROUTES ====================
 
+function parseDateSafely(value: string | Date | undefined | null, fallback = new Date()): Date {
+  if (!value) return fallback;
+  const parsed = new Date(value);
+  return isNaN(parsed.getTime()) ? fallback : parsed;
+}
+
+function splitSentences(text: string): string[] {
+  return (text || "")
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function trimAtWordBoundary(text: string, maxChars: number): string {
+  const clean = (text || "").replace(/\s+/g, " ").trim();
+  if (clean.length <= maxChars) return clean;
+  const sliced = clean.slice(0, maxChars);
+  const lastSpace = sliced.lastIndexOf(" ");
+  return (lastSpace > 0 ? sliced.slice(0, lastSpace) : sliced).trim();
+}
+
+function trimToSentenceBoundary(text: string, maxChars: number, minPunctuationIndex: number): string {
+  const trimmed = trimAtWordBoundary(text, maxChars);
+  const punctuationIndex = Math.max(
+    trimmed.lastIndexOf("."),
+    trimmed.lastIndexOf("!"),
+    trimmed.lastIndexOf("?"),
+  );
+  if (punctuationIndex >= minPunctuationIndex) {
+    return trimmed.slice(0, punctuationIndex + 1).trim();
+  }
+  return trimmed;
+}
+
+function deRobotize(text: string): string {
+  return (text || "")
+    .replace(/\bproven expertise in\b/gi, "experience with")
+    .replace(/\bdemonstrated ability to\b/gi, "ability to")
+    .replace(/\bproduct-first mindset\b/gi, "focus on product quality")
+    .replace(/\bresults-driven\b/gi, "focused")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildSummaryPreview(text: string, maxChars = 280): string {
+  const clean = deRobotize((text || "").replace(/\s+/g, " ").trim());
+  if (!clean) return "";
+  if (clean.length <= maxChars) return clean;
+
+  const sentences = splitSentences(clean);
+  let preview = "";
+  for (const sentence of sentences) {
+    const next = preview ? `${preview} ${sentence}` : sentence;
+    if (next.length > maxChars) break;
+    preview = next;
+    if (preview.length >= 100 && splitSentences(preview).length >= 1) break;
+  }
+  if (preview) return trimToSentenceBoundary(preview, maxChars, 70);
+
+  return trimToSentenceBoundary(clean, maxChars, 70);
+}
+
+function buildTailoredSummaries(
+  generatedSummary: string | undefined,
+  sourceShort: string | null | undefined,
+  sourceLong: string | null | undefined,
+): { short: string; long: string } {
+  const generated = deRobotize((generatedSummary || "").replace(/\s+/g, " ").trim());
+  const fallback = deRobotize(
+    `${(sourceLong || "").trim()} ${(sourceShort || "").trim()}`.replace(/\s+/g, " ").trim(),
+  );
+  const base = generated || fallback;
+
+  if (!base) return { short: "", long: "" };
+
+  const sentences = splitSentences(base);
+  const firstSentence = sentences[0] || base;
+  let short = trimToSentenceBoundary(firstSentence, 210, 50);
+  if (short.length < 65 && sentences.length > 1) {
+    short = trimToSentenceBoundary(`${firstSentence} ${sentences[1]}`, 210, 70);
+  }
+
+  let long = base;
+  if (sentences.length > 0) {
+    long = sentences.slice(0, 4).join(" ");
+  }
+  if (splitSentences(long).length < 2 && fallback) {
+    long = `${long} ${fallback}`.trim();
+  }
+  long = trimToSentenceBoundary(long, 560, 130);
+  if (long.length < short.length) long = short;
+
+  return { short, long };
+}
+
+function normalizeValue(value: string | null | undefined): string {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractNumericTokens(text: string): string[] {
+  return Array.from(
+    new Set(
+      (text.toLowerCase().match(/\$?[\d,.]+%?|\b\d+[kmb]\b/g) || []).map((token) =>
+        token.replace(/,/g, ""),
+      ),
+    ),
+  );
+}
+
+function sanitizeTailoredDescription(
+  tailoredDescription: string | undefined,
+  sourceDescription: string | null | undefined,
+): string {
+  const tailored = (tailoredDescription || "").trim();
+  const source = (sourceDescription || "").trim();
+  if (!source) return tailored;
+  if (!tailored) return source;
+
+  const sourceIsInProgress = /\b(building|developing|designing|creating|implementing|working on|in progress|currently)\b/i.test(source);
+  const tailoredSoundsCompleted = /\b(built|architected|implemented|launched|delivered|completed|created|designed)\b/i.test(
+    tailored,
+  );
+  const tailoredShowsProgress = /\b(building|developing|designing|creating|supporting|currently|in progress)\b/i.test(
+    tailored,
+  );
+  if (sourceIsInProgress && (tailoredSoundsCompleted || !tailoredShowsProgress)) {
+    return source;
+  }
+
+  const sourceNumbers = extractNumericTokens(source);
+  const tailoredNumbers = extractNumericTokens(tailored);
+  const hasUnseenNumber = tailoredNumbers.some((token) => !sourceNumbers.includes(token));
+  if (hasUnseenNumber) {
+    return source;
+  }
+
+  return deRobotize(tailored);
+}
+
+function parseSkillProficiency(value: string | undefined): "beginner" | "intermediate" | "advanced" | "expert" {
+  const normalized = (value || "").toLowerCase();
+  if (
+    normalized === "beginner" ||
+    normalized === "intermediate" ||
+    normalized === "advanced" ||
+    normalized === "expert"
+  ) {
+    return normalized;
+  }
+  return "intermediate";
+}
+
 // Get user's resumes
 fastify.get(
   "/api/resumes",
@@ -298,6 +454,123 @@ fastify.delete<{ Params: { id: string } }>(
   },
 );
 
+// Add experience to resume
+fastify.post<{ Params: { resumeId: string } }>(
+  "/api/resumes/:resumeId/experiences",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const { resumeId } = request.params;
+    const data = request.body as any;
+
+    const resume = await prisma.masterResume.findFirst({
+      where: { id: resumeId, userId: request.user.id },
+      select: { id: true },
+    });
+
+    if (!resume) {
+      return reply.status(404).send({ message: "Resume not found" });
+    }
+
+    const startDate = parseDateSafely(data.startDate);
+    const current = data.isCurrentRole || data.current || false;
+    const endDate = current
+      ? null
+      : (data.endDate ? parseDateSafely(data.endDate, startDate) : null);
+
+    const experience = await prisma.experience.create({
+      data: {
+        resumeId,
+        company: data.company || "New Company",
+        title: data.jobTitle || data.title || "Job Title",
+        location: data.location || "",
+        startDate,
+        endDate,
+        current,
+        description: data.description || "",
+        embedding: [],
+      },
+    });
+
+    return { experience };
+  },
+);
+
+// Add project to resume
+fastify.post<{ Params: { resumeId: string } }>(
+  "/api/resumes/:resumeId/projects",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const { resumeId } = request.params;
+    const data = request.body as any;
+
+    const resume = await prisma.masterResume.findFirst({
+      where: { id: resumeId, userId: request.user.id },
+      select: { id: true },
+    });
+
+    if (!resume) {
+      return reply.status(404).send({ message: "Resume not found" });
+    }
+
+    const startDate = parseDateSafely(data.startDate);
+    const endDate = parseDateSafely(data.endDate, startDate);
+
+    const project = await prisma.project.create({
+      data: {
+        resumeId,
+        name: data.name || "New Project",
+        description: data.description || "",
+        role: data.role || "",
+        githubUrl: data.githubUrl || data.url || null,
+        liveUrl: data.liveUrl || null,
+        featured: data.featured || false,
+        startDate,
+        endDate,
+        achievements: Array.isArray(data.achievements) ? data.achievements : [],
+        embedding: [],
+      },
+    });
+
+    return { project };
+  },
+);
+
+// Add skill to resume
+fastify.post<{ Params: { resumeId: string } }>(
+  "/api/resumes/:resumeId/skills",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const { resumeId } = request.params;
+    const data = request.body as any;
+
+    const resume = await prisma.masterResume.findFirst({
+      where: { id: resumeId, userId: request.user.id },
+      select: { id: true },
+    });
+
+    if (!resume) {
+      return reply.status(404).send({ message: "Resume not found" });
+    }
+
+    const skill = await prisma.skill.create({
+      data: {
+        resumeId,
+        name: data.name || "New Skill",
+        category: data.category || "technical",
+        proficiency: parseSkillProficiency(data.proficiency),
+      },
+    });
+
+    return { skill };
+  },
+);
+
 // Upload resume (base64 encoded file) - parses with AI
 fastify.post<{
   Body: {
@@ -390,6 +663,7 @@ fastify.post<{
               endDate: exp.endDate ? parseDate(exp.endDate) : null,
               current: exp.current || false,
               description: exp.description || "",
+              embedding: [],
             },
           });
         } catch (e) {
@@ -408,6 +682,11 @@ fastify.post<{
               resumeId: resume.id,
               name: proj.name,
               description: proj.description,
+              role: "",
+              startDate: new Date(),
+              endDate: new Date(),
+              achievements: [],
+              embedding: [],
             },
           });
         } catch (e) {
@@ -530,15 +809,21 @@ fastify.post<{
 
     const skillsText = masterResume.skills.map((s) => s.name).join(", ");
 
-    const systemPrompt = `You are an expert resume writer. Your task is to tailor a resume for a specific job. Modify the resume content to:
-1. Highlight experiences and skills that match the job requirements
-2. Use keywords from the job description
-3. Quantify achievements where possible
-4. Keep the resume authentic and truthful
+    const systemPrompt = `You are an expert resume writer. Tailor the resume to the job while preserving factual accuracy.
+
+Hard constraints:
+1. Do NOT invent facts, numbers, outcomes, or scope.
+2. Preserve tense and status: if work is in progress, keep it in-progress.
+3. Keep claims grounded in provided resume content only.
+4. Prefer rewriting and prioritizing existing achievements over creating new claims.
+5. Use job keywords only when they truthfully match candidate experience.
+6. Use plain, human wording and avoid buzzwords.
+7. Avoid stock phrasing such as "proven expertise", "demonstrated ability", "results-driven", and "product-first mindset".
+8. Never convert ongoing work into completed language (e.g., don't change "building" to "built").
 
 Output a tailored resume in JSON format with the following structure:
 {
-  "summary": "2-3 sentence tailored summary",
+  "summary": "3-5 sentence tailored summary in natural language",
   "experiences": [
     { "title": "Job Title", "company": "Company Name", "description": "Tailored experience description..." }
   ],
@@ -596,6 +881,14 @@ Tailor the resume above to match this job.`;
         };
       }
 
+      const generatedSummary =
+        typeof tailoredData.summary === "string" ? tailoredData.summary : "";
+      const tailoredSummary = buildTailoredSummaries(
+        generatedSummary,
+        masterResume.summaryShort,
+        masterResume.summaryLong,
+      );
+
       const tailoredResume = await prisma.masterResume.create({
         data: {
           userId: request.user.id,
@@ -606,8 +899,8 @@ Tailor the resume above to match this job.`;
           linkedInUrl: masterResume.linkedInUrl,
           githubUrl: masterResume.githubUrl,
           portfolioUrl: masterResume.portfolioUrl,
-          summaryShort: tailoredData.summary?.slice(0, 200) || "",
-          summaryLong: tailoredData.summary || "",
+          summaryShort: buildSummaryPreview(tailoredSummary.short, 210),
+          summaryLong: tailoredSummary.long,
           resumeData: {
             ...(resumeData || {}),
             tailoredFor: {
@@ -625,24 +918,131 @@ Tailor the resume above to match this job.`;
       });
       
       // FIX: Create and associate the tailored experiences
-      if (tailoredData.experiences && tailoredData.experiences.length > 0) {
-        for (const exp of tailoredData.experiences) {
-            // The AI might return a string or an object. Handle both.
-            const description = typeof exp === 'string' ? exp : exp.description;
-            const title = typeof exp === 'string' ? 'Tailored Experience' : (exp.title || 'Tailored Experience');
-            const company = typeof exp === 'string' ? '' : (exp.company || '');
+      if (masterResume.experiences && masterResume.experiences.length > 0) {
+        const tailoredExperiences = Array.isArray(tailoredData.experiences)
+          ? tailoredData.experiences
+          : [];
+        const usedTailoredIndexes = new Set<number>();
 
-            await prisma.experience.create({
-                data: {
-                    resumeId: tailoredResume.id,
-                    title: title,
-                    company: company,
-                    description: description,
-                    startDate: new Date(),
-                    current: false,
-                    location: "",
-                },
-            });
+        const getTailoredExperienceFields = (value: any): {
+          title: string;
+          company: string;
+          description: string;
+        } => {
+          if (typeof value === "string") {
+            return {
+              title: "",
+              company: "",
+              description: value,
+            };
+          }
+          return {
+            title: typeof value?.title === "string" ? value.title : "",
+            company: typeof value?.company === "string" ? value.company : "",
+            description: typeof value?.description === "string" ? value.description : "",
+          };
+        };
+
+        const scoreExperienceMatch = (
+          master: { title: string; company: string },
+          candidate: { title: string; company: string },
+          indexBias: number,
+        ): number => {
+          const masterTitle = normalizeValue(master.title);
+          const masterCompany = normalizeValue(master.company);
+          const candidateTitle = normalizeValue(candidate.title);
+          const candidateCompany = normalizeValue(candidate.company);
+          let score = 0;
+
+          if (candidateCompany) {
+            if (candidateCompany === masterCompany) score += 6;
+            else if (
+              masterCompany.includes(candidateCompany) ||
+              candidateCompany.includes(masterCompany)
+            ) {
+              score += 4;
+            }
+          }
+
+          if (candidateTitle) {
+            if (candidateTitle === masterTitle) score += 5;
+            else if (masterTitle.includes(candidateTitle) || candidateTitle.includes(masterTitle)) {
+              score += 3;
+            }
+          }
+
+          score += indexBias;
+          return score;
+        };
+
+        for (const [masterIndex, masterExp] of masterResume.experiences.entries()) {
+          let bestTailoredIndex = -1;
+          let bestScore = -1;
+          let bestFields = { title: "", company: "", description: "" };
+
+          for (const [candidateIndex, candidate] of tailoredExperiences.entries()) {
+            if (usedTailoredIndexes.has(candidateIndex)) continue;
+            const fields = getTailoredExperienceFields(candidate);
+            const indexBias = candidateIndex === masterIndex ? 2 : 0;
+            const score = scoreExperienceMatch(
+              { title: masterExp.title, company: masterExp.company },
+              { title: fields.title, company: fields.company },
+              indexBias,
+            );
+
+            if (score > bestScore) {
+              bestScore = score;
+              bestTailoredIndex = candidateIndex;
+              bestFields = fields;
+            }
+          }
+
+          if (bestTailoredIndex >= 0) {
+            usedTailoredIndexes.add(bestTailoredIndex);
+          }
+
+          const description = sanitizeTailoredDescription(
+            bestFields.description,
+            masterExp.description,
+          );
+
+          await prisma.experience.create({
+            data: {
+              resumeId: tailoredResume.id,
+              title: masterExp.title,
+              company: masterExp.company,
+              description: description || masterExp.description || "",
+              startDate: masterExp.startDate,
+              endDate: masterExp.endDate ?? null,
+              current: masterExp.current || false,
+              location: masterExp.location || "",
+              embedding: [],
+            },
+          });
+        }
+      } else if (Array.isArray(tailoredData.experiences) && tailoredData.experiences.length > 0) {
+        for (const exp of tailoredData.experiences) {
+          const fields =
+            typeof exp === "string"
+              ? { title: "Tailored Experience", company: "", description: exp }
+              : {
+                  title: exp.title || "Tailored Experience",
+                  company: exp.company || "",
+                  description: exp.description || "",
+                };
+          await prisma.experience.create({
+            data: {
+              resumeId: tailoredResume.id,
+              title: fields.title,
+              company: fields.company,
+              description: fields.description,
+              startDate: new Date(),
+              endDate: null,
+              current: true,
+              location: "",
+              embedding: [],
+            },
+          });
         }
       }
 
@@ -1140,18 +1540,14 @@ fastify.get(
     preHandler: [fastify.authenticate],
   },
   async (request: any, reply) => {
-    const applications = await prisma.application.findMany({
-      where: { job: { company: { users: { some: { id: request.user.id } } } } },
-      include: {
-        job: {
-          include: { company: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
     const simpleApplications = await prisma.masterResume.findMany({
-      where: { userId: request.user.id },
+      where: {
+        userId: request.user.id,
+        OR: [
+          { tailoredFromId: { not: null } },
+          { jobDescription: { not: null } },
+        ],
+      },
       select: {
         id: true,
         fullName: true,

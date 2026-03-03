@@ -189,7 +189,6 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-        )}
       )}
 
       {/* Recent Resumes */}
