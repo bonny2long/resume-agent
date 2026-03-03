@@ -2,5 +2,6 @@
   "/dashboard/page": "app/dashboard/page.js",
   "/dashboard/tailor/page": "app/dashboard/tailor/page.js",
   "/dashboard/resumes/[id]/page": "app/dashboard/resumes/[id]/page.js",
-  "/dashboard/cover-letter/page": "app/dashboard/cover-letter/page.js"
+  "/dashboard/cover-letter/page": "app/dashboard/cover-letter/page.js",
+  "/dashboard/settings/page": "app/dashboard/settings/page.js"
 }
