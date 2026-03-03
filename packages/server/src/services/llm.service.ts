@@ -330,6 +330,9 @@ export class LLMService {
       };
     } catch (error: any) {
       logger.error("Completion failed", error);
+      const allowAnthropicFallback =
+        (process.env.ALLOW_ANTHROPIC_FALLBACK || "true").toLowerCase() !==
+        "false";
 
       // Try fallback if primary fails
       if (this.provider === "huggingface") {
@@ -346,12 +349,44 @@ export class LLMService {
           logger.info("Falling back to Cohere");
           return await this.completeWithCohere(prompt, options);
         }
-      } else if (this.provider === "anthropic" && this.cohereClient) {
-        logger.info("Falling back to Cohere");
-        return this.completeWithCohere(prompt, options);
-      } else if (this.provider === "cohere" && this.anthropicClient) {
-        logger.info("Falling back to Anthropic");
-        return this.completeWithAnthropic(prompt, options);
+      } else if (this.provider === "anthropic") {
+        if (this.cohereClientV2) {
+          logger.info("Falling back to Cohere");
+          try {
+            return await this.completeWithCohere(prompt, options);
+          } catch (cohereError) {
+            logger.warn("Cohere fallback failed", cohereError);
+          }
+        }
+        if (this.geminiClient) {
+          logger.info("Falling back to Gemini");
+          try {
+            return await this.completeWithGemini(prompt, options);
+          } catch (geminiError) {
+            logger.warn("Gemini fallback failed", geminiError);
+          }
+        }
+      } else if (this.provider === "cohere") {
+        if (this.geminiClient) {
+          logger.info("Falling back to Gemini");
+          try {
+            return await this.completeWithGemini(prompt, options);
+          } catch (geminiError) {
+            logger.warn("Gemini fallback failed", geminiError);
+          }
+        }
+        if (this.huggingFaceClient) {
+          logger.info("Falling back to HuggingFace");
+          try {
+            return await this.completeWithHuggingFace(prompt, options);
+          } catch (hfError) {
+            logger.warn("HuggingFace fallback failed", hfError);
+          }
+        }
+        if (allowAnthropicFallback && this.anthropicClient) {
+          logger.info("Falling back to Anthropic");
+          return this.completeWithAnthropic(prompt, options);
+        }
       }
 
       return {
@@ -429,6 +464,42 @@ export class LLMService {
       metadata: {
         tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
         provider: "anthropic-fallback",
+      },
+    };
+  }
+
+  private async completeWithHuggingFace(
+    prompt: string,
+    options: CompletionOptions = {},
+  ): Promise<AgentResponse<string>> {
+    if (!this.huggingFaceClient) {
+      throw new Error("HuggingFace client not available");
+    }
+
+    const messages: Array<{ role: "system" | "user"; content: string }> = [];
+    if (options.systemPrompt) {
+      messages.push({ role: "system", content: options.systemPrompt });
+    }
+    messages.push({ role: "user", content: prompt });
+
+    const result = await this.withRetry(() =>
+      this.huggingFaceClient!.chatCompletion({
+        model: this.getModelForProvider("huggingface"),
+        messages,
+        max_tokens: options.maxTokens || this.defaultMaxTokens,
+        temperature: options.temperature || this.defaultTemperature,
+      }),
+    );
+
+    const content = result.choices?.[0]?.message?.content || "";
+    const tokensUsed = result.usage?.total_tokens || Math.ceil(content.length / 4);
+
+    return {
+      success: true,
+      data: content,
+      metadata: {
+        tokensUsed,
+        provider: "huggingface-fallback",
       },
     };
   }

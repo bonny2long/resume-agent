@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileText, Wand2, Loader2, Copy, Check, Save } from "lucide-react";
+import { ArrowLeft, FileText, Wand2, Loader2, Copy, Check, Save, Link2 } from "lucide-react";
 
 interface Resume {
   id: string;
@@ -30,6 +30,8 @@ export default function CoverLetterPage() {
   const [jobDescription, setJobDescription] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [jobUrl, setJobUrl] = useState("");
+  const [parsingUrl, setParsingUrl] = useState(false);
   const [tone, setTone] = useState("professional");
   
   const [coverLetter, setCoverLetter] = useState<{ subject: string; body: string } | null>(null);
@@ -89,13 +91,14 @@ export default function CoverLetterPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            resumeId: selectedResumeId,
-            jobDescription,
-            jobTitle,
-            companyName,
-            tone,
-          }),
+              body: JSON.stringify({
+                resumeId: selectedResumeId,
+                jobDescription,
+                jobTitle,
+                companyName,
+                jobUrl,
+                tone,
+              }),
         },
       );
 
@@ -142,12 +145,70 @@ export default function CoverLetterPage() {
         setMessage({ type: "success", text: "Cover letter generated! Click Save to store it." });
       } else {
         const data = await response.json().catch(() => ({}));
-        setMessage({ type: "error", text: data?.message || "Failed to generate cover letter" });
+        const detail =
+          data?.error ? `${data.message || "Failed to generate cover letter"}: ${data.error}` :
+          data?.message ? data.message
+          : "Failed to generate cover letter";
+        setMessage({ type: "error", text: detail });
       }
     } catch (error: any) {
       setMessage({ type: "error", text: error?.message || "Something went wrong" });
     }
     setGenerating(false);
+  };
+
+  const handleParseJobUrl = async () => {
+    if (!jobUrl.trim()) {
+      setMessage({ type: "error", text: "Please enter a job posting URL first" });
+      return;
+    }
+
+    setParsingUrl(true);
+    setMessage(null);
+
+    try {
+      const token =
+        localStorage.getItem("next-auth.session-token") ||
+        localStorage.getItem("auth_token") ||
+        "dev-token";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/jobs/parse-url`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ url: jobUrl.trim() }),
+        },
+      );
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail =
+          data?.message || `Failed to parse job URL (HTTP ${response.status})`;
+        setMessage({ type: "error", text: detail });
+        return;
+      }
+
+      const parsed = data.job || {};
+      if (typeof parsed.jobDescription === "string" && parsed.jobDescription.trim()) {
+        setJobDescription(parsed.jobDescription.trim());
+      }
+      if (!jobTitle && typeof parsed.jobTitle === "string" && parsed.jobTitle.trim()) {
+        setJobTitle(parsed.jobTitle.trim());
+      }
+      if (!companyName && typeof parsed.companyName === "string" && parsed.companyName.trim()) {
+        setCompanyName(parsed.companyName.trim());
+      }
+
+      setMessage({ type: "success", text: "Imported job description from URL" });
+    } catch (error) {
+      setMessage({ type: "error", text: "Failed to fetch job posting URL" });
+    }
+
+    setParsingUrl(false);
   };
 
   const handleSave = async () => {
@@ -285,6 +346,38 @@ export default function CoverLetterPage() {
                     placeholder="Google"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Job Posting URL (optional)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={jobUrl}
+                      onChange={(e) => setJobUrl(e.target.value)}
+                      placeholder="https://company.com/careers/job-id"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleParseJobUrl}
+                      disabled={parsingUrl || !jobUrl.trim()}
+                      className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      {parsingUrl ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Importing...
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="w-4 h-4" />
+                          Import URL
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

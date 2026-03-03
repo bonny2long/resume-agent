@@ -101,8 +101,18 @@ export default function TailorPage() {
           router.push(`/dashboard/resumes/${data.tailoredResume.id}`);
         }, 1500);
       } else {
-        const data = await response.json();
-        setMessage({ type: "error", text: data.message || "Failed to tailor resume" });
+        let data: any = null;
+        try {
+          data = await response.json();
+        } catch {
+          // no-op
+        }
+        const detail =
+          data?.error ? `${data.message || "Failed to tailor resume"}: ${data.error}` :
+          data?.message ? data.message
+          : `Failed to tailor resume (HTTP ${response.status})`;
+        console.error("Tailor request failed", { status: response.status, data });
+        setMessage({ type: "error", text: detail });
       }
     } catch (error) {
       setMessage({ type: "error", text: "Something went wrong" });

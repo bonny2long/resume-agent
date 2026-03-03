@@ -256,20 +256,50 @@ function enforceShortSummaryLength(text: string): string {
   const sentences = splitSentences(normalized);
   if (sentences.length === 0) return "";
 
-  let short = sentences.slice(0, 5).join(" ");
-  if (sentences.length >= 3) {
-    short = sentences.slice(0, Math.min(5, Math.max(3, sentences.length))).join(" ");
+  const normalizeLite = (sentence: string) =>
+    sentence.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+
+  const uniqueSentences: string[] = [];
+  for (const sentence of sentences) {
+    const candidate = sentence.trim();
+    if (!candidate) continue;
+    const candidateKey = normalizeLite(candidate);
+    if (!candidateKey) continue;
+    const duplicated = uniqueSentences.some((existing) => {
+      const existingKey = normalizeLite(existing);
+      return (
+        existingKey === candidateKey ||
+        existingKey.includes(candidateKey) ||
+        candidateKey.includes(existingKey)
+      );
+    });
+    if (!duplicated) uniqueSentences.push(candidate);
   }
-  short = trimToSentenceBoundary(short, 600, 160);
-  let shortSentences = splitSentences(short);
-  if (shortSentences.length > 5) {
-    short = shortSentences.slice(0, 5).join(" ");
-  } else if (shortSentences.length < 3 && sentences.length >= 3) {
-    short = sentences.slice(0, 3).join(" ");
-  } else if (shortSentences.length < 3) {
-    short = trimToSentenceBoundary(short, 600, 90);
+
+  const targetMin = 3;
+  const targetMax = 4;
+  const selected = uniqueSentences.slice(0, Math.min(targetMax, uniqueSentences.length));
+  while (selected.length < targetMin && selected.length < uniqueSentences.length) {
+    selected.push(uniqueSentences[selected.length]);
   }
-  return short;
+
+  let short = selected.join(" ").trim();
+  while (short.length < 240 && selected.length < Math.min(targetMax, uniqueSentences.length)) {
+    selected.push(uniqueSentences[selected.length]);
+    short = selected.join(" ").trim();
+  }
+
+  short = trimToSentenceBoundary(short, 520, 120);
+  let finalSentences = splitSentences(short);
+  if (finalSentences.length > targetMax) {
+    short = finalSentences.slice(0, targetMax).join(" ");
+    finalSentences = splitSentences(short);
+  }
+  if (finalSentences.length < targetMin && uniqueSentences.length >= targetMin) {
+    short = uniqueSentences.slice(0, targetMin).join(" ");
+  }
+
+  return trimAtWordBoundary(short, 520);
 }
 
 function buildParagraphs(sentences: string[], targetParagraphs: number): string {
@@ -312,9 +342,15 @@ function enforceLongSummaryLength(text: string): string {
   const sentences = splitSentences(normalized);
   if (sentences.length === 0) return "";
 
-  let selected = sentences.slice(0, 10);
-  if (selected.length < 6 && sentences.length > 6) {
-    selected = sentences.slice(0, 6);
+  const uniqueSentences: string[] = [];
+  for (const sentence of sentences) {
+    if (uniqueSentences.some((existing) => isNearDuplicateSentence(sentence, existing))) continue;
+    uniqueSentences.push(sentence);
+  }
+
+  let selected = uniqueSentences.slice(0, 10);
+  if (selected.length < 6 && uniqueSentences.length > 6) {
+    selected = uniqueSentences.slice(0, 6);
   }
 
   const targetParagraphs = selected.length >= 8 ? 3 : 2;
@@ -465,6 +501,11 @@ function rewriteFirstPersonSentence(text: string): string {
     .replace(/^i\b/i, "");
 
   sentence = sentence
+    .replace(/\bback\s+gtound\b/gi, "background")
+    .replace(/\busnique\b/gi, "unique")
+    .replace(/\bcommecial\b/gi, "commercial")
+    .replace(/\bgive an advantage because bring\b/gi, "brings an advantage by")
+    .replace(/\bdesign it clearly, secure it properly, and build it to last\b/gi, "builds clear, secure, and durable software")
     .replace(/\bhow\s+i\s+approach\b/gi, "how to approach")
     .replace(/\bbecause\s+i\s+(?:feel|felt|think|thought|believe|believed)\b[^.?!;]*/gi, "")
     .replace(/\bi\s+(?:feel|felt|think|thought|believe|believed)\b[^.?!;]*/gi, "")
@@ -554,6 +595,617 @@ function formatTransferableSkills(value: unknown): string {
   return entries.slice(0, 6).join("; ");
 }
 
+type JobExtraction = {
+  mustHaveSkills: string[];
+  niceToHave: string[];
+  responsibilities: string[];
+  keywords: string[];
+  senioritySignals: string[];
+  roleFocus: string;
+};
+
+type ResumeEvidenceBullet = {
+  id: string;
+  sourceType: "experience" | "project";
+  sourceIndex: number;
+  parentId: string;
+  title: string;
+  company?: string;
+  text: string;
+  tags: string[];
+  technologies?: string[];
+  embedding?: number[];
+};
+
+type ResponsibilityMapping = {
+  responsibility: string;
+  evidenceIds: string[];
+  notes?: string;
+};
+
+type JobMappingResult = {
+  responsibilityMappings: ResponsibilityMapping[];
+  missingGaps: string[];
+  recommendedOrder: string[];
+  selectedEvidenceIds: string[];
+};
+
+function sanitizeStringArray(value: unknown, maxItems = 12): string[] {
+  const source = Array.isArray(value) ? value : [];
+  return source
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      if (typeof item === "number" || typeof item === "boolean") return `${item}`.trim();
+      if (item && typeof item === "object") {
+        const record = item as Record<string, unknown>;
+        const picked =
+          toStringValue(record.description) ||
+          toStringValue(record.text) ||
+          toStringValue(record.name) ||
+          toStringValue(record.title) ||
+          "";
+        return picked.trim();
+      }
+      return "";
+    })
+    .filter((item) => Boolean(item) && normalizeSummaryForDedupe(item) !== "object object")
+    .slice(0, maxItems);
+}
+
+function mergeUniqueStrings(...inputs: string[][]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const input of inputs) {
+    for (const raw of input || []) {
+      const value = `${raw || ""}`.trim();
+      if (!value) continue;
+      const key = normalizeSummaryForDedupe(value);
+      if (key === "object object") continue;
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      merged.push(value);
+    }
+  }
+  return merged;
+}
+
+function isLikelySkill(value: string): boolean {
+  const v = `${value || ""}`.trim();
+  if (!v) return false;
+  if (v.length < 2 || v.length > 40) return false;
+  if (/\b(chicago|south bend|nappanee|i\.c stars|intern|local\s*\d+)\b/i.test(v)) return false;
+  if (/[,.!?]{2,}/.test(v)) return false;
+  if (/\b(and|because|while|selected)\b/i.test(v) && v.split(" ").length > 3) return false;
+  return true;
+}
+
+function splitDescriptionIntoBullets(text: string): string[] {
+  const raw = `${text || ""}`.trim();
+  if (!raw) return [];
+
+  const normalized = raw
+    .replace(/\r/g, "\n")
+    .replace(/[\u2022\u25CF\u25AA\u25E6]/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+
+  const explicitBullets = normalized
+    .split(/\n+/)
+    .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
+    .filter(Boolean);
+
+  if (explicitBullets.length >= 2) {
+    return explicitBullets.slice(0, 8);
+  }
+
+  return splitSentences(normalized).slice(0, 8);
+}
+
+function detectEvidenceTags(text: string): string[] {
+  const value = normalizeSummaryForDedupe(text);
+  const tags: string[] = [];
+  if (/\b(performance|latency|throughput|optimi|speed|faster|scale)\b/.test(value)) {
+    tags.push("performance");
+  }
+  if (/\b(reliab|uptime|incident|stability|durable)\b/.test(value)) {
+    tags.push("reliability");
+  }
+  if (/\b(security|secure|auth|oauth|jwt|encryption|compliance)\b/.test(value)) {
+    tags.push("security");
+  }
+  if (/\b(cost|saving|efficien|budget|resource)\b/.test(value)) {
+    tags.push("cost");
+  }
+  if (/\b(developer experience|dx|tooling|workflow|automation)\b/.test(value)) {
+    tags.push("dx");
+  }
+  if (/\b(lead|mentor|guide|collaborat|stakeholder|cross functional)\b/.test(value)) {
+    tags.push("leadership");
+  }
+  return [...new Set(tags)];
+}
+
+function buildEvidenceBullets(input: {
+  experiences: ImmutableExperience[];
+  projects: ImmutableProject[];
+  snapshot?: Record<string, unknown>;
+}): ResumeEvidenceBullet[] {
+  const evidence: ResumeEvidenceBullet[] = [];
+  const snapshot = input.snapshot || {};
+  const snapshotExperiences = Array.isArray(snapshot.experiences) ? snapshot.experiences : [];
+  const snapshotProjects = Array.isArray(snapshot.projects) ? snapshot.projects : [];
+
+  input.experiences.forEach((exp, expIndex) => {
+    const snapshotExp = toRecord(snapshotExperiences[expIndex]);
+    const snapshotBullets = sanitizeStringArray(snapshotExp.bullets, 10);
+    const snapshotAchievements = extractAchievementDescriptions(snapshotExp.achievements, 10);
+    const snapshotTechnologies = sanitizeStringArray(snapshotExp.technologies, 12);
+    const generatedBullets = splitDescriptionIntoBullets(exp.description);
+    const bullets = mergeUniqueStrings(
+      snapshotBullets,
+      snapshotAchievements,
+      generatedBullets,
+      snapshotTechnologies.map((tech) => `Used ${tech} in delivery and implementation`),
+    ).slice(0, 12);
+    const parentId = `exp_${expIndex}`;
+    const embedding = Array.isArray(snapshotExp.embedding) ?
+        (snapshotExp.embedding as number[]).filter((v) => typeof v === "number")
+      : [];
+
+    bullets.forEach((bullet, bulletIndex) => {
+      const text = bullet.trim();
+      if (!text) return;
+      evidence.push({
+        id: `${parentId}_b_${bulletIndex}`,
+        sourceType: "experience",
+        sourceIndex: expIndex,
+        parentId,
+        title: exp.title,
+        company: exp.company,
+        text,
+        tags: detectEvidenceTags(text),
+        technologies: snapshotTechnologies,
+        embedding: embedding.length > 0 ? embedding : undefined,
+      });
+    });
+  });
+
+  input.projects.forEach((project, projectIndex) => {
+    const snapshotProject = toRecord(snapshotProjects[projectIndex]);
+    const snapshotBullets = sanitizeStringArray(snapshotProject.bullets, 8);
+    const snapshotAchievements = extractAchievementDescriptions(snapshotProject.achievements, 8);
+    const snapshotTechnologies = sanitizeStringArray(snapshotProject.technologies, 12);
+    const generatedBullets = splitDescriptionIntoBullets(project.description);
+    const bullets = mergeUniqueStrings(
+      snapshotBullets,
+      snapshotAchievements,
+      generatedBullets,
+      snapshotTechnologies.map((tech) => `Built with ${tech}`),
+    ).slice(0, 10);
+    const parentId = `proj_${projectIndex}`;
+    const embedding = Array.isArray(snapshotProject.embedding) ?
+        (snapshotProject.embedding as number[]).filter((v) => typeof v === "number")
+      : [];
+
+    bullets.forEach((bullet, bulletIndex) => {
+      const text = bullet.trim();
+      if (!text) return;
+      evidence.push({
+        id: `${parentId}_b_${bulletIndex}`,
+        sourceType: "project",
+        sourceIndex: projectIndex,
+        parentId,
+        title: project.name,
+        company: "",
+        text,
+        tags: detectEvidenceTags(text),
+        technologies: snapshotTechnologies,
+        embedding: embedding.length > 0 ? embedding : undefined,
+      });
+    });
+  });
+
+  return evidence;
+}
+
+function dotProduct(a: number[], b: number[]): number {
+  const length = Math.min(a.length, b.length);
+  let sum = 0;
+  for (let i = 0; i < length; i++) sum += a[i] * b[i];
+  return sum;
+}
+
+function vectorMagnitude(a: number[]): number {
+  return Math.sqrt(a.reduce((acc, value) => acc + value * value, 0));
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (!a.length || !b.length) return 0;
+  const denominator = vectorMagnitude(a) * vectorMagnitude(b);
+  if (!denominator) return 0;
+  return dotProduct(a, b) / denominator;
+}
+
+function keywordDictionary(): string[] {
+  return [
+    "typescript",
+    "javascript",
+    "python",
+    "node",
+    "node.js",
+    "react",
+    "next.js",
+    "graphql",
+    "rest",
+    "sql",
+    "postgresql",
+    "mysql",
+    "docker",
+    "kubernetes",
+    "aws",
+    "azure",
+    "gcp",
+    "terraform",
+    "ci/cd",
+    "git",
+    "testing",
+    "unit testing",
+    "integration testing",
+    "e2e",
+    "api",
+    "system design",
+    "microservices",
+    "data engineering",
+    "etl",
+    "airflow",
+    "spark",
+    "pandas",
+    "fastapi",
+    "django",
+    "spring",
+    "c#",
+    "java",
+    "go",
+  ];
+}
+
+function inferRoleFocus(text: string, title: string): string {
+  const combined = `${title} ${text}`.toLowerCase();
+  if (/\bplatform\b/.test(combined)) return "platform";
+  if (/\bbackend|api|server|microservice|data\b/.test(combined)) return "backend";
+  if (/\bfrontend|ui|ux|react|next\b/.test(combined)) return "frontend";
+  if (/\bfull[\s-]?stack\b/.test(combined)) return "fullstack";
+  return "software-engineering";
+}
+
+function fallbackExtractJobProfile(jobDescription: string, jobTitle?: string): JobExtraction {
+  const text = `${jobDescription || ""}`.trim();
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const responsibilityLines = lines
+    .filter((line) =>
+      /^(\d+[\).]|[-*])\s+/.test(line) ||
+      /\b(design|develop|maintain|collaborate|optimize|troubleshoot|participate|contribute)\b/i.test(line),
+    )
+    .map((line) => line.replace(/^(\d+[\).]|[-*])\s+/, "").trim());
+
+  const dictionary = keywordDictionary();
+  const lowered = ` ${text.toLowerCase()} `;
+  const keywords = dictionary.filter((keyword) => lowered.includes(` ${keyword.toLowerCase()} `));
+
+  const senioritySignals = [
+    "owning",
+    "ownership",
+    "mentoring",
+    "system design",
+    "architecture",
+    "cross-functional",
+    "stakeholder",
+    "code review",
+  ].filter((signal) => lowered.includes(signal));
+
+  const mustHaveSkills = keywords.slice(0, 10);
+  const responsibilities = responsibilityLines.slice(0, 10);
+
+  return {
+    mustHaveSkills,
+    niceToHave: keywords.slice(10, 16),
+    responsibilities: responsibilities.length > 0 ? responsibilities : splitSentences(text).slice(0, 8),
+    keywords: keywords.slice(0, 20),
+    senioritySignals,
+    roleFocus: inferRoleFocus(text, jobTitle || ""),
+  };
+}
+
+function normalizeJobExtraction(raw: any, fallback: JobExtraction): JobExtraction {
+  const merged = {
+    mustHaveSkills: sanitizeStringArray(raw?.mustHaveSkills, 12),
+    niceToHave: sanitizeStringArray(raw?.niceToHave, 12),
+    responsibilities: sanitizeStringArray(raw?.responsibilities, 10),
+    keywords: sanitizeStringArray(raw?.keywords, 24),
+    senioritySignals: sanitizeStringArray(raw?.senioritySignals, 10),
+    roleFocus: `${raw?.roleFocus || ""}`.trim().toLowerCase(),
+  };
+
+  const roleFocus = ["backend", "frontend", "fullstack", "platform", "data", "software-engineering"].includes(merged.roleFocus)
+    ? merged.roleFocus
+    : fallback.roleFocus;
+
+  return {
+    mustHaveSkills: mergeUniqueStrings(fallback.mustHaveSkills, merged.mustHaveSkills).slice(0, 12),
+    niceToHave: mergeUniqueStrings(fallback.niceToHave, merged.niceToHave).slice(0, 12),
+    responsibilities: mergeUniqueStrings(fallback.responsibilities, merged.responsibilities).slice(0, 10),
+    keywords: mergeUniqueStrings(fallback.keywords, merged.keywords).slice(0, 24),
+    senioritySignals: mergeUniqueStrings(fallback.senioritySignals, merged.senioritySignals).slice(0, 12),
+    roleFocus,
+  };
+}
+
+function scoreEvidenceBullet(
+  bullet: ResumeEvidenceBullet,
+  job: JobExtraction,
+  requestEmbedding: number[] = [],
+): { score: number; matchedKeywords: string[] } {
+  const text = `${bullet.title} ${bullet.company || ""} ${bullet.text}`;
+  const textNorm = normalizeSummaryForDedupe(text);
+  const matchedKeywords = [...new Set(
+    [...job.mustHaveSkills, ...job.keywords]
+      .map((k) => k.trim())
+      .filter(Boolean)
+      .filter((keyword) => textNorm.includes(normalizeSummaryForDedupe(keyword))),
+  )];
+  const techMatches = (bullet.technologies || []).filter((tech) =>
+    [...job.mustHaveSkills, ...job.keywords].some((keyword) =>
+      normalizeSummaryForDedupe(tech).includes(normalizeSummaryForDedupe(keyword)) ||
+      normalizeSummaryForDedupe(keyword).includes(normalizeSummaryForDedupe(tech)),
+    ),
+  );
+
+  const responsibilitiesScore = job.responsibilities.reduce((acc, responsibility) => {
+    return Math.max(acc, sentenceSimilarity(text, responsibility));
+  }, 0);
+
+  const seniorityHits = job.senioritySignals.filter((signal) =>
+    textNorm.includes(normalizeSummaryForDedupe(signal)),
+  ).length;
+
+  const keywordScore = matchedKeywords.length * 1.8 + techMatches.length * 1.2;
+  const tagScore = bullet.tags.length * 0.4;
+  const sourceBoost = bullet.sourceType === "experience" ? 0.7 : 0.2;
+  const lexicalScore = responsibilitiesScore * 5 + keywordScore + seniorityHits * 0.9 + tagScore + sourceBoost;
+  const embeddingScore =
+    requestEmbedding.length > 0 && Array.isArray(bullet.embedding) ?
+      cosineSimilarity(requestEmbedding, bullet.embedding || []) * 3
+    : 0;
+
+  return { score: lexicalScore + embeddingScore, matchedKeywords };
+}
+
+function rankEvidenceBullets(
+  bullets: ResumeEvidenceBullet[],
+  job: JobExtraction,
+  limit = 24,
+): Array<ResumeEvidenceBullet & { score: number; matchedKeywords: string[] }> {
+  const pseudoQueryEmbedding: number[] = [];
+  const ranked = bullets
+    .map((bullet) => {
+      const scored = scoreEvidenceBullet(bullet, job, pseudoQueryEmbedding);
+      return {
+        ...bullet,
+        score: scored.score,
+        matchedKeywords: scored.matchedKeywords,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const selected: Array<ResumeEvidenceBullet & { score: number; matchedKeywords: string[] }> = [];
+  const selectedIds = new Set<string>();
+  const addIfMissing = (item: ResumeEvidenceBullet & { score: number; matchedKeywords: string[] }) => {
+    if (selectedIds.has(item.id)) return;
+    selected.push(item);
+    selectedIds.add(item.id);
+  };
+
+  const topExperienceParents = [...new Set(
+    ranked.filter((item) => item.sourceType === "experience").map((item) => item.parentId),
+  )].slice(0, 3);
+
+  for (const parentId of topExperienceParents) {
+    const pick = ranked.find((item) => item.parentId === parentId);
+    if (pick) addIfMissing(pick);
+  }
+
+  const topProject = ranked.find((item) => item.sourceType === "project");
+  if (topProject) addIfMissing(topProject);
+
+  for (const item of ranked) {
+    if (selected.length >= limit) break;
+    addIfMissing(item);
+  }
+
+  return selected.slice(0, limit);
+}
+
+function buildRuleBasedMapping(
+  job: JobExtraction,
+  rankedEvidence: Array<ResumeEvidenceBullet & { score: number; matchedKeywords: string[] }>,
+): JobMappingResult {
+  const mappings: ResponsibilityMapping[] = [];
+  const selectedEvidenceIds = new Set<string>();
+
+  for (const responsibility of job.responsibilities.slice(0, 10)) {
+    const candidates = rankedEvidence
+      .map((evidence) => ({
+        evidence,
+        score:
+          sentenceSimilarity(responsibility, evidence.text) * 5 +
+          sentenceSimilarity(responsibility, `${evidence.title} ${evidence.company || ""}`) * 2 +
+          sentenceSimilarity(responsibility, (evidence.technologies || []).join(", ")) * 1.5 +
+          evidence.score * 0.15,
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .filter((candidate) => candidate.score > 0.35);
+
+    const evidenceIds = candidates.map((candidate) => candidate.evidence.id);
+    evidenceIds.forEach((id) => selectedEvidenceIds.add(id));
+    if (evidenceIds.length > 0) {
+      mappings.push({ responsibility, evidenceIds });
+    }
+  }
+
+  if (mappings.length === 0) {
+    rankedEvidence.slice(0, 8).forEach((item) => selectedEvidenceIds.add(item.id));
+  }
+
+  const coveredResponsibilities = new Set(mappings.map((mapping) => mapping.responsibility));
+  const missingGaps = job.responsibilities.filter((item) => !coveredResponsibilities.has(item)).slice(0, 6);
+  const recommendedOrder = [...new Set(
+    rankedEvidence
+      .filter((item) => selectedEvidenceIds.has(item.id))
+      .map((item) => item.parentId),
+  )].slice(0, 8);
+
+  return {
+    responsibilityMappings: mappings,
+    missingGaps,
+    recommendedOrder,
+    selectedEvidenceIds: [...selectedEvidenceIds],
+  };
+}
+
+type TailoringAlignmentReport = {
+  score: number;
+  keywordCoverage: number;
+  responsibilityCoverage: number;
+  issues: string[];
+};
+
+function assessTailoringAlignment(input: {
+  job: JobExtraction;
+  summaryShort: string;
+  summaryLong: string;
+  experienceDescriptions: string[];
+  selectedSkills: string[];
+  baselineSkills: string[];
+  mapping: JobMappingResult;
+}): TailoringAlignmentReport {
+  const issues: string[] = [];
+  const fullText = `${input.summaryShort} ${input.summaryLong} ${input.experienceDescriptions.join(" ")}`
+    .toLowerCase();
+  const mustKeywords = [...new Set(
+    [...input.job.mustHaveSkills, ...input.job.keywords].map((item) =>
+      normalizeSummaryForDedupe(item),
+    ).filter(Boolean),
+  )];
+  const matched = mustKeywords.filter((keyword) => keyword && fullText.includes(keyword));
+  const keywordCoverage = mustKeywords.length > 0 ? matched.length / mustKeywords.length : 1;
+
+  const mappedResponsibilities = input.mapping.responsibilityMappings.filter(
+    (item) => item.evidenceIds.length > 0,
+  ).length;
+  const responsibilityCoverage =
+    input.job.responsibilities.length > 0 ?
+      mappedResponsibilities / input.job.responsibilities.length
+    : 1;
+
+  const baselineSkillKeys = new Set(input.baselineSkills.map((skill) => normalizeSkillKey(skill)));
+  const invalidSkills = input.selectedSkills.filter(
+    (skill) => !baselineSkillKeys.has(normalizeSkillKey(skill)),
+  );
+
+  if (keywordCoverage < 0.45) issues.push("low_keyword_coverage");
+  if (responsibilityCoverage < 0.5) issues.push("low_responsibility_coverage");
+  if (invalidSkills.length > 0) issues.push("non_resume_skills_detected");
+
+  let score = 100;
+  score -= Math.max(0, (0.6 - keywordCoverage) * 45);
+  score -= Math.max(0, (0.6 - responsibilityCoverage) * 40);
+  score -= invalidSkills.length > 0 ? 20 : 0;
+  score = Math.max(0, Math.round(score));
+
+  return {
+    score,
+    keywordCoverage: Number(keywordCoverage.toFixed(3)),
+    responsibilityCoverage: Number(responsibilityCoverage.toFixed(3)),
+    issues,
+  };
+}
+
+function normalizeSkillKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9+#.]/g, "");
+}
+
+function selectTailoredSkills(
+  job: JobExtraction,
+  baselineSkills: string[],
+  modelSkills: string[] = [],
+): string[] {
+  const baselineMap = new Map<string, string>();
+  for (const skill of baselineSkills) {
+    const trimmed = `${skill || ""}`.trim();
+    if (!trimmed) continue;
+    baselineMap.set(normalizeSkillKey(trimmed), trimmed);
+  }
+
+  const desiredOrder = [
+    ...job.mustHaveSkills,
+    ...job.keywords,
+    ...job.niceToHave,
+    ...modelSkills,
+  ]
+    .map((item) => `${item || ""}`.trim())
+    .filter(Boolean);
+
+  const selected: string[] = [];
+  const seen = new Set<string>();
+  for (const desired of desiredOrder) {
+    const key = normalizeSkillKey(desired);
+    const baselineSkill = baselineMap.get(key);
+    if (!baselineSkill || seen.has(key)) continue;
+    selected.push(baselineSkill);
+    seen.add(key);
+    if (selected.length >= 16) break;
+  }
+
+  if (selected.length < 8) {
+    for (const skill of baselineSkills) {
+      const key = normalizeSkillKey(skill);
+      if (seen.has(key)) continue;
+      selected.push(skill);
+      seen.add(key);
+      if (selected.length >= 12) break;
+    }
+  }
+
+  return selected;
+}
+
+function reduceShortLongOverlap(shortSummary: string, longSummary: string): { short: string; long: string } {
+  const shortSentences = splitSentences(shortSummary);
+  const paragraphs = splitParagraphs(longSummary);
+  if (shortSentences.length === 0 || paragraphs.length === 0) {
+    return { short: shortSummary, long: longSummary };
+  }
+
+  const filteredParagraphs = paragraphs.map((paragraph, paragraphIndex) => {
+    const longSentences = splitSentences(paragraph);
+    const filtered = longSentences.filter((sentence) => {
+      if (paragraphIndex > 0) return true;
+      return !shortSentences.some((shortSentence) => isNearDuplicateSentence(sentence, shortSentence));
+    });
+    return (filtered.length >= 2 ? filtered : longSentences).join(" ").trim();
+  });
+
+  const rebuiltLong = filteredParagraphs.filter(Boolean).join("\n\n").trim();
+  return {
+    short: shortSummary,
+    long: rebuiltLong || longSummary,
+  };
+}
+
 function buildTailoredSummaries(input: {
   generatedSummary?: string;
   generatedSummaryShort?: string;
@@ -607,7 +1259,9 @@ function buildTailoredSummaries(input: {
   short = cleanSummaryNarrative(removeAvoidPhrases(deRobotize(short), avoidPhrases));
   long = cleanSummaryNarrative(removeAvoidPhrases(deRobotize(long), avoidPhrases));
 
-  short = enforceShortSummaryLength(short || long);
+  short = enforceShortSummaryLength(
+    cleanSummaryNarrative(`${generatedSummaryShort} ${generatedSummary} ${short}`.trim()) || long,
+  );
   if (splitSentences(long).length < 6) {
     const expansion = cleanSummaryNarrative(
       `${generatedSummaryLong} ${generatedSummary} ${fallback} ${story}`.trim(),
@@ -617,8 +1271,14 @@ function buildTailoredSummaries(input: {
     long = enforceLongSummaryLength(long);
   }
 
-  if (!short) short = enforceShortSummaryLength(long);
+  short = enforceShortSummaryLength(short || long);
+  if (splitSentences(short).length < 3) {
+    short = enforceShortSummaryLength(long);
+  }
   if (!long) long = short;
+  const reducedOverlap = reduceShortLongOverlap(short, long);
+  short = enforceShortSummaryLength(reducedOverlap.short || short);
+  long = enforceLongSummaryLength(reducedOverlap.long || long);
 
   return { short, long };
 }
@@ -728,14 +1388,6 @@ function assessSummaryQuality(shortSummary: string, longSummary: string): Summar
   return { score, passed, issues };
 }
 
-function normalizeValue(value: string | null | undefined): string {
-  return (value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function extractNumericTokens(text: string): string[] {
   return Array.from(
     new Set(
@@ -750,8 +1402,14 @@ function sanitizeTailoredDescription(
   tailoredDescription: string | undefined,
   sourceDescription: string | null | undefined,
 ): string {
-  const tailored = (tailoredDescription || "").trim();
-  const source = (sourceDescription || "").trim();
+  const stripObjectTokens = (value: string) =>
+    value
+      .replace(/\[object object\]\.?/gi, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+  const tailored = stripObjectTokens((tailoredDescription || "").trim());
+  const source = stripObjectTokens((sourceDescription || "").trim());
   if (!source) return tailored;
   if (!tailored) return source;
 
@@ -787,6 +1445,250 @@ function parseSkillProficiency(value: string | undefined): "beginner" | "interme
     return normalized;
   }
   return "intermediate";
+}
+
+type ImmutableExperience = {
+  title: string;
+  company: string;
+  description: string;
+  startDate: Date;
+  endDate: Date | null;
+  current: boolean;
+  location: string;
+};
+
+type ImmutableProject = {
+  name: string;
+  description: string;
+  role: string;
+  githubUrl: string | null;
+  liveUrl: string | null;
+  startDate: Date;
+  endDate: Date | null;
+  featured: boolean;
+};
+
+type ImmutableEducation = {
+  institution: string;
+  degree: string;
+  field: string;
+  startDate: Date;
+  endDate: Date | null;
+};
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function toStringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function extractAchievementDescriptions(value: unknown, maxItems = 12): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((achievement) => toStringValue((achievement as any)?.description || achievement))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function enrichSnapshotForEvidence(
+  snapshot: Record<string, unknown>,
+  fallbackResumeData: Record<string, unknown>,
+): Record<string, unknown> {
+  const sourceExperiences = Array.isArray(snapshot.experiences) ? snapshot.experiences : [];
+  const fallbackExperiences = Array.isArray(fallbackResumeData.experiences) ? fallbackResumeData.experiences : [];
+  const sourceProjects = Array.isArray(snapshot.projects) ? snapshot.projects : [];
+  const fallbackProjects = Array.isArray(fallbackResumeData.projects) ? fallbackResumeData.projects : [];
+
+  const baseExperiences = sourceExperiences.length > 0 ? sourceExperiences : fallbackExperiences;
+  const baseProjects = sourceProjects.length > 0 ? sourceProjects : fallbackProjects;
+
+  const experiences = baseExperiences.map((item, index) => {
+    const primary = toRecord(item);
+    const fallback = toRecord(fallbackExperiences[index]);
+    const description = toStringValue(primary.description) || toStringValue(fallback.description);
+    const achievements = mergeUniqueStrings(
+      extractAchievementDescriptions(primary.achievements, 12),
+      extractAchievementDescriptions(fallback.achievements, 12),
+    ).slice(0, 12);
+    const technologies = mergeUniqueStrings(
+      sanitizeStringArray(primary.technologies, 12),
+      sanitizeStringArray(fallback.technologies, 12),
+    ).slice(0, 12);
+    const bullets = mergeUniqueStrings(
+      sanitizeStringArray(primary.bullets, 12),
+      splitDescriptionIntoBullets(description),
+      achievements,
+    ).slice(0, 12);
+    return {
+      ...fallback,
+      ...primary,
+      description,
+      achievements,
+      technologies,
+      bullets,
+    };
+  });
+
+  const projects = baseProjects.map((item, index) => {
+    const primary = toRecord(item);
+    const fallback = toRecord(fallbackProjects[index]);
+    const description = toStringValue(primary.description) || toStringValue(fallback.description);
+    const achievements = mergeUniqueStrings(
+      extractAchievementDescriptions(primary.achievements, 10),
+      extractAchievementDescriptions(fallback.achievements, 10),
+    ).slice(0, 10);
+    const technologies = mergeUniqueStrings(
+      sanitizeStringArray(primary.technologies, 12),
+      sanitizeStringArray(fallback.technologies, 12),
+    ).slice(0, 12);
+    const bullets = mergeUniqueStrings(
+      sanitizeStringArray(primary.bullets, 10),
+      splitDescriptionIntoBullets(description),
+      achievements,
+    ).slice(0, 10);
+    return {
+      ...fallback,
+      ...primary,
+      description,
+      achievements,
+      technologies,
+      bullets,
+    };
+  });
+
+  return {
+    ...fallbackResumeData,
+    ...snapshot,
+    experiences,
+    projects,
+  };
+}
+
+function dateToIsoDate(value: unknown): string | null {
+  if (!value) return null;
+  const parsed = new Date(value as any);
+  if (isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function formatYearMonth(value: Date | null | undefined): string {
+  if (!value) return "Unknown";
+  return value.toISOString().slice(0, 7);
+}
+
+function toImmutableExperience(value: any): ImmutableExperience {
+  const startDate = parseDateSafely(value?.startDate, new Date());
+  const current = Boolean(value?.current);
+  const endDate = current ? null : (value?.endDate ? parseDateSafely(value.endDate, startDate) : null);
+  return {
+    title: toStringValue(value?.title) || "Role",
+    company: toStringValue(value?.company) || "Company",
+    description: toStringValue(value?.description),
+    startDate,
+    endDate,
+    current,
+    location: toStringValue(value?.location),
+  };
+}
+
+function toImmutableProject(value: any): ImmutableProject {
+  const startDate = parseDateSafely(value?.startDate, new Date());
+  const endDate = value?.endDate ? parseDateSafely(value.endDate, startDate) : null;
+  return {
+    name: toStringValue(value?.name) || "Project",
+    description: toStringValue(value?.description),
+    role: toStringValue(value?.role),
+    githubUrl: toStringValue(value?.githubUrl || value?.url) || null,
+    liveUrl: toStringValue(value?.liveUrl) || null,
+    startDate,
+    endDate,
+    featured: Boolean(value?.featured),
+  };
+}
+
+function toImmutableEducation(value: any): ImmutableEducation {
+  const startDate = parseDateSafely(value?.startDate, new Date());
+  const endDate = value?.endDate ? parseDateSafely(value.endDate, startDate) : null;
+  return {
+    institution: toStringValue(value?.institution) || "Institution",
+    degree: toStringValue(value?.degree),
+    field: toStringValue(value?.field),
+    startDate,
+    endDate,
+  };
+}
+
+function buildUploadSnapshot(parsed: any, fileName: string) {
+  const skillsObject = toRecord(parsed?.skills);
+  const allSkills = [
+    ...(Array.isArray(parsed?.skills) ? parsed.skills : []),
+    ...(Array.isArray(skillsObject.technical) ? (skillsObject.technical as string[]) : []),
+    ...(Array.isArray(skillsObject.languages) ? (skillsObject.languages as string[]) : []),
+    ...(Array.isArray(skillsObject.frameworks) ? (skillsObject.frameworks as string[]) : []),
+    ...(Array.isArray(skillsObject.tools) ? (skillsObject.tools as string[]) : []),
+  ]
+    .map((skill) => `${skill || ""}`.trim())
+    .filter(Boolean);
+
+  const uniqueSkills = [...new Set(allSkills.map((skill) => skill.toLowerCase()))]
+    .map((key) => allSkills.find((skill) => skill.toLowerCase() === key)!)
+    .filter((skill) => Boolean(skill) && isLikelySkill(skill));
+
+  return {
+    sourceFileName: fileName,
+    capturedAt: new Date().toISOString(),
+    summary: {
+      short: toStringValue(parsed?.summary?.short),
+      long: toStringValue(parsed?.summary?.long),
+    },
+    experiences: (Array.isArray(parsed?.experiences) ? parsed.experiences : []).map((exp: any) => ({
+      title: toStringValue(exp?.title),
+      company: toStringValue(exp?.company),
+      description: toStringValue(exp?.description),
+      achievements: extractAchievementDescriptions(exp?.achievements, 12),
+      technologies: sanitizeStringArray(exp?.technologies, 12),
+      bullets: mergeUniqueStrings(
+        splitDescriptionIntoBullets(toStringValue(exp?.description)),
+        extractAchievementDescriptions(exp?.achievements, 12),
+      ).slice(0, 12),
+      embedding: Array.isArray(exp?.embedding) ?
+          exp.embedding.filter((value: unknown) => typeof value === "number")
+        : [],
+      startDate: dateToIsoDate(exp?.startDate),
+      endDate: dateToIsoDate(exp?.endDate),
+      current: Boolean(exp?.current),
+      location: toStringValue(exp?.location),
+    })),
+    projects: (Array.isArray(parsed?.projects) ? parsed.projects : []).map((proj: any) => ({
+      name: toStringValue(proj?.name),
+      description: toStringValue(proj?.description),
+      achievements: extractAchievementDescriptions(proj?.achievements, 10),
+      technologies: sanitizeStringArray(proj?.technologies, 12),
+      bullets: mergeUniqueStrings(
+        splitDescriptionIntoBullets(toStringValue(proj?.description)),
+        extractAchievementDescriptions(proj?.achievements, 10),
+      ).slice(0, 10),
+      embedding: Array.isArray(proj?.embedding) ?
+          proj.embedding.filter((value: unknown) => typeof value === "number")
+        : [],
+      role: toStringValue(proj?.role),
+      githubUrl: toStringValue(proj?.githubUrl || proj?.url),
+      liveUrl: toStringValue(proj?.liveUrl),
+      startDate: dateToIsoDate(proj?.startDate),
+      endDate: dateToIsoDate(proj?.endDate),
+      featured: Boolean(proj?.featured),
+    })),
+    education: (Array.isArray(parsed?.education) ? parsed.education : []).map((edu: any) => ({
+      institution: toStringValue(edu?.institution),
+      degree: toStringValue(edu?.degree),
+      field: toStringValue(edu?.field),
+      startDate: dateToIsoDate(edu?.startDate),
+      endDate: dateToIsoDate(edu?.endDate),
+    })),
+    skills: uniqueSkills,
+  };
 }
 
 // Get user's resumes
@@ -1089,6 +1991,13 @@ fastify.post<{
     }
 
     // Create resume with all parsed data
+    const existingResumeData = toRecord(resumeData);
+    const uploadSnapshot = buildUploadSnapshot(parsed, fileName);
+    const immutableResumeData = {
+      ...existingResumeData,
+      uploadSnapshot,
+    };
+
     const resume = await prisma.masterResume.create({
       data: {
         userId: request.user.id,
@@ -1102,7 +2011,7 @@ fastify.post<{
         summaryShort: parsed.summary?.short || `Uploaded from ${fileName}`,
         summaryLong: parsed.summary?.long || "",
         rawText: rawText,
-        resumeData: resumeData,
+        resumeData: immutableResumeData,
       },
       include: {
         experiences: true,
@@ -1172,7 +2081,9 @@ fastify.post<{
     ];
     const uniqueSkills = [
       ...new Set(allSkills.map((s) => s.toLowerCase())),
-    ].map((s) => allSkills.find((k) => k.toLowerCase() === s)!);
+    ]
+      .map((s) => allSkills.find((k) => k.toLowerCase() === s)!)
+      .filter((skill) => Boolean(skill) && isLikelySkill(skill));
 
     for (const skillName of uniqueSkills) {
       try {
@@ -1280,107 +2191,427 @@ fastify.post<{
 
     console.log("Starting tailor for resume:", masterResume.fullName);
 
-    const resumeData = masterResume.resumeData as any;
-    const experiencesText = masterResume.experiences
-      .map((exp) => `${exp.title} at ${exp.company} (${exp.startDate?.toISOString().slice(0, 7)} - ${exp.current ? "Present" : exp.endDate?.toISOString().slice(0, 7)}): ${exp.description}`)
-      .join("\n\n");
+    const resumeData = toRecord(masterResume.resumeData);
+    const uploadSnapshot = toRecord(resumeData.uploadSnapshot);
+    const legacySnapshot = buildUploadSnapshot(
+      resumeData,
+      toStringValue(uploadSnapshot.sourceFileName) ||
+        toStringValue(resumeData.sourceFileName) ||
+        "legacy-upload",
+    );
 
-    const projectsText = masterResume.projects
-      .map((proj) => `${proj.name}: ${proj.description}`)
-      .join("\n\n");
+    const hasUploadSnapshot =
+      (Array.isArray(uploadSnapshot.experiences) && uploadSnapshot.experiences.length > 0) ||
+      (Array.isArray(uploadSnapshot.projects) && uploadSnapshot.projects.length > 0) ||
+      (Array.isArray(uploadSnapshot.education) && uploadSnapshot.education.length > 0) ||
+      (Array.isArray(uploadSnapshot.skills) && uploadSnapshot.skills.length > 0) ||
+      Boolean(toStringValue(toRecord(uploadSnapshot.summary).short) || toStringValue(toRecord(uploadSnapshot.summary).long));
 
-    const skillsText = masterResume.skills.map((s) => s.name).join(", ");
+    const activeSnapshot = hasUploadSnapshot ? uploadSnapshot : legacySnapshot;
+    const evidenceSnapshot = enrichSnapshotForEvidence(activeSnapshot, resumeData);
+    const snapshotExperiences = Array.isArray(activeSnapshot.experiences)
+      ? activeSnapshot.experiences.map((exp) => toImmutableExperience(exp))
+      : [];
+    const snapshotProjects = Array.isArray(activeSnapshot.projects)
+      ? activeSnapshot.projects.map((proj) => toImmutableProject(proj))
+      : [];
+    const snapshotEducation = Array.isArray(activeSnapshot.education)
+      ? activeSnapshot.education.map((edu) => toImmutableEducation(edu))
+      : [];
+    const snapshotSkills = Array.isArray(activeSnapshot.skills)
+      ? activeSnapshot.skills
+          .map((skill) => `${skill || ""}`.trim())
+          .filter((skill) => Boolean(skill) && isLikelySkill(skill))
+      : [];
+    const sourceSummary = toRecord(activeSnapshot.summary);
+
+    const hasImmutableSnapshot =
+      snapshotExperiences.length > 0 ||
+      snapshotProjects.length > 0 ||
+      snapshotEducation.length > 0 ||
+      snapshotSkills.length > 0 ||
+      Boolean(toStringValue(sourceSummary.short) || toStringValue(sourceSummary.long));
+
+    const baselineExperiences: ImmutableExperience[] = hasImmutableSnapshot && snapshotExperiences.length > 0
+      ? snapshotExperiences
+      : masterResume.experiences.map((exp: any) => toImmutableExperience(exp));
+
+    const baselineProjects: ImmutableProject[] = hasImmutableSnapshot && snapshotProjects.length > 0
+      ? snapshotProjects
+      : masterResume.projects.map((proj: any) => toImmutableProject(proj));
+
+    const baselineEducation: ImmutableEducation[] = hasImmutableSnapshot && snapshotEducation.length > 0
+      ? snapshotEducation
+      : masterResume.education.map((edu: any) => toImmutableEducation(edu));
+
+    const baselineSkills = hasImmutableSnapshot && snapshotSkills.length > 0
+      ? snapshotSkills
+      : masterResume.skills
+          .map((s: any) => `${s.name || ""}`.trim())
+          .filter((skill: string) => Boolean(skill) && isLikelySkill(skill));
+
+    const sourceSummaryShort =
+      (hasImmutableSnapshot ? toStringValue(sourceSummary.short) : "") ||
+      masterResume.summaryShort ||
+      "";
+    const sourceSummaryLong =
+      (hasImmutableSnapshot ? toStringValue(sourceSummary.long) : "") ||
+      masterResume.summaryLong ||
+      "";
+
+    const skillsText = baselineSkills.join(", ");
+    const rawResumeText = toStringValue(masterResume.rawText).slice(0, 12000);
     const storySnippet = buildCareerStorySnippet(careerStory);
     const avoidPhrases = parseAvoidPhrases(voiceProfile?.avoidPhrases);
+    const transferableSkills = formatTransferableSkills(careerStory?.transferableSkills);
+    const evidenceBullets = buildEvidenceBullets({
+      experiences: baselineExperiences,
+      projects: baselineProjects,
+      snapshot: evidenceSnapshot,
+    });
 
-    const systemPrompt = `You are an expert resume writer. Tailor the resume to the job while preserving factual accuracy.
+    try {
+      console.log("Starting 3-step tailoring pipeline...");
+      let tailoredData: any = null;
 
-Hard constraints:
-1. Do NOT invent facts, numbers, outcomes, or scope.
-2. Preserve tense and status: if work is in progress, keep it in-progress.
-3. Keep claims grounded in provided resume content only.
-4. Prefer rewriting and prioritizing existing achievements over creating new claims.
-5. Use job keywords only when they truthfully match candidate experience.
-6. Use plain, human wording and avoid buzzwords.
-7. Avoid stock phrasing such as "proven expertise", "demonstrated ability", "results-driven", and "product-first mindset".
-8. Never convert ongoing work into completed language (e.g., don't change "building" to "built").
-9. Keep summaryShort at 3-5 sentences in one paragraph.
-10. Keep summaryLong at 2-3 paragraphs, with about 2-4 sentences per paragraph.
-11. If user voice preferences exist, follow them.
-12. Do NOT copy personal-story text verbatim; convert it into concise professional positioning.
-13. Avoid first-person narrative ("I", "my", "me") in summaries.
-
-Output a tailored resume in JSON format with the following structure:
+      // Step A: Extract structured job requirements
+      const extractionFallback = fallbackExtractJobProfile(jobDescription, jobTitle);
+      let jobProfile = extractionFallback;
+      const extractionSystemPrompt = `You extract software job requirements into strict JSON.
+Rules:
+1. Keep only information grounded in the provided job description.
+2. Return concise items only.
+3. roleFocus must be one of: backend, frontend, fullstack, platform, data, software-engineering.
+Return JSON:
 {
-  "summary": "tailored summary (optional fallback)",
-  "summaryShort": "3-5 sentence short summary in one paragraph",
-  "summaryLong": "2-3 paragraph long summary",
-  "experiences": [
-    { "title": "Job Title", "company": "Company Name", "description": "Tailored experience description..." }
-  ],
-  "skills": ["Skill 1", "Skill 2", ...]
+  "mustHaveSkills": ["..."],
+  "niceToHave": ["..."],
+  "responsibilities": ["..."],
+  "keywords": ["..."],
+  "senioritySignals": ["..."],
+  "roleFocus": "..."
 }`;
+      const extractionPrompt = `Job Title: ${jobTitle || "Not provided"}
+Company: ${companyName || "Not provided"}
+Job Description:
+${jobDescription}`;
+      const extractionResult = await llmService.completeJSON<any>(extractionPrompt, {
+        systemPrompt: extractionSystemPrompt,
+        maxTokens: 1400,
+        temperature: 0.15,
+      });
+      if (extractionResult.success && extractionResult.data) {
+        jobProfile = normalizeJobExtraction(extractionResult.data, extractionFallback);
+      }
 
-    const userPrompt = `Master Resume:
+      // Deterministic selection step over evidence bullets
+      const rankedEvidence = rankEvidenceBullets(evidenceBullets, jobProfile, 28);
+      const selectedEvidence = rankedEvidence.length > 0 ? rankedEvidence : [];
+      const selectedEvidenceIds = new Set(selectedEvidence.map((item) => item.id));
+
+      // Step B: map responsibilities to evidence IDs (no rewriting)
+      let mappingResult = buildRuleBasedMapping(jobProfile, selectedEvidence);
+      const mappingSystemPrompt = `You are matching responsibilities to resume evidence IDs.
+Rules:
+1. Do not rewrite text.
+2. Use only provided evidence IDs.
+3. If no evidence supports a responsibility, leave its evidenceIds empty.
+Return JSON:
+{
+  "responsibilityMappings":[{"responsibility":"...","evidenceIds":["exp_0_b_0"],"notes":"optional"}],
+  "missingGaps":["..."],
+  "recommendedOrder":["exp_0","exp_1","proj_0"],
+  "selectedEvidenceIds":["exp_0_b_0","exp_1_b_2"]
+}`;
+      const mappingPrompt = `Responsibilities:
+${jobProfile.responsibilities.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+
+Must-have skills: ${jobProfile.mustHaveSkills.join(", ") || "Not provided"}
+Keywords: ${jobProfile.keywords.join(", ") || "Not provided"}
+
+Evidence bullets:
+${selectedEvidence
+  .map((item) => `${item.id} | ${item.title}${item.company ? ` @ ${item.company}` : ""} | ${item.text}`)
+  .join("\n")}`;
+      const mappingResponse = await llmService.completeJSON<any>(mappingPrompt, {
+        systemPrompt: mappingSystemPrompt,
+        maxTokens: 1800,
+        temperature: 0.15,
+      });
+      if (mappingResponse.success && mappingResponse.data) {
+        const parsed = mappingResponse.data;
+        const parsedMappings = Array.isArray(parsed?.responsibilityMappings) ?
+            parsed.responsibilityMappings
+              .map((item: any) => ({
+                responsibility: `${item?.responsibility || ""}`.trim(),
+                evidenceIds: sanitizeStringArray(item?.evidenceIds, 6).filter((id) => selectedEvidenceIds.has(id)),
+                notes: `${item?.notes || ""}`.trim() || undefined,
+              }))
+              .filter((item: ResponsibilityMapping) => item.responsibility)
+          : [];
+        const parsedSelectedEvidenceIds = sanitizeStringArray(parsed?.selectedEvidenceIds, 40).filter((id) =>
+          selectedEvidenceIds.has(id),
+        );
+        const mergedSelectedEvidenceIds = [
+          ...new Set([
+            ...mappingResult.selectedEvidenceIds,
+            ...parsedSelectedEvidenceIds,
+            ...parsedMappings.flatMap((item: ResponsibilityMapping) => item.evidenceIds),
+          ]),
+        ];
+        mappingResult = {
+          responsibilityMappings: parsedMappings.length > 0 ? parsedMappings : mappingResult.responsibilityMappings,
+          missingGaps: sanitizeStringArray(parsed?.missingGaps, 10),
+          recommendedOrder: mergeUniqueStrings(
+            mappingResult.recommendedOrder,
+            sanitizeStringArray(parsed?.recommendedOrder, 10),
+          ).slice(0, 10),
+          selectedEvidenceIds: mergedSelectedEvidenceIds.slice(0, 40),
+        };
+      }
+
+      const rewriteEvidenceIds = new Set<string>([
+        ...mappingResult.selectedEvidenceIds,
+        ...mappingResult.responsibilityMappings.flatMap((item) => item.evidenceIds),
+      ]);
+      const minimumExperienceEvidence = selectedEvidence
+        .filter((item) => item.sourceType === "experience")
+        .slice(0, 6);
+      minimumExperienceEvidence.forEach((item) => rewriteEvidenceIds.add(item.id));
+      mappingResult.selectedEvidenceIds = [
+        ...new Set([
+          ...mappingResult.selectedEvidenceIds,
+          ...minimumExperienceEvidence.map((item) => item.id),
+        ]),
+      ];
+
+      const rewriteEvidence = selectedEvidence.filter((item) => rewriteEvidenceIds.has(item.id));
+      const effectiveRewriteEvidence =
+        rewriteEvidence.length > 0 ? rewriteEvidence : selectedEvidence.slice(0, 16);
+
+      // Step C: rewrite only selected IDs
+      const rewriteSystemPrompt = `You are an expert resume editor.
+Rules:
+1. Rewrite only selected evidence IDs. Do not invent facts, metrics, or tools.
+2. Keep tense/status consistent for ongoing work.
+3. Keep summaryShort to 3-5 sentences.
+4. Keep summaryLong to 2-3 paragraphs.
+5. Avoid first-person narrative and avoid buzzword phrases.
+6. Apply user voice preferences when provided.
+7. Do not change professional identity to an unrelated title (e.g., do not switch to "Data Engineer" unless source evidence explicitly supports that primary title).
+8. Prioritize experience evidence over project-only claims when writing role-fit statements.
+Return strict JSON:
+{
+  "summaryShortSentences":[{"text":"...","evidenceIds":["exp_0_b_0"]}],
+  "summaryLongParagraphs":[{"sentences":[{"text":"...","evidenceIds":["exp_0_b_0"]}]}],
+  "experienceBulletRewrites":{"exp_0_b_0":"..."},
+  "skills":["..."],
+  "summaryShort":"optional fallback short summary",
+  "summaryLong":"optional fallback long summary",
+  "summary":"optional fallback summary"
+}`;
+      const rewritePrompt = `Candidate:
 Name: ${masterResume.fullName}
 Email: ${masterResume.email}
+Current Skills: ${skillsText}
 
-Experiences:
-${experiencesText}
+Job Profile:
+Role Focus: ${jobProfile.roleFocus}
+Must-have skills: ${jobProfile.mustHaveSkills.join(", ") || "Not provided"}
+Responsibilities:
+${jobProfile.responsibilities.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+Keywords: ${jobProfile.keywords.join(", ") || "Not provided"}
+Seniority Signals: ${jobProfile.senioritySignals.join(", ") || "Not provided"}
 
-Projects:
-${projectsText}
-
-Skills: ${skillsText}
-
-Job Description:
-${jobDescription}
-
-My Story (user input):
+Story/Voice:
 Narrative Anchor: ${storySnippet || "Not provided"}
-Transferable Skills Mapping: ${formatTransferableSkills(careerStory?.transferableSkills) || "Not provided"}
-
-Voice Profile (user input):
+Transferable Skills Mapping: ${transferableSkills || "Not provided"}
+Professional Identity Anchor:
+Source Summary Short: ${sourceSummaryShort || "Not provided"}
+Source Summary Long: ${sourceSummaryLong || "Not provided"}
 Tone: ${voiceProfile?.tone || "Not provided"}
 Style: ${voiceProfile?.style || "Not provided"}
 Preferred Examples: ${(voiceProfile?.examples || "").slice(0, 700) || "Not provided"}
-Phrases To Avoid: ${avoidPhrases.length > 0 ? avoidPhrases.join(", ") : "Not provided"}
+Avoid Phrases: ${avoidPhrases.length > 0 ? avoidPhrases.join(", ") : "Not provided"}
 
-Tailor the resume above to match this job.`;
+Original Resume Text (raw excerpt):
+${rawResumeText || "Not provided"}
 
-    try {
-      console.log("Calling configured LLM provider for tailoring...");
-      let tailoredData: any = null;
+Selected Evidence IDs:
+${effectiveRewriteEvidence
+  .map((item) => `${item.id} | ${item.title}${item.company ? ` @ ${item.company}` : ""} | ${item.text}`)
+  .join("\n")}`;
 
-      const structuredResult = await llmService.completeJSON<any>(userPrompt, {
-        systemPrompt,
-        maxTokens: 4000,
-        temperature: 0.4,
+      const rewriteResult = await llmService.completeJSON<any>(rewritePrompt, {
+        systemPrompt: rewriteSystemPrompt,
+        maxTokens: 3200,
+        temperature: 0.25,
       });
 
-      if (
-        structuredResult.success &&
-        structuredResult.data &&
-        typeof structuredResult.data === "object"
-      ) {
-        tailoredData = Array.isArray(structuredResult.data)
-          ? (structuredResult.data[0] || {})
-          : structuredResult.data;
+      if (rewriteResult.success && rewriteResult.data && typeof rewriteResult.data === "object") {
+        tailoredData = Array.isArray(rewriteResult.data)
+          ? (rewriteResult.data[0] || {})
+          : rewriteResult.data;
       } else {
-        const plainResult = await llmService.complete(userPrompt, {
-          systemPrompt,
+        const plainFallbackPrompt = `${rewritePrompt}\n\nWrite only JSON with summaryShort, summaryLong, and experienceBulletRewrites.`;
+        const plainResult = await llmService.complete(plainFallbackPrompt, {
+          systemPrompt: rewriteSystemPrompt,
           maxTokens: 2200,
-          temperature: 0.4,
+          temperature: 0.25,
         });
         const fallbackText = plainResult.success && plainResult.data ? plainResult.data : "";
         tailoredData = {
-          summary: fallbackText.slice(0, 500),
-          summaryShort: fallbackText.slice(0, 700),
-          summaryLong: fallbackText.slice(0, 1800),
-          experiences: [fallbackText],
-          skills: masterResume.skills.map((s) => s.name),
+          summary: fallbackText.slice(0, 550),
+          summaryShort: fallbackText.slice(0, 850),
+          summaryLong: fallbackText.slice(0, 2200),
+          experienceBulletRewrites: {},
+          skills: [],
         };
       }
+
+      const rewrites = toRecord(
+        tailoredData.experienceBulletRewrites || tailoredData.rewrites || {},
+      );
+      const selectedEvidenceMap = new Map(effectiveRewriteEvidence.map((item) => [item.id, item]));
+
+      const rewrittenExperienceDescriptions = baselineExperiences.map((experience, expIndex) => {
+        const sourceBullets = evidenceBullets
+          .filter((item) => item.sourceType === "experience" && item.sourceIndex === expIndex)
+          .sort((a, b) => a.id.localeCompare(b.id));
+        if (sourceBullets.length === 0) return experience.description;
+
+        const prioritizedBullets = sourceBullets
+          .map((bullet) => ({
+            bullet,
+            priority:
+              (rewriteEvidenceIds.has(bullet.id) ? 4 : 0) +
+              (selectedEvidenceMap.has(bullet.id) ? 2 : 0),
+          }))
+          .sort((a, b) => b.priority - a.priority)
+          .slice(0, 4)
+          .map((item) => item.bullet);
+
+        const rewrittenLines = prioritizedBullets.map((bullet) => {
+          const candidate = `${rewrites[bullet.id] || ""}`.trim();
+          const normalized = candidate ? cleanSummaryNarrative(candidate) : "";
+          const rewritten = normalized || bullet.text;
+          return /[.!?]$/.test(rewritten) ? rewritten : `${rewritten}.`;
+        });
+        const description = sanitizeTailoredDescription(
+          rewrittenLines.join(" "),
+          experience.description,
+        );
+        return description || experience.description;
+      });
+
+      const summaryShortSentences = Array.isArray(tailoredData.summaryShortSentences) ?
+          tailoredData.summaryShortSentences
+            .map((entry: any) => `${entry?.text || ""}`.trim())
+            .filter(Boolean)
+        : [];
+      const summaryLongParagraphs = Array.isArray(tailoredData.summaryLongParagraphs) ?
+          tailoredData.summaryLongParagraphs
+            .map((paragraph: any) => {
+              const sentenceEntries = Array.isArray(paragraph?.sentences) ? paragraph.sentences : [];
+              return sentenceEntries
+                .map((sentence: any) => `${sentence?.text || ""}`.trim())
+                .filter(Boolean)
+                .join(" ")
+                .trim();
+            })
+            .filter(Boolean)
+        : [];
+
+      const generatedSummaryFromEvidence = `${summaryShortSentences.join(" ")} ${summaryLongParagraphs.join(" ")}`.trim();
+      tailoredData.summary = `${tailoredData.summary || generatedSummaryFromEvidence || ""}`.trim();
+      tailoredData.summaryShort =
+        `${tailoredData.summaryShort || summaryShortSentences.join(" ") || ""}`.trim();
+      tailoredData.summaryLong =
+        `${tailoredData.summaryLong || summaryLongParagraphs.join("\n\n") || ""}`.trim();
+      tailoredData.experiences = baselineExperiences.map((exp, index) => ({
+        title: exp.title,
+        company: exp.company,
+        description: rewrittenExperienceDescriptions[index] || exp.description || "",
+      }));
+      tailoredData.skills = selectTailoredSkills(
+        jobProfile,
+        baselineSkills,
+        sanitizeStringArray(tailoredData.skills, 20),
+      );
+
+      const alignmentReport = assessTailoringAlignment({
+        job: jobProfile,
+        summaryShort: tailoredData.summaryShort,
+        summaryLong: tailoredData.summaryLong,
+        experienceDescriptions: rewrittenExperienceDescriptions,
+        selectedSkills: tailoredData.skills,
+        baselineSkills,
+        mapping: mappingResult,
+      });
+
+      if (alignmentReport.score < 70) {
+        try {
+          const repairSystemPrompt = `You repair resume summaries for stronger job alignment.
+Rules:
+1. Use only provided evidence bullet IDs and facts.
+2. Increase keyword and responsibility alignment without adding new facts.
+3. Keep summaryShort as 3-5 sentences, one paragraph.
+4. Keep summaryLong as 2-3 paragraphs.
+5. Keep writing human and non-repetitive.`;
+          const repairPrompt = `Job keywords: ${jobProfile.keywords.join(", ") || "Not provided"}
+Responsibilities:
+${jobProfile.responsibilities.map((item, index) => `${index + 1}. ${item}`).join("\n")}
+
+Evidence bullets:
+${effectiveRewriteEvidence.map((item) => `${item.id}: ${item.text}`).join("\n")}
+
+Current Summary Short:
+${tailoredData.summaryShort}
+
+Current Summary Long:
+${tailoredData.summaryLong}
+
+Return JSON:
+{
+  "summaryShort":"...",
+  "summaryLong":"..."
+}`;
+          const alignmentRepair = await llmService.completeJSON<any>(repairPrompt, {
+            systemPrompt: repairSystemPrompt,
+            maxTokens: 1500,
+            temperature: 0.2,
+          });
+          if (alignmentRepair.success && alignmentRepair.data) {
+            const payload = Array.isArray(alignmentRepair.data) ?
+                (alignmentRepair.data[0] || {})
+              : alignmentRepair.data;
+            if (typeof payload.summaryShort === "string" && payload.summaryShort.trim()) {
+              tailoredData.summaryShort = payload.summaryShort.trim();
+            }
+            if (typeof payload.summaryLong === "string" && payload.summaryLong.trim()) {
+              tailoredData.summaryLong = payload.summaryLong.trim();
+            }
+            tailoredData.summary = `${tailoredData.summaryShort} ${tailoredData.summaryLong}`.trim();
+          }
+        } catch (alignmentRepairError: any) {
+          console.warn("Alignment repair pass failed:", alignmentRepairError?.message || alignmentRepairError);
+        }
+      }
+
+      console.log("Tailor pipeline metrics", {
+        resumeId: id,
+        roleFocus: jobProfile.roleFocus,
+        mustHaveSkills: jobProfile.mustHaveSkills.slice(0, 10),
+        topEvidence: selectedEvidence.slice(0, 8).map((item) => ({
+          id: item.id,
+          score: Number(item.score.toFixed(3)),
+          matchedKeywords: item.matchedKeywords.slice(0, 4),
+        })),
+        keywordCoverage: alignmentReport.keywordCoverage,
+        responsibilityCoverage: alignmentReport.responsibilityCoverage,
+        alignmentScore: alignmentReport.score,
+        alignmentIssues: alignmentReport.issues,
+      });
 
       const generatedSummary =
         typeof tailoredData.summary === "string" ? tailoredData.summary : "";
@@ -1393,8 +2624,8 @@ Tailor the resume above to match this job.`;
           generatedSummary,
           generatedSummaryShort,
           generatedSummaryLong,
-          sourceShort: masterResume.summaryShort,
-          sourceLong: masterResume.summaryLong,
+          sourceShort: sourceSummaryShort,
+          sourceLong: sourceSummaryLong,
           storySnippet,
           avoidPhrases,
         },
@@ -1407,12 +2638,11 @@ Tailor the resume above to match this job.`;
 
       if (!summaryQuality.passed) {
         try {
-          const roleFacts = masterResume.experiences
+          const roleFacts = baselineExperiences
             .slice(0, 5)
             .map((exp) => `${exp.title} at ${exp.company}`)
             .join("; ");
-          const topSkills = masterResume.skills
-            .map((skill) => skill.name)
+          const topSkills = baselineSkills
             .slice(0, 20)
             .join(", ");
 
@@ -1478,8 +2708,8 @@ ${summaryQuality.issues.join(", ") || "none"}`;
                 typeof repairedData.summaryShort === "string" ? repairedData.summaryShort : "",
               generatedSummaryLong:
                 typeof repairedData.summaryLong === "string" ? repairedData.summaryLong : "",
-              sourceShort: masterResume.summaryShort,
-              sourceLong: masterResume.summaryLong,
+              sourceShort: sourceSummaryShort,
+              sourceLong: sourceSummaryLong,
               storySnippet,
               avoidPhrases,
             });
@@ -1520,8 +2750,26 @@ ${summaryQuality.issues.join(", ") || "none"}`;
               tailoredAt: new Date().toISOString(),
               usedCareerStory: Boolean(storySnippet),
               usedVoiceProfile: Boolean(voiceProfile),
+              sourceResumeMode: hasImmutableSnapshot ? "upload_snapshot" : "editable_resume",
+              sourceFileName: hasImmutableSnapshot ? toStringValue(activeSnapshot.sourceFileName) || null : null,
               summaryQualityScore: summaryQuality.score,
               summaryQualityIssues: summaryQuality.issues,
+              jobExtraction: {
+                roleFocus: jobProfile.roleFocus,
+                mustHaveSkills: jobProfile.mustHaveSkills.slice(0, 12),
+                responsibilities: jobProfile.responsibilities.slice(0, 10),
+                keywords: jobProfile.keywords.slice(0, 24),
+                senioritySignals: jobProfile.senioritySignals.slice(0, 12),
+              },
+              evidenceSelection: {
+                selectedEvidenceIds: mappingResult.selectedEvidenceIds.slice(0, 40),
+                recommendedOrder: mappingResult.recommendedOrder.slice(0, 12),
+                missingGaps: mappingResult.missingGaps.slice(0, 12),
+              },
+              alignmentScore: alignmentReport.score,
+              alignmentKeywordCoverage: alignmentReport.keywordCoverage,
+              alignmentResponsibilityCoverage: alignmentReport.responsibilityCoverage,
+              alignmentIssues: alignmentReport.issues,
             },
             tailoredExperiences: tailoredData.experiences,
             tailoredSkills: tailoredData.skills,
@@ -1531,92 +2779,19 @@ ${summaryQuality.issues.join(", ") || "none"}`;
         },
       });
       
-      // FIX: Create and associate the tailored experiences
-      if (masterResume.experiences && masterResume.experiences.length > 0) {
-        const tailoredExperiences = Array.isArray(tailoredData.experiences)
-          ? tailoredData.experiences
-          : [];
-        const usedTailoredIndexes = new Set<number>();
-
-        const getTailoredExperienceFields = (value: any): {
-          title: string;
-          company: string;
-          description: string;
-        } => {
-          if (typeof value === "string") {
-            return {
-              title: "",
-              company: "",
-              description: value,
-            };
-          }
-          return {
-            title: typeof value?.title === "string" ? value.title : "",
-            company: typeof value?.company === "string" ? value.company : "",
-            description: typeof value?.description === "string" ? value.description : "",
-          };
-        };
-
-        const scoreExperienceMatch = (
-          master: { title: string; company: string },
-          candidate: { title: string; company: string },
-          indexBias: number,
-        ): number => {
-          const masterTitle = normalizeValue(master.title);
-          const masterCompany = normalizeValue(master.company);
-          const candidateTitle = normalizeValue(candidate.title);
-          const candidateCompany = normalizeValue(candidate.company);
-          let score = 0;
-
-          if (candidateCompany) {
-            if (candidateCompany === masterCompany) score += 6;
-            else if (
-              masterCompany.includes(candidateCompany) ||
-              candidateCompany.includes(masterCompany)
-            ) {
-              score += 4;
-            }
-          }
-
-          if (candidateTitle) {
-            if (candidateTitle === masterTitle) score += 5;
-            else if (masterTitle.includes(candidateTitle) || candidateTitle.includes(masterTitle)) {
-              score += 3;
-            }
-          }
-
-          score += indexBias;
-          return score;
-        };
-
-        for (const [masterIndex, masterExp] of masterResume.experiences.entries()) {
-          let bestTailoredIndex = -1;
-          let bestScore = -1;
-          let bestFields = { title: "", company: "", description: "" };
-
-          for (const [candidateIndex, candidate] of tailoredExperiences.entries()) {
-            if (usedTailoredIndexes.has(candidateIndex)) continue;
-            const fields = getTailoredExperienceFields(candidate);
-            const indexBias = candidateIndex === masterIndex ? 2 : 0;
-            const score = scoreExperienceMatch(
-              { title: masterExp.title, company: masterExp.company },
-              { title: fields.title, company: fields.company },
-              indexBias,
-            );
-
-            if (score > bestScore) {
-              bestScore = score;
-              bestTailoredIndex = candidateIndex;
-              bestFields = fields;
-            }
-          }
-
-          if (bestTailoredIndex >= 0) {
-            usedTailoredIndexes.add(bestTailoredIndex);
-          }
-
+      // Create tailored experiences with deterministic ID-keyed rewrites (no fuzzy matching)
+      if (baselineExperiences.length > 0) {
+        const tailoredExperiences = Array.isArray(tailoredData.experiences) ? tailoredData.experiences : [];
+        for (const [masterIndex, masterExp] of baselineExperiences.entries()) {
+          const candidate = tailoredExperiences[masterIndex];
+          const candidateDescription =
+            typeof candidate === "string" ?
+              candidate
+            : typeof candidate?.description === "string" ?
+              candidate.description
+            : "";
           const description = sanitizeTailoredDescription(
-            bestFields.description,
+            candidateDescription,
             masterExp.description,
           );
 
@@ -1627,7 +2802,7 @@ ${summaryQuality.issues.join(", ") || "none"}`;
               company: masterExp.company,
               description: description || masterExp.description || "",
               startDate: masterExp.startDate,
-              endDate: masterExp.endDate ?? null,
+              endDate: masterExp.endDate,
               current: masterExp.current || false,
               location: masterExp.location || "",
               embedding: [],
@@ -1662,38 +2837,61 @@ ${summaryQuality.issues.join(", ") || "none"}`;
 
       // FIX: Create and associate the tailored skills
       if (tailoredData.skills && tailoredData.skills.length > 0) {
-        for (const skillName of tailoredData.skills) {
+        const uniqueSkillNames = [
+          ...new Set(
+            tailoredData.skills
+              .map((skill: any) => `${skill || ""}`.trim())
+              .filter(Boolean)
+              .map((skill: string) => skill.toLowerCase()),
+          ),
+        ].map((key) =>
+          tailoredData.skills.find(
+            (skill: any) => `${skill || ""}`.trim().toLowerCase() === key,
+          ),
+        );
+
+        for (const rawSkillName of uniqueSkillNames) {
+          const skillName = `${rawSkillName || ""}`.trim();
+          if (!skillName) continue;
+          try {
             await prisma.skill.create({
-                data: {
-                    resumeId: tailoredResume.id,
-                    name: skillName,
-                    category: "technical",
-                },
+              data: {
+                resumeId: tailoredResume.id,
+                name: skillName,
+                category: "technical",
+              },
             });
+          } catch (skillError: any) {
+            console.warn("Skipping duplicate/invalid skill:", skillName, skillError?.message || skillError);
+          }
         }
       }
 
       // FIX: Copy projects from master resume
-      if (masterResume.projects && masterResume.projects.length > 0) {
-        for (const project of masterResume.projects) {
+      if (baselineProjects.length > 0) {
+        for (const project of baselineProjects) {
+          try {
             await prisma.project.create({
                 data: {
                     resumeId: tailoredResume.id,
                     name: project.name,
                     description: project.description || "",
                     role: project.role || "",
-                    githubUrl: project.githubUrl || project.url || null,
+                    githubUrl: project.githubUrl || null,
                     liveUrl: project.liveUrl || null,
                     startDate: project.startDate || new Date(),
-                    endDate: project.endDate || new Date(),
+                    endDate: project.endDate || project.startDate || new Date(),
                 },
             });
+          } catch (projectError: any) {
+            console.warn("Skipping duplicate/invalid project:", project.name, projectError?.message || projectError);
+          }
         }
       }
 
       // FIX: Copy education from master resume
-      if (masterResume.education && masterResume.education.length > 0) {
-        for (const edu of masterResume.education) {
+      if (baselineEducation.length > 0) {
+        for (const edu of baselineEducation) {
             await prisma.education.create({
                 data: {
                     resumeId: tailoredResume.id,
@@ -1701,7 +2899,7 @@ ${summaryQuality.issues.join(", ") || "none"}`;
                     degree: edu.degree || "",
                     field: edu.field || "",
                     startDate: edu.startDate || new Date(),
-                    endDate: edu.endDate,
+                    endDate: edu.endDate ?? null,
                 },
             });
         }
@@ -1758,6 +2956,11 @@ fastify.post<{
     jobTitle?: string; 
     companyName?: string;
     tone?: string;
+    jobUrl?: string;
+    hiringManagerName?: string;
+    hiringManagerTitle?: string;
+    companyAddress?: string;
+    applicantAddress?: string;
   };
 }>(
   "/api/cover-letter",
@@ -1765,7 +2968,19 @@ fastify.post<{
     preHandler: [fastify.authenticate],
   },
   async (request: any, reply) => {
-    const { resumeId, jobDescription, jobTitle, companyName, tone = "professional" } = request.body;
+    const {
+      resumeId,
+      jobDescription,
+      jobTitle,
+      companyName,
+      tone = "professional",
+      jobUrl,
+      hiringManagerName,
+      hiringManagerTitle,
+      companyAddress,
+      applicantAddress,
+    } = request.body;
+    const normalizedJobDescription = `${jobDescription || ""}`.trim().slice(0, 12000);
 
     const masterResume = await prisma.masterResume.findFirst({
       where: { id: resumeId, userId: request.user.id },
@@ -1780,26 +2995,60 @@ fastify.post<{
       return reply.status(404).send({ message: "Resume not found" });
     }
 
-    const careerStory = await prisma.userStory.findFirst({
-      where: { userId: request.user.id, type: "career_transition" },
-    });
+    const [careerStory, voiceProfile] = await Promise.all([
+      prisma.userStory.findFirst({
+        where: { userId: request.user.id, type: "career_transition" },
+        select: {
+          motivation: true,
+          turningPoint: true,
+          uniqueValue: true,
+          transferableSkills: true,
+        },
+      }),
+      prisma.userVoiceProfile.findFirst({
+        where: { userId: request.user.id },
+        select: {
+          tone: true,
+          style: true,
+          examples: true,
+          avoidPhrases: true,
+        },
+      }),
+    ]);
 
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY || "",
-    });
+    const llmService = getLLMService();
 
     const experiencesText = masterResume.experiences
-      .map((exp) => `${exp.title} at ${exp.company}: ${exp.description}`)
+      .map((exp: any) => `${exp.title} at ${exp.company}: ${exp.description}`)
       .join("\n");
 
-    const skillsText = masterResume.skills.map((s) => s.name).join(", ");
+    const skillsText = masterResume.skills.map((s: any) => s.name).join(", ");
+    const storySnippet = buildCareerStorySnippet(careerStory);
+    const transferableSkills = formatTransferableSkills(careerStory?.transferableSkills);
+    const avoidPhrases = parseAvoidPhrases(voiceProfile?.avoidPhrases);
+    const submissionDate = new Date().toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
 
-    const systemPrompt = `You are an expert cover letter writer inspired by Bain & Company consultants. Write compelling, concise cover letters that:
-1. Open with a strong hook
-2. Connect the applicant's background to the specific role
-3. Highlight relevant achievements
-4. Show genuine interest in the company
-5. End with a call to action
+    const systemPrompt = `You are an expert cover letter writer.
+Write a clear, human, professional cover letter that follows this exact layout order:
+1. Header block: applicant full name, phone, email, and optional applicant address.
+2. Date line.
+3. Employer info block: hiring manager name/title (if provided), company name, company address (if provided).
+4. Salutation: if manager name exists use "Dear Mr./Ms./Mx. [Last Name],"; otherwise use "Dear Hiring Manager,".
+5. Paragraph 1 (Introduction): role + interest + why this company/mission.
+6. Paragraph 2-3 (Body): relevant qualifications using CAR (Context, Action, Result) examples grounded in resume facts.
+7. Paragraph 4 (Closing): reiterate fit, invite interview, thank reader.
+8. Sign-off: "Sincerely," or "Best regards," then applicant full name.
+
+Rules:
+- No markdown, no bullets, no placeholders like [Company].
+- Use only facts from the provided resume/job context; do not invent outcomes or metrics.
+- Keep tone aligned to requested tone and keep writing readable.
+- If My Story context is provided, use it naturally to explain motivation and unique value.
+- Do not copy My Story text verbatim.
 
 Output JSON format:
 {
@@ -1811,58 +3060,128 @@ Output JSON format:
 
 Job Title: ${jobTitle || "the position"}
 Company: ${companyName || "the company"}
-Job Description: ${jobDescription}
+Job Description: ${normalizedJobDescription}
+Job Posting URL: ${jobUrl || "Not provided"}
 
 Applicant Background:
 Name: ${masterResume.fullName}
+Phone: ${masterResume.phone || "Not provided"}
 Email: ${masterResume.email}
+Address: ${applicantAddress || masterResume.location || "Not provided"}
+Submission Date: ${submissionDate}
+
+Employer Info:
+Hiring Manager Name: ${hiringManagerName || "Not provided"}
+Hiring Manager Title: ${hiringManagerTitle || "Not provided"}
+Company Name: ${companyName || "Not provided"}
+Company Address: ${companyAddress || "Not provided"}
 
 Key Experiences:
 ${experiencesText}
 
 Skills: ${skillsText}
 
-${careerStory ? `Career Story (for context):
-Motivation: ${careerStory.motivation || "N/A"}
-Turning Point: ${careerStory.turningPoint || "N/A"}
-Unique Value: ${careerStory.uniqueValue || "N/A"}` : ""}
+My Story (user input):
+Narrative Anchor: ${storySnippet || "Not provided"}
+Transferable Skills Mapping: ${transferableSkills || "Not provided"}
+Motivation: ${careerStory?.motivation || "Not provided"}
+Turning Point: ${careerStory?.turningPoint || "Not provided"}
+Unique Value: ${careerStory?.uniqueValue || "Not provided"}
+
+Voice Profile (user input):
+Preferred Tone: ${voiceProfile?.tone || "Not provided"}
+Preferred Style: ${voiceProfile?.style || "Not provided"}
+Preferred Examples: ${(voiceProfile?.examples || "").slice(0, 700) || "Not provided"}
+Phrases To Avoid: ${avoidPhrases.length > 0 ? avoidPhrases.join(", ") : "Not provided"}
 
 Write the cover letter.`;
 
     try {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
+      let coverLetter: { subject: string; body: string };
+      const structuredResult = await llmService.completeJSON<any>(userPrompt, {
+        systemPrompt,
+        maxTokens: 2200,
+        temperature: 0.35,
       });
 
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
+      if (
+        structuredResult.success &&
+        structuredResult.data &&
+        typeof structuredResult.data === "object"
+      ) {
+        const parsed = Array.isArray(structuredResult.data)
+          ? (structuredResult.data[0] || {})
+          : structuredResult.data;
+        coverLetter = {
+          subject:
+            (typeof parsed.subject === "string" && parsed.subject.trim()) ?
+              parsed.subject.trim()
+            : `Application for ${jobTitle || "the position"}${companyName ? ` at ${companyName}` : ""}`,
+          body: typeof parsed.body === "string" ? parsed.body : "",
+        };
+      } else {
+        const plainResult = await llmService.complete(userPrompt, {
+          systemPrompt,
+          maxTokens: 2200,
+          temperature: 0.35,
+        });
+        coverLetter = {
+          subject: `Application for ${jobTitle || "the position"}${companyName ? ` at ${companyName}` : ""}`,
+          body: plainResult.success && plainResult.data ? plainResult.data : "",
+        };
       }
 
-      let coverLetter;
-      try {
-        let text = content.text.trim();
-        
-        text = text.replace(/^```json\n?/, '').replace(/```$/, '').trim();
-        
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          text = jsonMatch[0];
+      coverLetter.body = (coverLetter.body || "")
+        .replace(/^```json\n?/gi, "")
+        .replace(/^```\n?/gi, "")
+        .replace(/```$/g, "")
+        .trim();
+
+      if (!coverLetter.body) {
+        const rescuePrompt = `Write only the final cover letter text (no JSON, no markdown).
+Keep this exact structure:
+- Header: name, phone, email, optional address
+- Date
+- Employer info
+- Salutation
+- Intro paragraph
+- Two body paragraphs using relevant experience
+- Closing paragraph with interview call-to-action
+- Sign-off and name
+
+Role: ${jobTitle || "the position"}
+Company: ${companyName || "the company"}
+Job Description:
+${normalizedJobDescription}
+
+Candidate:
+Name: ${masterResume.fullName}
+Phone: ${masterResume.phone || "Not provided"}
+Email: ${masterResume.email}
+Address: ${applicantAddress || masterResume.location || "Not provided"}
+Experiences:
+${experiencesText}
+Skills: ${skillsText}
+Story Anchor: ${storySnippet || "Not provided"}`;
+
+        const rescueResult = await llmService.complete(rescuePrompt, {
+          maxTokens: 1800,
+          temperature: 0.35,
+        });
+        if (rescueResult.success && rescueResult.data) {
+          coverLetter.body = rescueResult.data.trim();
         }
-        
-        coverLetter = JSON.parse(text);
-        
-        if (!coverLetter.subject) {
-          coverLetter.subject = `Application for ${jobTitle || "the position"}`;
-        }
-      } catch {
-        coverLetter = {
-          subject: `Application for ${jobTitle || "the position"}`,
-          body: content.text,
-        };
+      }
+
+      if (!coverLetter.body) {
+        return reply.status(500).send({
+          message: "Failed to generate cover letter",
+          error: structuredResult.error || "Empty cover letter body from model",
+        });
+      }
+
+      if (!coverLetter.subject) {
+        coverLetter.subject = `Application for ${jobTitle || "the position"}${companyName ? ` at ${companyName}` : ""}`;
       }
 
       return { coverLetter };
