@@ -9,6 +9,7 @@ import { fileURLToPath } from "url";
 import { prisma } from "@resume-agent/shared/src/client.js";
 import { parseResumeFile } from "./parser.js";
 import { getJobAnalyzerAgent } from "./agents/job-analyzer.js";
+import { getLLMService } from "./services/llm.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -228,37 +229,503 @@ function buildSummaryPreview(text: string, maxChars = 280): string {
   return trimToSentenceBoundary(clean, maxChars, 70);
 }
 
-function buildTailoredSummaries(
-  generatedSummary: string | undefined,
-  sourceShort: string | null | undefined,
-  sourceLong: string | null | undefined,
-): { short: string; long: string } {
-  const generated = deRobotize((generatedSummary || "").replace(/\s+/g, " ").trim());
-  const fallback = deRobotize(
-    `${(sourceLong || "").trim()} ${(sourceShort || "").trim()}`.replace(/\s+/g, " ").trim(),
+function escapeRegex(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function removeAvoidPhrases(text: string, phrases: string[]): string {
+  let result = text;
+  for (const phrase of phrases) {
+    const clean = phrase.trim();
+    if (!clean) continue;
+    result = result.replace(new RegExp(escapeRegex(clean), "gi"), "");
+  }
+
+  return result
+    .replace(/\s+([,.;!?])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function enforceShortSummaryLength(text: string): string {
+  const normalized = (text || "")
+    .replace(/;\s+/g, ". ")
+    .replace(/:\s+/g, ". ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const sentences = splitSentences(normalized);
+  if (sentences.length === 0) return "";
+
+  let short = sentences.slice(0, 5).join(" ");
+  if (sentences.length >= 3) {
+    short = sentences.slice(0, Math.min(5, Math.max(3, sentences.length))).join(" ");
+  }
+  short = trimToSentenceBoundary(short, 600, 160);
+  let shortSentences = splitSentences(short);
+  if (shortSentences.length > 5) {
+    short = shortSentences.slice(0, 5).join(" ");
+  } else if (shortSentences.length < 3 && sentences.length >= 3) {
+    short = sentences.slice(0, 3).join(" ");
+  } else if (shortSentences.length < 3) {
+    short = trimToSentenceBoundary(short, 600, 90);
+  }
+  return short;
+}
+
+function buildParagraphs(sentences: string[], targetParagraphs: number): string {
+  if (sentences.length === 0) return "";
+
+  const paragraphs: string[] = [];
+  let cursor = 0;
+
+  for (let p = 0; p < targetParagraphs; p++) {
+    const remainingParagraphs = targetParagraphs - p;
+    const remainingSentences = sentences.length - cursor;
+    if (remainingSentences <= 0) break;
+
+    const take = Math.ceil(remainingSentences / remainingParagraphs);
+    const chunk = sentences.slice(cursor, cursor + take).join(" ").trim();
+    if (chunk) paragraphs.push(chunk);
+    cursor += take;
+  }
+
+  if (paragraphs.length < 2 && sentences.length >= 2) {
+    const midpoint = Math.ceil(sentences.length / 2);
+    return [
+      sentences.slice(0, midpoint).join(" ").trim(),
+      sentences.slice(midpoint).join(" ").trim(),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  return paragraphs.join("\n\n");
+}
+
+function enforceLongSummaryLength(text: string): string {
+  const normalized = (text || "")
+    .replace(/;\s+/g, ". ")
+    .replace(/:\s+/g, ". ")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s+/g, " ")
+    .trim();
+  const sentences = splitSentences(normalized);
+  if (sentences.length === 0) return "";
+
+  let selected = sentences.slice(0, 10);
+  if (selected.length < 6 && sentences.length > 6) {
+    selected = sentences.slice(0, 6);
+  }
+
+  const targetParagraphs = selected.length >= 8 ? 3 : 2;
+  let long = buildParagraphs(selected, targetParagraphs);
+
+  if (long.length > 1700) {
+    long = trimAtWordBoundary(long, 1700);
+    const reSplit = splitSentences(long);
+    if (reSplit.length >= 6) {
+      long = buildParagraphs(reSplit.slice(0, 10), reSplit.length >= 8 ? 3 : 2);
+    }
+  }
+
+  return long;
+}
+
+function buildCareerStorySnippet(careerStory: {
+  motivation?: string | null;
+  turningPoint?: string | null;
+  uniqueValue?: string | null;
+  transferableSkills?: unknown;
+} | null): string {
+  if (!careerStory) return "";
+  const transferable = formatTransferableSkills(careerStory.transferableSkills);
+  const primaryInputs = [
+    careerStory.uniqueValue || "",
+    transferable,
+    careerStory.turningPoint || "",
+  ].filter(Boolean);
+  const orderedInputs =
+    primaryInputs.length > 0 ?
+      primaryInputs
+    : [careerStory.motivation || ""].filter(Boolean);
+
+  const combined = orderedInputs
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!combined) return "";
+  return trimToSentenceBoundary(cleanSummaryNarrative(deRobotize(combined)), 260, 90);
+}
+
+function parseAvoidPhrases(raw: string | null | undefined): string[] {
+  return (raw || "")
+    .split(/\r?\n|,/)
+    .map((phrase) => phrase.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+function normalizeSummaryForDedupe(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeSentenceForSimilarity(text: string): string[] {
+  const stopWords = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "that",
+    "this",
+    "into",
+    "across",
+    "about",
+    "have",
+    "has",
+    "had",
+    "been",
+    "being",
+    "are",
+    "was",
+    "were",
+    "is",
+    "to",
+    "of",
+    "in",
+    "on",
+    "at",
+    "by",
+    "an",
+    "a",
+  ]);
+  return normalizeSummaryForDedupe(text)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+}
+
+function sentenceSimilarity(a: string, b: string): number {
+  const aTokens = tokenizeSentenceForSimilarity(a);
+  const bTokens = tokenizeSentenceForSimilarity(b);
+  if (aTokens.length === 0 || bTokens.length === 0) return 0;
+
+  const aSet = new Set(aTokens);
+  const bSet = new Set(bTokens);
+  let intersection = 0;
+  for (const token of aSet) {
+    if (bSet.has(token)) intersection += 1;
+  }
+  const union = new Set([...aSet, ...bSet]).size || 1;
+  return intersection / union;
+}
+
+function isNearDuplicateSentence(candidate: string, existing: string): boolean {
+  const candidateNorm = normalizeSummaryForDedupe(candidate);
+  const existingNorm = normalizeSummaryForDedupe(existing);
+  if (!candidateNorm || !existingNorm) return false;
+  if (candidateNorm === existingNorm) return true;
+  if (
+    candidateNorm.includes(existingNorm) ||
+    existingNorm.includes(candidateNorm)
+  ) {
+    return true;
+  }
+
+  const candidateLead = tokenizeSentenceForSimilarity(candidate).slice(0, 4).join(" ");
+  const existingLead = tokenizeSentenceForSimilarity(existing).slice(0, 4).join(" ");
+  if (candidateLead && existingLead && candidateLead === existingLead) {
+    return true;
+  }
+
+  return sentenceSimilarity(candidate, existing) >= 0.72;
+}
+
+function rewriteFirstPersonSentence(text: string): string {
+  let sentence = text.trim();
+
+  sentence = sentence
+    .replace(/^i\W?ve\b/i, "")
+    .replace(/^i\W?m\b/i, "")
+    .replace(/^i\W?d\b/i, "")
+    .replace(/^i\W?ll\b/i, "")
+    .replace(/^i did transition from\b/i, "Transitioned from")
+    .replace(/^i transitioned from\b/i, "Transitioned from")
+    .replace(/^i transition(?:ing)? from\b/i, "Transitioning from")
+    .replace(/^i (want|wanted) to\b/i, "Focused on")
+    .replace(/^i have\b/i, "Brings")
+    .replace(/^i bring\b/i, "Brings")
+    .replace(/^i built\b/i, "Built")
+    .replace(/^i developed\b/i, "Developed")
+    .replace(/^i led\b/i, "Led")
+    .replace(/^i\b/i, "");
+
+  sentence = sentence
+    .replace(/\bhow\s+i\s+approach\b/gi, "how to approach")
+    .replace(/\bbecause\s+i\s+(?:feel|felt|think|thought|believe|believed)\b[^.?!;]*/gi, "")
+    .replace(/\bi\s+(?:feel|felt|think|thought|believe|believed)\b[^.?!;]*/gi, "")
+    .replace(/\bi\s+(?:want|wanted)\s+to\b/gi, "focused on")
+    .replace(/\bmy\s+background\b/gi, "Background")
+    .replace(/\bmy\b/gi, "")
+    .replace(/\bme\b/gi, "")
+    .replace(/^\W?(ve|m|d|ll)\b/gi, "")
+    .replace(/\s+,/g, ",")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  return sentence.replace(/\s+/g, " ").trim();
+}
+
+function cleanSummaryNarrative(text: string): string {
+  const genericPhrases = [
+    "highly motivated",
+    "detail-oriented",
+    "enthusiastic",
+    "passion for technology",
+    "seeking to leverage",
+    "feel like",
+    "born to do",
+    "better myself",
+    "more opportunities",
+  ];
+
+  const seen = new Set<string>();
+  const kept: string[] = [];
+
+  for (const rawSentence of splitSentences(text)) {
+    let sentence = rewriteFirstPersonSentence(rawSentence);
+    if (!sentence) continue;
+
+    for (const phrase of genericPhrases) {
+      sentence = sentence.replace(new RegExp(escapeRegex(phrase), "gi"), "");
+    }
+
+    sentence = sentence
+      .replace(/\s+([,.;!?])/g, "$1")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    if (/\b(i|my|me|mine)\b/i.test(sentence)) {
+      sentence = sentence
+        .replace(/\b(i|my|me|mine)\b/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    }
+
+    if (/\b(i|my|me|mine)\b/i.test(sentence)) continue;
+
+    sentence = sentence
+      .replace(/^(and|but|so|also)\s+/i, "")
+      .replace(/^[,;:\-\s]+/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    if (sentence.length < 24) continue;
+
+    const key = normalizeSummaryForDedupe(sentence);
+    if (!key || seen.has(key)) continue;
+    if (kept.some((existing) => isNearDuplicateSentence(sentence, existing))) continue;
+    seen.add(key);
+
+    if (!/[.!?]$/.test(sentence)) sentence = `${sentence}.`;
+    sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+    kept.push(sentence);
+  }
+
+  return kept.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function formatTransferableSkills(value: unknown): string {
+  if (!value || typeof value !== "object") return "";
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, mapped]) => {
+      const from = `${key || ""}`.trim();
+      const to = typeof mapped === "string" ? mapped.trim() : "";
+      if (!from || !to) return "";
+      return `${from} -> ${to}`;
+    })
+    .filter(Boolean);
+
+  return entries.slice(0, 6).join("; ");
+}
+
+function buildTailoredSummaries(input: {
+  generatedSummary?: string;
+  generatedSummaryShort?: string;
+  generatedSummaryLong?: string;
+  sourceShort?: string | null;
+  sourceLong?: string | null;
+  storySnippet?: string;
+  avoidPhrases?: string[];
+}): { short: string; long: string } {
+  const generatedSummary = cleanSummaryNarrative(
+    deRobotize((input.generatedSummary || "").replace(/\s+/g, " ").trim()),
   );
-  const base = generated || fallback;
+  const generatedSummaryShort = cleanSummaryNarrative(deRobotize(
+    (input.generatedSummaryShort || "").replace(/\s+/g, " ").trim(),
+  ));
+  const generatedSummaryLong = cleanSummaryNarrative(deRobotize(
+    (input.generatedSummaryLong || "").replace(/\s+/g, " ").trim(),
+  ));
+  const fallback = cleanSummaryNarrative(deRobotize(
+    `${(input.sourceLong || "").trim()} ${(input.sourceShort || "").trim()}`
+      .replace(/\s+/g, " ")
+      .trim(),
+  ));
+  const story = cleanSummaryNarrative(
+    deRobotize((input.storySnippet || "").replace(/\s+/g, " ").trim()),
+  );
+  const avoidPhrases = input.avoidPhrases || [];
 
-  if (!base) return { short: "", long: "" };
+  const baseLong =
+    generatedSummaryLong ||
+    generatedSummary ||
+    generatedSummaryShort ||
+    fallback;
 
-  const sentences = splitSentences(base);
-  const firstSentence = sentences[0] || base;
-  let short = trimToSentenceBoundary(firstSentence, 210, 50);
-  if (short.length < 65 && sentences.length > 1) {
-    short = trimToSentenceBoundary(`${firstSentence} ${sentences[1]}`, 210, 70);
+  if (!baseLong && !story) {
+    return { short: "", long: "" };
   }
 
-  let long = base;
-  if (sentences.length > 0) {
-    long = sentences.slice(0, 4).join(" ");
-  }
-  if (splitSentences(long).length < 2 && fallback) {
-    long = `${long} ${fallback}`.trim();
-  }
-  long = trimToSentenceBoundary(long, 560, 130);
+  const hasTransitionSignal = /\btransition(?:ed|ing)?\b|\bbackground in\b|\bbrings\b/i;
+  const shouldAppendStory = Boolean(story) && (!baseLong || !hasTransitionSignal.test(baseLong));
+  const enrichedLong = shouldAppendStory ? `${baseLong} ${story}`.trim() : baseLong;
+  let long = enforceLongSummaryLength(cleanSummaryNarrative(enrichedLong));
+  let short = enforceShortSummaryLength(
+    cleanSummaryNarrative(generatedSummaryShort || generatedSummary || long),
+  );
+
+  if (!short) short = enforceShortSummaryLength(long);
+  if (!long) long = short;
   if (long.length < short.length) long = short;
 
+  short = cleanSummaryNarrative(removeAvoidPhrases(deRobotize(short), avoidPhrases));
+  long = cleanSummaryNarrative(removeAvoidPhrases(deRobotize(long), avoidPhrases));
+
+  short = enforceShortSummaryLength(short || long);
+  if (splitSentences(long).length < 6) {
+    const expansion = cleanSummaryNarrative(
+      `${generatedSummaryLong} ${generatedSummary} ${fallback} ${story}`.trim(),
+    );
+    long = enforceLongSummaryLength(cleanSummaryNarrative(`${long} ${expansion}`.trim()));
+  } else {
+    long = enforceLongSummaryLength(long);
+  }
+
+  if (!short) short = enforceShortSummaryLength(long);
+  if (!long) long = short;
+
   return { short, long };
+}
+
+type SummaryQualityReport = {
+  score: number;
+  passed: boolean;
+  issues: string[];
+};
+
+function splitParagraphs(text: string): string[] {
+  return (text || "")
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+}
+
+function findSummaryArtifacts(text: string): string[] {
+  const patterns = [
+    /\bback gtound\b/i,
+    /\busnique\b/i,
+    /\bcommecial\b/i,
+    /\bapllication\b/i,
+    /\bive\b/i,
+    /\bi m\b/i,
+    /^\W?(ve|m|d|ll)\b/i,
+  ];
+
+  const hits: string[] = [];
+  for (const pattern of patterns) {
+    if (pattern.test(text)) hits.push(pattern.source);
+  }
+  return hits;
+}
+
+function findNearDuplicateSentences(text: string): number {
+  const sentences = splitSentences(text);
+  let duplicates = 0;
+  for (let i = 0; i < sentences.length; i++) {
+    for (let j = i + 1; j < sentences.length; j++) {
+      if (isNearDuplicateSentence(sentences[i], sentences[j])) {
+        duplicates += 1;
+        break;
+      }
+    }
+  }
+  return duplicates;
+}
+
+function assessSummaryQuality(shortSummary: string, longSummary: string): SummaryQualityReport {
+  let score = 100;
+  const issues: string[] = [];
+
+  const shortSentences = splitSentences(shortSummary);
+  if (shortSentences.length < 3 || shortSentences.length > 5) {
+    score -= 20;
+    issues.push("summaryShort_sentence_count");
+  }
+
+  const paragraphs = splitParagraphs(longSummary);
+  if (paragraphs.length < 2 || paragraphs.length > 3) {
+    score -= 20;
+    issues.push("summaryLong_paragraph_count");
+  }
+
+  for (const paragraph of paragraphs) {
+    const sentenceCount = splitSentences(paragraph).length;
+    if (sentenceCount < 2 || sentenceCount > 4) {
+      score -= 8;
+      issues.push("summaryLong_paragraph_sentence_count");
+    }
+  }
+
+  if (/\b(i|my|me|mine)\b/i.test(`${shortSummary} ${longSummary}`)) {
+    score -= 15;
+    issues.push("first_person_pronouns");
+  }
+
+  const duplicateCount = findNearDuplicateSentences(`${shortSummary} ${longSummary}`);
+  if (duplicateCount > 0) {
+    score -= Math.min(18, duplicateCount * 6);
+    issues.push("near_duplicate_sentences");
+  }
+
+  const artifactCount = findSummaryArtifacts(`${shortSummary} ${longSummary}`).length;
+  if (artifactCount > 0) {
+    score -= Math.min(15, artifactCount * 5);
+    issues.push("grammar_or_typo_artifacts");
+  }
+
+  if ((shortSummary || "").length < 260) {
+    score -= 8;
+    issues.push("summaryShort_too_thin");
+  }
+  if ((longSummary || "").length < 650) {
+    score -= 10;
+    issues.push("summaryLong_too_thin");
+  }
+
+  score = Math.max(0, score);
+  const passed = score >= 80 &&
+    !issues.includes("summaryShort_sentence_count") &&
+    !issues.includes("summaryLong_paragraph_count") &&
+    !issues.includes("near_duplicate_sentences") &&
+    !issues.includes("grammar_or_typo_artifacts");
+
+  return { score, passed, issues };
 }
 
 function normalizeValue(value: string | null | undefined): string {
@@ -788,14 +1255,28 @@ fastify.post<{
       return reply.status(404).send({ message: "Resume not found" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return reply.status(500).send({ message: "ANTHROPIC_API_KEY not configured" });
-    }
+    const [careerStory, voiceProfile] = await Promise.all([
+      prisma.userStory.findFirst({
+        where: { userId: request.user.id, type: "career_transition" },
+        select: {
+          motivation: true,
+          turningPoint: true,
+          uniqueValue: true,
+          transferableSkills: true,
+        },
+      }),
+      prisma.userVoiceProfile.findFirst({
+        where: { userId: request.user.id },
+        select: {
+          tone: true,
+          style: true,
+          examples: true,
+          avoidPhrases: true,
+        },
+      }),
+    ]);
 
-    const anthropic = new Anthropic({
-      apiKey: apiKey,
-    });
+    const llmService = getLLMService();
 
     console.log("Starting tailor for resume:", masterResume.fullName);
 
@@ -809,6 +1290,8 @@ fastify.post<{
       .join("\n\n");
 
     const skillsText = masterResume.skills.map((s) => s.name).join(", ");
+    const storySnippet = buildCareerStorySnippet(careerStory);
+    const avoidPhrases = parseAvoidPhrases(voiceProfile?.avoidPhrases);
 
     const systemPrompt = `You are an expert resume writer. Tailor the resume to the job while preserving factual accuracy.
 
@@ -821,10 +1304,17 @@ Hard constraints:
 6. Use plain, human wording and avoid buzzwords.
 7. Avoid stock phrasing such as "proven expertise", "demonstrated ability", "results-driven", and "product-first mindset".
 8. Never convert ongoing work into completed language (e.g., don't change "building" to "built").
+9. Keep summaryShort at 3-5 sentences in one paragraph.
+10. Keep summaryLong at 2-3 paragraphs, with about 2-4 sentences per paragraph.
+11. If user voice preferences exist, follow them.
+12. Do NOT copy personal-story text verbatim; convert it into concise professional positioning.
+13. Avoid first-person narrative ("I", "my", "me") in summaries.
 
 Output a tailored resume in JSON format with the following structure:
 {
-  "summary": "3-5 sentence tailored summary in natural language",
+  "summary": "tailored summary (optional fallback)",
+  "summaryShort": "3-5 sentence short summary in one paragraph",
+  "summaryLong": "2-3 paragraph long summary",
   "experiences": [
     { "title": "Job Title", "company": "Company Name", "description": "Tailored experience description..." }
   ],
@@ -846,49 +1336,167 @@ Skills: ${skillsText}
 Job Description:
 ${jobDescription}
 
+My Story (user input):
+Narrative Anchor: ${storySnippet || "Not provided"}
+Transferable Skills Mapping: ${formatTransferableSkills(careerStory?.transferableSkills) || "Not provided"}
+
+Voice Profile (user input):
+Tone: ${voiceProfile?.tone || "Not provided"}
+Style: ${voiceProfile?.style || "Not provided"}
+Preferred Examples: ${(voiceProfile?.examples || "").slice(0, 700) || "Not provided"}
+Phrases To Avoid: ${avoidPhrases.length > 0 ? avoidPhrases.join(", ") : "Not provided"}
+
 Tailor the resume above to match this job.`;
 
     try {
-      console.log("Calling Anthropic API...");
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
+      console.log("Calling configured LLM provider for tailoring...");
+      let tailoredData: any = null;
+
+      const structuredResult = await llmService.completeJSON<any>(userPrompt, {
+        systemPrompt,
+        maxTokens: 4000,
+        temperature: 0.4,
       });
-      console.log("Anthropic response received");
 
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
-      }
-
-      let tailoredData;
-      try {
-        let text = content.text.trim();
-        text = text.replace(/^```json\n?/, '').replace(/```$/, '').trim();
-        
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          text = jsonMatch[0];
-        }
-        
-        tailoredData = JSON.parse(text);
-      } catch {
+      if (
+        structuredResult.success &&
+        structuredResult.data &&
+        typeof structuredResult.data === "object"
+      ) {
+        tailoredData = Array.isArray(structuredResult.data)
+          ? (structuredResult.data[0] || {})
+          : structuredResult.data;
+      } else {
+        const plainResult = await llmService.complete(userPrompt, {
+          systemPrompt,
+          maxTokens: 2200,
+          temperature: 0.4,
+        });
+        const fallbackText = plainResult.success && plainResult.data ? plainResult.data : "";
         tailoredData = {
-          summary: content.text.slice(0, 500),
-          experiences: [content.text],
+          summary: fallbackText.slice(0, 500),
+          summaryShort: fallbackText.slice(0, 700),
+          summaryLong: fallbackText.slice(0, 1800),
+          experiences: [fallbackText],
           skills: masterResume.skills.map((s) => s.name),
         };
       }
 
       const generatedSummary =
         typeof tailoredData.summary === "string" ? tailoredData.summary : "";
+      const generatedSummaryShort =
+        typeof tailoredData.summaryShort === "string" ? tailoredData.summaryShort : "";
+      const generatedSummaryLong =
+        typeof tailoredData.summaryLong === "string" ? tailoredData.summaryLong : "";
       const tailoredSummary = buildTailoredSummaries(
-        generatedSummary,
-        masterResume.summaryShort,
-        masterResume.summaryLong,
+        {
+          generatedSummary,
+          generatedSummaryShort,
+          generatedSummaryLong,
+          sourceShort: masterResume.summaryShort,
+          sourceLong: masterResume.summaryLong,
+          storySnippet,
+          avoidPhrases,
+        },
       );
+      let finalizedSummary = tailoredSummary;
+      let summaryQuality = assessSummaryQuality(
+        finalizedSummary.short,
+        finalizedSummary.long,
+      );
+
+      if (!summaryQuality.passed) {
+        try {
+          const roleFacts = masterResume.experiences
+            .slice(0, 5)
+            .map((exp) => `${exp.title} at ${exp.company}`)
+            .join("; ");
+          const topSkills = masterResume.skills
+            .map((skill) => skill.name)
+            .slice(0, 20)
+            .join(", ");
+
+          const summaryRepairSystemPrompt = `You are a senior resume editor.
+Rewrite summary text for clarity and quality while preserving factual accuracy.
+
+Rules:
+1. Do not invent facts, metrics, tools, projects, employers, or outcomes.
+2. Keep summaryShort as one paragraph with 3-5 sentences.
+3. Keep summaryLong as 2-3 paragraphs, each paragraph 2-4 sentences.
+4. Remove repetition, awkward phrasing, grammar mistakes, and typo artifacts.
+5. Avoid first-person voice and avoid buzzword-heavy cliches.
+6. Keep language direct, readable, and professional.
+
+Return strict JSON:
+{
+  "summaryShort": "string",
+  "summaryLong": "string"
+}`;
+
+          const summaryRepairPrompt = `Candidate: ${masterResume.fullName}
+Current Summary Short:
+${finalizedSummary.short}
+
+Current Summary Long:
+${finalizedSummary.long}
+
+Known Experience Facts:
+${roleFacts || "Not provided"}
+
+Known Skills:
+${topSkills || "Not provided"}
+
+Story Anchor:
+${storySnippet || "Not provided"}
+
+Voice Tone: ${voiceProfile?.tone || "Not provided"}
+Voice Style: ${voiceProfile?.style || "Not provided"}
+Avoid Phrases: ${avoidPhrases.length > 0 ? avoidPhrases.join(", ") : "Not provided"}
+
+Quality Issues To Fix:
+${summaryQuality.issues.join(", ") || "none"}`;
+
+          const repairResult = await llmService.completeJSON<any>(
+            summaryRepairPrompt,
+            {
+              systemPrompt: summaryRepairSystemPrompt,
+              maxTokens: 2200,
+              temperature: 0.2,
+            },
+          );
+
+          if (
+            repairResult.success &&
+            repairResult.data &&
+            typeof repairResult.data === "object"
+          ) {
+            const repairedData = Array.isArray(repairResult.data) ?
+                (repairResult.data[0] || {})
+              : repairResult.data;
+            const repairedSummary = buildTailoredSummaries({
+              generatedSummaryShort:
+                typeof repairedData.summaryShort === "string" ? repairedData.summaryShort : "",
+              generatedSummaryLong:
+                typeof repairedData.summaryLong === "string" ? repairedData.summaryLong : "",
+              sourceShort: masterResume.summaryShort,
+              sourceLong: masterResume.summaryLong,
+              storySnippet,
+              avoidPhrases,
+            });
+            const repairedQuality = assessSummaryQuality(
+              repairedSummary.short,
+              repairedSummary.long,
+            );
+
+            if (repairedQuality.score > summaryQuality.score) {
+              finalizedSummary = repairedSummary;
+              summaryQuality = repairedQuality;
+            }
+          }
+        } catch (repairError: any) {
+          console.warn("Summary repair pass failed:", repairError?.message || repairError);
+        }
+      }
 
       const tailoredResume = await prisma.masterResume.create({
         data: {
@@ -900,8 +1508,9 @@ Tailor the resume above to match this job.`;
           linkedInUrl: masterResume.linkedInUrl,
           githubUrl: masterResume.githubUrl,
           portfolioUrl: masterResume.portfolioUrl,
-          summaryShort: buildSummaryPreview(tailoredSummary.short, 210),
-          summaryLong: tailoredSummary.long,
+          summaryShort:
+            finalizedSummary.short || enforceShortSummaryLength(finalizedSummary.long),
+          summaryLong: finalizedSummary.long,
           resumeData: {
             ...(resumeData || {}),
             tailoredFor: {
@@ -909,6 +1518,10 @@ Tailor the resume above to match this job.`;
               companyName,
               originalJobDescription: jobDescription,
               tailoredAt: new Date().toISOString(),
+              usedCareerStory: Boolean(storySnippet),
+              usedVoiceProfile: Boolean(voiceProfile),
+              summaryQualityScore: summaryQuality.score,
+              summaryQualityIssues: summaryQuality.issues,
             },
             tailoredExperiences: tailoredData.experiences,
             tailoredSkills: tailoredData.skills,

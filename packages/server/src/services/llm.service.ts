@@ -50,6 +50,26 @@ export class LLMService {
   }
 
   private detectProvider(): "anthropic" | "cohere" | "gemini" | "huggingface" {
+    const preferredProvider = (process.env.LLM_PROVIDER || "").toLowerCase().trim();
+    if (preferredProvider) {
+      if (preferredProvider === "huggingface" && process.env.HUGGINGFACE_API_KEY) {
+        return "huggingface";
+      }
+      if (preferredProvider === "gemini" && process.env.GEMINI_API_KEY) {
+        return "gemini";
+      }
+      if (preferredProvider === "anthropic" && (config.llm.apiKey || process.env.ANTHROPIC_API_KEY)) {
+        return "anthropic";
+      }
+      if (preferredProvider === "cohere" && process.env.COHERE_API_KEY) {
+        return "cohere";
+      }
+
+      logger.warn("LLM_PROVIDER is set but matching API key is missing; using auto-detection", {
+        preferredProvider,
+      });
+    }
+
     // Prefer Hugging Face if available
     if (process.env.HUGGINGFACE_API_KEY) {
       return "huggingface";
