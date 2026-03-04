@@ -680,6 +680,7 @@ const KNOWN_FRAMEWORKS = new Set([
   "vue",
   "angular",
   "next.js",
+  "tailwind css",
   "svelte",
   "tailwind",
   "bootstrap",
@@ -703,6 +704,16 @@ const KNOWN_TOOLS = new Set([
   "git",
   "github",
   "gitlab",
+  "node.js",
+  "nodejs",
+  "postgresql",
+  "mysql",
+  "prisma",
+  "openai",
+  "claude",
+  "gemini",
+  "anthropic",
+  "cohere",
   "docker",
   "kubernetes",
   "jenkins",
@@ -731,7 +742,114 @@ const KNOWN_TOOLS = new Set([
   "postman",
 ]);
 
-function extractSkills(text: string): ParsedResume["skills"] {
+const SKILL_LABEL_PREFIX =
+  /^(languages?|frontend|backend|state|testing|tools?|frameworks?|technical|technologies|data\s+systems?|infrastructure)\s*:\s*/i;
+const SKILL_NOISE_PATTERN =
+  /\b(i\.?c\.?\s*stars|chicago|south bend|nappanee|union local|intern|united airlines|illinois|indiana)\b/i;
+
+function extractSkillCandidates(raw: string): string[] {
+  if (!raw) return [];
+
+  const cleaned = raw
+    .replace(/[\u2022\u25CF\u25AA\u25E6]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return [];
+
+  return cleaned
+    .split(/[,;|]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function normalizeSkillToken(raw: string): string {
+  let token = `${raw || ""}`
+    .trim()
+    .replace(SKILL_LABEL_PREFIX, "")
+    .replace(/[()]+/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+
+  if (!token) return "";
+
+  token = token
+    .replace(/\bjavascript\s*\(es\d\+\)\b/gi, "javascript")
+    .replace(/\bjavascript\s*es\d\+\b/gi, "javascript")
+    .replace(/\btailwind\s*css\b/gi, "tailwind")
+    .replace(/\bnodejs\b/gi, "node.js")
+    .replace(/\bgemini\)+/gi, "gemini")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const lowered = token.toLowerCase();
+  if (lowered === "object object") return "";
+  if (SKILL_NOISE_PATTERN.test(lowered)) return "";
+  if (
+    lowered.length <= 2 &&
+    !KNOWN_LANGUAGES.has(lowered) &&
+    !KNOWN_FRAMEWORKS.has(lowered) &&
+    !KNOWN_TOOLS.has(lowered)
+  ) {
+    return "";
+  }
+  if (lowered.length < 2 || lowered.length > 40) return "";
+  if (lowered.split(/\s+/).length > 5) return "";
+
+  if (
+    /\b(background|advantage|problem solving|experience in|years|project|role)\b/i.test(
+      lowered,
+    ) &&
+    !KNOWN_LANGUAGES.has(lowered) &&
+    !KNOWN_FRAMEWORKS.has(lowered) &&
+    !KNOWN_TOOLS.has(lowered)
+  ) {
+    return "";
+  }
+
+  return lowered;
+}
+
+function normalizeSkills(skills: ParsedResume["skills"]): ParsedResume["skills"] {
+  const normalized: ParsedResume["skills"] = {
+    technical: [],
+    languages: [],
+    frameworks: [],
+    tools: [],
+  };
+
+  const seen = new Set<string>();
+  const add = (category: keyof ParsedResume["skills"], token: string) => {
+    if (!token || seen.has(token)) return;
+    seen.add(token);
+    normalized[category].push(capitalizeSkill(token));
+  };
+
+  const allInputs = [
+    ...(skills?.languages ?? []),
+    ...(skills?.frameworks ?? []),
+    ...(skills?.tools ?? []),
+    ...(skills?.technical ?? []),
+  ];
+
+  for (const input of allInputs) {
+    const candidates = extractSkillCandidates(input);
+    for (const candidate of candidates) {
+      const token = normalizeSkillToken(candidate);
+      if (!token) continue;
+
+      if (KNOWN_LANGUAGES.has(token)) add("languages", token);
+      else if (KNOWN_FRAMEWORKS.has(token)) add("frameworks", token);
+      else if (KNOWN_TOOLS.has(token)) add("tools", token);
+      else add("technical", token);
+    }
+  }
+
+  return normalized;
+}
+
+function extractSkillsLegacy(text: string): ParsedResume["skills"] {
   const skills: ParsedResume["skills"] = {
     technical: [],
     languages: [],
@@ -757,6 +875,31 @@ function extractSkills(text: string): ParsedResume["skills"] {
   return skills;
 }
 
+function extractSkills(text: string): ParsedResume["skills"] {
+  const skills: ParsedResume["skills"] = {
+    technical: [],
+    languages: [],
+    frameworks: [],
+    tools: [],
+  };
+
+  const tokens = text
+    .split(/[\n|/]+/)
+    .flatMap((chunk) => extractSkillCandidates(chunk));
+
+  for (const rawToken of tokens) {
+    const token = normalizeSkillToken(rawToken);
+    if (!token) continue;
+
+    if (KNOWN_LANGUAGES.has(token)) skills.languages.push(token);
+    else if (KNOWN_FRAMEWORKS.has(token)) skills.frameworks.push(token);
+    else if (KNOWN_TOOLS.has(token)) skills.tools.push(token);
+    else skills.technical.push(token);
+  }
+
+  return normalizeSkills(skills);
+}
+
 const SKILL_CAPS: Record<string, string> = {
   javascript: "JavaScript",
   typescript: "TypeScript",
@@ -771,13 +914,32 @@ const SKILL_CAPS: Record<string, string> = {
   css: "CSS",
   sql: "SQL",
   graphql: "GraphQL",
+  jwt: "JWT",
+  "oauth 2.0": "OAuth 2.0",
   react: "React",
+  "react native": "React Native",
   "next.js": "Next.js",
+  express: "Express",
+  zustand: "Zustand",
   vue: "Vue.js",
   angular: "Angular",
+  tailwind: "Tailwind CSS",
+  "tailwind css": "Tailwind CSS",
   aws: "AWS",
   gcp: "GCP",
   git: "Git",
+  "github actions": "GitHub Actions",
+  "node.js": "Node.js",
+  postgresql: "PostgreSQL",
+  mysql: "MySQL",
+  prisma: "Prisma",
+  openai: "OpenAI",
+  claude: "Claude",
+  gemini: "Gemini",
+  anthropic: "Anthropic",
+  cohere: "Cohere",
+  jest: "Jest",
+  cypress: "Cypress",
   docker: "Docker",
   kubernetes: "Kubernetes",
 };
@@ -804,6 +966,12 @@ function mergeSkills(
   add(target.languages, source.languages);
   add(target.frameworks, source.frameworks);
   add(target.tools, source.tools);
+
+  const normalized = normalizeSkills(target);
+  target.technical = normalized.technical;
+  target.languages = normalized.languages;
+  target.frameworks = normalized.frameworks;
+  target.tools = normalized.tools;
 }
 
 // ─── Education ────────────────────────────────────────────────────────────────
@@ -917,12 +1085,14 @@ function normalizeResult(result: ParsedResume): ParsedResume {
     result.projects = deriveProjectsFromExperiences(result.experiences);
   }
   result.education = result.education ?? [];
-  result.skills = result.skills ?? {
-    technical: [],
-    languages: [],
-    frameworks: [],
-    tools: [],
-  };
+  result.skills = normalizeSkills(
+    result.skills ?? {
+      technical: [],
+      languages: [],
+      frameworks: [],
+      tools: [],
+    },
+  );
   result.summary = ensureSummaryLengths(result.summary);
   return result;
 }

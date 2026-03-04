@@ -11,6 +11,7 @@ export interface CoverLetterOptions {
   includeCareerStory: boolean;
   maxParagraphs: number;
   tailoredSummary?: string;
+  resumeId?: string;
 }
 
 export interface CoverLetter {
@@ -45,6 +46,29 @@ export class CoverLetterAgent {
   private llm = getLLMService();
   private prisma = getPrismaClient();
 
+  private async resolveRootResumeId(resumeId?: string): Promise<string | undefined> {
+    if (!resumeId) return undefined;
+
+    let currentId = resumeId;
+    const seen = new Set<string>();
+
+    for (let depth = 0; depth < 12; depth += 1) {
+      if (seen.has(currentId)) break;
+      seen.add(currentId);
+
+      const resume = await this.prisma.masterResume.findUnique({
+        where: { id: currentId },
+        select: { id: true, tailoredFromId: true },
+      });
+
+      if (!resume) break;
+      if (!resume.tailoredFromId) return resume.id;
+      currentId = resume.tailoredFromId;
+    }
+
+    return currentId;
+  }
+
   /**
    * Generate a cover letter for a specific job
    */
@@ -75,19 +99,35 @@ export class CoverLetterAgent {
 
       // Step 2: Load master resume
       logger.step(2, 4, "Loading resume data...");
-      const masterResume = await this.prisma.masterResume.findFirst({
-        include: {
-          experiences: {
-            include: { achievements: true },
-            orderBy: { startDate: "desc" },
-          },
-          projects: true,
-          skills: true,
-        },
-      });
+      const resolvedResumeId = await this.resolveRootResumeId(options.resumeId);
+      const masterResume = resolvedResumeId
+        ? await this.prisma.masterResume.findUnique({
+            where: { id: resolvedResumeId },
+            include: {
+              experiences: {
+                include: { achievements: true },
+                orderBy: { startDate: "desc" },
+              },
+              projects: true,
+              skills: true,
+            },
+          })
+        : await this.prisma.masterResume.findFirst({
+            where: {
+              tailoredFromId: null,
+            },
+            include: {
+              experiences: {
+                include: { achievements: true },
+                orderBy: { startDate: "desc" },
+              },
+              projects: true,
+              skills: true,
+            },
+          });
 
       if (!masterResume) {
-        throw new Error("No master resume found");
+        throw new Error(resolvedResumeId ? "Resume not found" : "No master resume found");
       }
 
       logger.success(`Resume: ${masterResume.fullName}`);

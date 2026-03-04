@@ -216,6 +216,32 @@ function selectLikelyJobDescription(rawText: string): string {
   return trimmed.slice(0, 8500).trim();
 }
 
+function scoreDescriptionCandidate(text: string): number {
+  const normalized = `${text || ""}`.trim();
+  if (!normalized) return 0;
+
+  let score = Math.min(normalized.length, 12000);
+
+  // Reward structure commonly present in full job descriptions.
+  if (
+    /\b(responsibilities|requirements|qualifications|about the role|what you'll do|benefits|about us)\b/i.test(
+      normalized,
+    )
+  ) {
+    score += 1200;
+  }
+
+  const bulletLines = (normalized.match(/\n-\s/g) || []).length;
+  score += Math.min(bulletLines, 40) * 30;
+
+  // Penalize common non-description page boilerplate.
+  if (/\b(cookie|privacy policy|sign in|create account)\b/i.test(normalized)) {
+    score -= 800;
+  }
+
+  return score;
+}
+
 function extractLocationFromText(text: string): string {
   const locationMatch =
     text.match(/\b(remote|hybrid|onsite|on-site)\b/i)?.[0] ||
@@ -245,6 +271,130 @@ function extractCompanyFromUrl(url: string): string {
   } catch {
     return "";
   }
+}
+
+interface WorkableContext {
+  accountSlug?: string;
+  jobCode?: string;
+}
+
+function parseWorkableContextFromUrl(rawUrl: string): WorkableContext {
+  try {
+    const parsed = new URL(rawUrl);
+    if (!parsed.hostname.toLowerCase().includes("apply.workable.com")) {
+      return {};
+    }
+
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments.length === 0) return {};
+
+    // Patterns:
+    // 1) /{account}/j/{code}
+    // 2) /j/{code}
+    if (segments[0] === "j") {
+      return { jobCode: segments[1] || undefined };
+    }
+    if (segments[1] === "j") {
+      return {
+        accountSlug: segments[0],
+        jobCode: segments[2] || undefined,
+      };
+    }
+
+    return { accountSlug: segments[0] };
+  } catch {
+    return {};
+  }
+}
+
+function extractMetaUrl(html: string, propertyName: "og:url" | "canonical"): string {
+  if (propertyName === "og:url") {
+    return (
+      html.match(/<meta[^>]+property=["']og:url["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+      ""
+    );
+  }
+  return html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i)?.[1] || "";
+}
+
+async function fetchWorkableJobDescription(
+  pageUrl: string,
+  html: string,
+): Promise<{
+  title?: string;
+  company?: string;
+  location?: string;
+  description?: string;
+} | null> {
+  const canonicalUrl = extractMetaUrl(html, "canonical");
+  const ogUrl = extractMetaUrl(html, "og:url");
+
+  const fromPage = parseWorkableContextFromUrl(pageUrl);
+  const fromCanonical = parseWorkableContextFromUrl(canonicalUrl);
+  const fromOg = parseWorkableContextFromUrl(ogUrl);
+
+  const accountSlug =
+    fromPage.accountSlug || fromCanonical.accountSlug || fromOg.accountSlug;
+  const jobCode =
+    fromPage.jobCode || fromCanonical.jobCode || fromOg.jobCode;
+
+  if (!accountSlug) return null;
+
+  const endpoint = `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(accountSlug)}?details=true`;
+  const response = await fetch(endpoint, {
+    method: "GET",
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      accept: "application/json,text/plain,*/*",
+    },
+  });
+
+  if (!response.ok) return null;
+
+  const payload = (await response.json()) as any;
+  const jobs = Array.isArray(payload?.jobs) ? payload.jobs : [];
+  if (jobs.length === 0) return null;
+
+  let selectedJob: any | null = null;
+  if (jobCode) {
+    const normalizedCode = `${jobCode}`.trim().toLowerCase();
+    selectedJob =
+      jobs.find(
+        (job: any) =>
+          `${job?.shortcode || ""}`.trim().toLowerCase() === normalizedCode,
+      ) || null;
+  }
+
+  if (!selectedJob) {
+    // Fallback to the richest listing in the account feed.
+    selectedJob = jobs
+      .slice()
+      .sort(
+        (a: any, b: any) =>
+          `${b?.description || ""}`.length - `${a?.description || ""}`.length,
+      )[0];
+  }
+
+  const descriptionText = htmlToPlainText(`${selectedJob?.description || ""}`).trim();
+  if (!descriptionText) return null;
+
+  const city = `${selectedJob?.city || ""}`.trim();
+  const state = `${selectedJob?.state || ""}`.trim();
+  const country = `${selectedJob?.country || ""}`.trim();
+  const locationParts = [city, state, country].filter(Boolean);
+  const location = selectedJob?.telecommuting
+    ? locationParts.length > 0
+      ? `Remote (${locationParts.join(", ")})`
+      : "Remote"
+    : locationParts.join(", ");
+
+  return {
+    title: `${selectedJob?.title || ""}`.trim() || undefined,
+    company: `${payload?.name || accountSlug}`.trim() || undefined,
+    location: location || undefined,
+    description: descriptionText,
+  };
 }
 
 function toTitleCase(value: string): string {
@@ -326,19 +476,44 @@ export class JobWebScraperService {
         if (jsonLdTitle && jsonLdCompany && jsonLdDescription.length > 100) break;
       }
 
+      let workableData: {
+        title?: string;
+        company?: string;
+        location?: string;
+        description?: string;
+      } | null = null;
+      try {
+        if (new URL(url).hostname.toLowerCase().includes("apply.workable.com")) {
+          workableData = await fetchWorkableJobDescription(url, html);
+        }
+      } catch {
+        workableData = null;
+      }
+
       const bodyHtml = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || html;
       const bodyText = htmlToPlainText(bodyHtml);
-      const description = selectLikelyJobDescription(
-        jsonLdDescription || bodyText || ogDescription,
-      );
+      const descriptionCandidates = [
+        selectLikelyJobDescription(workableData?.description || ""),
+        selectLikelyJobDescription(jsonLdDescription || ""),
+        selectLikelyJobDescription(bodyText || ""),
+        selectLikelyJobDescription(ogDescription || ""),
+      ].filter((candidate) => Boolean(candidate));
+
+      const description =
+        descriptionCandidates.sort(
+          (a, b) => scoreDescriptionCandidate(b) - scoreDescriptionCandidate(a),
+        )[0] || "";
 
       const titleSource = jsonLdTitle || ogTitle || normalizePageTitle(titleTag);
       const split = splitTitleAndCompanyFromText(titleSource);
       const companyFallback = toTitleCase(extractCompanyFromUrl(url));
 
-      const title = split.title || normalizePageTitle(titleTag);
-      const company = jsonLdCompany || split.company || companyFallback;
-      const location = jsonLdLocation || extractLocationFromText(description);
+      const title =
+        workableData?.title || split.title || normalizePageTitle(titleTag);
+      const company =
+        workableData?.company || jsonLdCompany || split.company || companyFallback;
+      const location =
+        workableData?.location || jsonLdLocation || extractLocationFromText(description);
 
       return {
         sourceUrl: url,

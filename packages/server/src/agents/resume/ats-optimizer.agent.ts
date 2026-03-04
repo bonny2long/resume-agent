@@ -39,7 +39,10 @@ export class ATSOptimizerAgent {
   private llm = getLLMService();
   private prisma = getPrismaClient();
 
-  async optimizeForATS(jobId: string): Promise<AgentResponse<ATSOptimizationReport>> {
+  async optimizeForATS(
+    jobId: string,
+    resumeId?: string,
+  ): Promise<AgentResponse<ATSOptimizationReport>> {
     try {
       logger.header("ATS Optimizer Agent");
       logger.info("Analyzing ATS optimization for job", { jobId });
@@ -53,20 +56,33 @@ export class ATSOptimizerAgent {
         throw new Error("Job not found");
       }
 
-      const masterResume = await this.prisma.masterResume.findFirst({
-        include: {
-          experiences: {
-            include: { achievements: true },
-            orderBy: { startDate: "desc" },
-          },
-          projects: true,
-          skills: true,
-          education: true,
-        },
-      });
+      const masterResume = resumeId
+        ? await this.prisma.masterResume.findUnique({
+            where: { id: resumeId },
+            include: {
+              experiences: {
+                include: { achievements: true },
+                orderBy: { startDate: "desc" },
+              },
+              projects: true,
+              skills: true,
+              education: true,
+            },
+          })
+        : await this.prisma.masterResume.findFirst({
+            include: {
+              experiences: {
+                include: { achievements: true },
+                orderBy: { startDate: "desc" },
+              },
+              projects: true,
+              skills: true,
+              education: true,
+            },
+          });
 
       if (!masterResume) {
-        throw new Error("No master resume found");
+        throw new Error(resumeId ? "Resume not found" : "No master resume found");
       }
 
       const analysis = await this.analyzeAndOptimize(job, masterResume);

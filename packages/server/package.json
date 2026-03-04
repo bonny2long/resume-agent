@@ -7,7 +7,14 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "cleanup:object-artifacts": "tsx src/scripts/cleanup-object-object.ts --apply",
+    "cleanup:object-artifacts:dry": "tsx src/scripts/cleanup-object-object.ts",
+    "backfill:upload-bullets": "tsx src/scripts/backfill-upload-snapshot-bullets.ts --dry-run",
+    "backfill:upload-bullets:apply": "tsx src/scripts/backfill-upload-snapshot-bullets.ts",
+    "validate:upload-bullets": "tsx src/scripts/validate-upload-bullets.ts",
+    "validate:cover-letter-tones": "tsx src/scripts/validate-cover-letter-tone-contracts.ts",
+    "validate:cover-letter-structure": "tsx src/scripts/validate-cover-letter-structure.ts"
   },
   "dependencies": {
     "@resume-agent/shared": "workspace:*",

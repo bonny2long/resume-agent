@@ -16,6 +16,7 @@ export class EmbeddingsService {
   private gemini: GoogleGenerativeAI | null = null;
   private huggingface: InferenceClient | null = null;
   private prisma = getPrismaClient();
+  private cohereRateLimited = false;
 
   constructor() {
     // Initialize all available clients
@@ -82,7 +83,7 @@ export class EmbeddingsService {
     }
 
     // 3. Try Cohere (Tertiary)
-    if (this.cohere) {
+    if (this.cohere && !this.cohereRateLimited) {
       try {
         const response = await this.cohere.embed({
           texts: [text],
@@ -99,6 +100,12 @@ export class EmbeddingsService {
           if (Array.isArray(embedding)) return embedding;
         }
       } catch (error: any) {
+        if (this.isRateLimitError(error)) {
+          this.cohereRateLimited = true;
+          logger.warn(
+            "Cohere embedding rate-limited; disabling Cohere for this process and using other providers/fallbacks.",
+          );
+        }
         logger.warn(
           `Cohere embedding failed: ${error.message}. Trying fallback...`,
         );
@@ -406,6 +413,16 @@ export class EmbeddingsService {
     }
 
     return embedding;
+  }
+
+  private isRateLimitError(error: any): boolean {
+    const message = (error?.message || "").toLowerCase();
+    return (
+      message.includes("429") ||
+      message.includes("toomanyrequestserror") ||
+      message.includes("rate limit") ||
+      message.includes("limited to")
+    );
   }
 
   private createExperienceText(experience: any): string {

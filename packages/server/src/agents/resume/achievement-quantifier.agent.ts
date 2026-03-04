@@ -6,6 +6,7 @@ import getPrismaClient from "@/database/client";
 import VoiceLoader from "@/utils/voice-loader";
 
 export interface QuantifiedAchievement {
+  experienceId?: string;
   original: string;
   rewritten: string;
   metrics: {
@@ -136,6 +137,48 @@ export class AchievementQuantifierAgent {
     achievements: any[],
     targetSkills: string[],
   ): Promise<QuantifiedAchievement[]> {
+    const normalize = (value: string) =>
+      `${value || ""}`
+        .toLowerCase()
+        .replace(/[^\w\s%$+#./-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const sourceIndex = achievements.map((achievement, index) => ({
+      index,
+      normalized: normalize(`${achievement?.description || ""}`),
+      experienceId: `${achievement?.experienceId || ""}`.trim() || undefined,
+    }));
+    const consumedSourceIndexes = new Set<number>();
+    const resolveExperienceId = (original: string): string | undefined => {
+      const normalizedOriginal = normalize(original);
+      if (!normalizedOriginal) return undefined;
+
+      const exact = sourceIndex.find(
+        (item) =>
+          !consumedSourceIndexes.has(item.index) &&
+          item.normalized &&
+          item.normalized === normalizedOriginal,
+      );
+      if (exact) {
+        consumedSourceIndexes.add(exact.index);
+        return exact.experienceId;
+      }
+
+      const fuzzy = sourceIndex.find(
+        (item) =>
+          !consumedSourceIndexes.has(item.index) &&
+          item.normalized &&
+          (item.normalized.includes(normalizedOriginal) ||
+            normalizedOriginal.includes(item.normalized)),
+      );
+      if (fuzzy) {
+        consumedSourceIndexes.add(fuzzy.index);
+        return fuzzy.experienceId;
+      }
+
+      return undefined;
+    };
+
     const voiceGuidance = await VoiceLoader.getVoiceGuidance();
 
     const prompt = `${voiceGuidance}
@@ -194,7 +237,24 @@ Return ONLY valid JSON array.`;
 
         const parsed = JSON.parse(jsonStr);
         if (Array.isArray(parsed)) {
-          return parsed;
+          return parsed.map((item: any) => ({
+            experienceId: resolveExperienceId(`${item?.original || ""}`),
+            original: `${item?.original || ""}`.trim(),
+            rewritten: `${item?.rewritten || item?.original || ""}`.trim(),
+            metrics:
+              item?.metrics && typeof item.metrics === "object"
+                ? item.metrics
+                : {},
+            context: `${item?.context || ""}`.trim(),
+            category:
+              item?.category === "leadership" ||
+              item?.category === "technical" ||
+              item?.category === "collaboration" ||
+              item?.category === "innovation" ||
+              item?.category === "impact"
+                ? item.category
+                : "impact",
+          }));
         }
       } catch (parseError) {
         logger.warn("Failed to parse quantified achievements", parseError);
@@ -202,6 +262,7 @@ Return ONLY valid JSON array.`;
     }
 
     return achievements.slice(0, 5).map((a) => ({
+      experienceId: `${a?.experienceId || ""}`.trim() || undefined,
       original: a.description,
       rewritten: a.description + (a.metrics ? ` (${a.metrics})` : ""),
       metrics: {},
@@ -231,6 +292,7 @@ Return ONLY valid JSON array.`;
       await this.prisma.quantifiedAchievement.createMany({
         data: achievements.map((ach) => ({
           resumeId,
+          experienceId: ach.experienceId || null,
           originalText: ach.original,
           rewrittenText: ach.rewritten,
           category: ach.category,
@@ -255,6 +317,7 @@ Return ONLY valid JSON array.`;
     });
 
     return records.map((r) => ({
+      experienceId: r.experienceId || undefined,
       original: r.originalText,
       rewritten: r.rewrittenText,
       category: r.category as any,

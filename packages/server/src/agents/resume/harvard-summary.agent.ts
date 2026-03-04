@@ -32,7 +32,10 @@ export class HarvardSummaryAgent {
   private llm = getLLMService();
   private prisma = getPrismaClient();
 
-  async generateSummaries(jobId?: string): Promise<AgentResponse<SummaryWriterResult>> {
+  async generateSummaries(
+    jobId?: string,
+    resumeId?: string,
+  ): Promise<AgentResponse<SummaryWriterResult>> {
     try {
       logger.header("Harvard Summary Writer Agent");
       logger.info("Generating 5 summary versions");
@@ -47,18 +50,29 @@ export class HarvardSummaryAgent {
         });
       }
 
-      masterResume = await this.prisma.masterResume.findFirst({
-        include: {
-          experiences: {
-            include: { achievements: true },
-            orderBy: { startDate: "desc" },
-          },
-          skills: true,
-        },
-      });
+      masterResume = resumeId
+        ? await this.prisma.masterResume.findUnique({
+            where: { id: resumeId },
+            include: {
+              experiences: {
+                include: { achievements: true },
+                orderBy: { startDate: "desc" },
+              },
+              skills: true,
+            },
+          })
+        : await this.prisma.masterResume.findFirst({
+            include: {
+              experiences: {
+                include: { achievements: true },
+                orderBy: { startDate: "desc" },
+              },
+              skills: true,
+            },
+          });
 
       if (!masterResume) {
-        throw new Error("No master resume found");
+        throw new Error(resumeId ? "Resume not found" : "No master resume found");
       }
 
       const yearsExperience = this.calculateYearsExperience(masterResume.experiences);

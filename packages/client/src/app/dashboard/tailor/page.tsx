@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileText, Wand2, Loader2, Check, Link2 } from "lucide-react";
+import { ArrowLeft, FileText, Wand2, Loader2, Check, Link2, Briefcase, Mail, Download } from "lucide-react";
 
 interface Resume {
   id: string;
@@ -19,6 +19,28 @@ interface Resume {
   } | null;
 }
 
+interface OrchestratorEmailDraft {
+  to: string;
+  subject: string;
+  body: string;
+  tone: string;
+  type: string;
+}
+
+interface OrchestratorResult {
+  applicationId: string;
+  jobTitle: string;
+  companyName: string;
+  resumePath: string;
+  coverLetterPath: string;
+  skillsSnapshotPath?: string;
+  hiringManagerName?: string;
+  hiringManagerLinkedIn?: string;
+  linkedInMessage?: string;
+  followUpEmail?: OrchestratorEmailDraft;
+  summary: string;
+}
+
 export default function TailorPage() {
   const router = useRouter();
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -32,6 +54,12 @@ export default function TailorPage() {
   const [companyName, setCompanyName] = useState("");
   const [jobUrl, setJobUrl] = useState("");
   const [parsingUrl, setParsingUrl] = useState(false);
+  const [workflowSubmitting, setWorkflowSubmitting] = useState(false);
+  const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
+  const [workflowResult, setWorkflowResult] = useState<OrchestratorResult | null>(
+    null,
+  );
+  const masterResumes = resumes.filter((resume) => !resume.tailoredFromId);
 
   useEffect(() => {
     fetchResumes();
@@ -55,7 +83,12 @@ export default function TailorPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setResumes(data.resumes || []);
+        const allResumes = data.resumes || [];
+        setResumes(allResumes);
+        const latestMaster = allResumes.find((resume: Resume) => !resume.tailoredFromId);
+        if (!selectedResumeId && latestMaster?.id) {
+          setSelectedResumeId(latestMaster.id);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch resumes:", error);
@@ -172,6 +205,114 @@ export default function TailorPage() {
     setParsingUrl(false);
   };
 
+  const handleRunApplicationWorkflow = async () => {
+    if (!selectedResumeId || !jobUrl.trim()) {
+      setMessage({
+        type: "error",
+        text: "Select a resume and provide a job posting URL to run the full workflow",
+      });
+      return;
+    }
+
+    setWorkflowSubmitting(true);
+    setMessage(null);
+    setWorkflowResult(null);
+
+    try {
+      const token =
+        localStorage.getItem("next-auth.session-token") ||
+        localStorage.getItem("auth_token") ||
+        "dev-token";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/agents/application-orchestrator`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            jobUrl: jobUrl.trim(),
+            resumeId: selectedResumeId,
+            enhanced: true,
+          }),
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage({
+          type: "error",
+          text: data?.message || "Failed to run application workflow",
+        });
+        return;
+      }
+
+      setWorkflowResult(data.result || null);
+      setMessage({
+        type: "success",
+        text: "Application workflow completed. Review hiring manager, LinkedIn, and email drafts in Preview.",
+      });
+    } catch (error) {
+      setMessage({ type: "error", text: "Failed to run application workflow" });
+    }
+
+    setWorkflowSubmitting(false);
+  };
+
+  const handleDownloadOutput = async (filePath: string) => {
+    if (!filePath) return;
+    setDownloadingPath(filePath);
+
+    try {
+      const token =
+        localStorage.getItem("next-auth.session-token") ||
+        localStorage.getItem("auth_token") ||
+        "dev-token";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/files/download?path=${encodeURIComponent(filePath)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        let errorMessage = "Failed to download file";
+        try {
+          const data = await response.json();
+          errorMessage = data?.message || errorMessage;
+        } catch {
+          // no-op
+        }
+        setMessage({ type: "error", text: errorMessage });
+        return;
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const fromHeader = disposition.match(/filename=\"?([^"]+)\"?/i)?.[1];
+      const fromPath = filePath.split(/[\\/]/).pop();
+      const filename = fromHeader || fromPath || "output";
+
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setMessage({ type: "error", text: "Failed to download file" });
+    } finally {
+      setDownloadingPath(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -197,10 +338,10 @@ export default function TailorPage() {
         </div>
       </div>
 
-      {resumes.length === 0 ? (
+      {masterResumes.length === 0 ? (
         <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">No resumes found</p>
+          <p className="text-gray-500 mb-4">No master resumes found</p>
           <Link
             href="/dashboard/upload"
             className="text-blue-600 hover:underline"
@@ -222,10 +363,10 @@ export default function TailorPage() {
                 onChange={(e) => setSelectedResumeId(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Choose a resume...</option>
-                {resumes.map((resume) => (
+                <option value="">Choose a master resume...</option>
+                {masterResumes.map((resume) => (
                   <option key={resume.id} value={resume.id}>
-                    {resume.tailoredFromId ? `[Tailored: ${resume.resumeData?.tailoredFor?.companyName || resume.resumeData?.tailoredFor?.jobTitle || 'Job'}] ` : ''}{resume.fullName || "Untitled"} - {new Date(resume.createdAt).toLocaleDateString()}
+                    {resume.fullName || "Untitled"} - {new Date(resume.createdAt).toLocaleDateString()}
                   </option>
                 ))}
               </select>
@@ -337,6 +478,24 @@ export default function TailorPage() {
                 </>
               )}
             </button>
+
+            <button
+              onClick={handleRunApplicationWorkflow}
+              disabled={workflowSubmitting || !selectedResumeId || !jobUrl.trim()}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {workflowSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Running Full Workflow...
+                </>
+              ) : (
+                <>
+                  <Briefcase className="w-5 h-5" />
+                  Run Full Apply Workflow
+                </>
+              )}
+            </button>
           </div>
 
           {/* Preview Section */}
@@ -344,10 +503,108 @@ export default function TailorPage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Preview
             </h2>
-            <div className="text-gray-500 text-center py-12">
-              <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
-              <p>Your tailored resume will appear here after processing.</p>
-            </div>
+            {workflowResult ? (
+              <div className="space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-emerald-900">
+                    {workflowResult.jobTitle} at {workflowResult.companyName}
+                  </p>
+                  <p className="text-xs text-emerald-700 mt-1">
+                    Application ID: {workflowResult.applicationId}
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p><span className="font-medium">Resume Output:</span> {workflowResult.resumePath}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadOutput(workflowResult.resumePath)}
+                    disabled={downloadingPath === workflowResult.resumePath}
+                    className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {downloadingPath === workflowResult.resumePath ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Download className="w-3 h-3" />
+                    )}
+                    Download Resume
+                  </button>
+                  <p><span className="font-medium">Cover Letter Output:</span> {workflowResult.coverLetterPath}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadOutput(workflowResult.coverLetterPath)}
+                    disabled={downloadingPath === workflowResult.coverLetterPath}
+                    className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {downloadingPath === workflowResult.coverLetterPath ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Download className="w-3 h-3" />
+                    )}
+                    Download Cover Letter
+                  </button>
+                  {workflowResult.skillsSnapshotPath ? (
+                    <>
+                      <p><span className="font-medium">Skills Snapshot:</span> {workflowResult.skillsSnapshotPath}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadOutput(workflowResult.skillsSnapshotPath!)}
+                        disabled={downloadingPath === workflowResult.skillsSnapshotPath}
+                        className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {downloadingPath === workflowResult.skillsSnapshotPath ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <Download className="w-3 h-3" />
+                        )}
+                        Download Skills JSON
+                      </button>
+                    </>
+                  ) : null}
+                  <p><span className="font-medium">Hiring Manager:</span> {workflowResult.hiringManagerName || "Not found"}</p>
+                  <p><span className="font-medium">Hiring Manager LinkedIn:</span> {workflowResult.hiringManagerLinkedIn || "Not available"}</p>
+                </div>
+
+                {workflowResult.linkedInMessage ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <p className="text-sm font-medium text-gray-900 mb-2">LinkedIn Message Draft</p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {workflowResult.linkedInMessage}
+                    </p>
+                  </div>
+                ) : null}
+
+                {workflowResult.followUpEmail ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm font-medium text-blue-900 mb-2 flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      Follow-up Email Draft
+                    </p>
+                    <p className="text-xs text-blue-800 mb-1">
+                      To: {workflowResult.followUpEmail.to || "(add recipient email)"}
+                    </p>
+                    <p className="text-xs text-blue-800 mb-3">
+                      Subject: {workflowResult.followUpEmail.subject}
+                    </p>
+                    <p className="text-sm text-blue-900 whitespace-pre-wrap">
+                      {workflowResult.followUpEmail.body}
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-gray-900 mb-2">Workflow Summary</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {workflowResult.summary}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-gray-500 text-center py-12">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                <p>Your tailored resume or full workflow output will appear here after processing.</p>
+              </div>
+            )}
           </div>
         </div>
       )}

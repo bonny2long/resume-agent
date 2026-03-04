@@ -39,23 +39,37 @@ export class BehavioralCoachAgent {
   private llm = getLLMService();
   private prisma = getPrismaClient();
 
-  async generateStoryBank(targetRole?: string): Promise<AgentResponse<BehavioralCoachResult>> {
+  async generateStoryBank(
+    targetRole?: string,
+    resumeId?: string,
+  ): Promise<AgentResponse<BehavioralCoachResult>> {
     try {
       logger.header("Behavioral Interview Coach");
       logger.info("Generating STAR story bank");
 
-      const masterResume = await this.prisma.masterResume.findFirst({
-        include: {
-          experiences: {
-            include: { achievements: true },
-            orderBy: { startDate: "desc" },
-          },
-          projects: true,
-        },
-      });
+      const masterResume = resumeId
+        ? await this.prisma.masterResume.findUnique({
+            where: { id: resumeId },
+            include: {
+              experiences: {
+                include: { achievements: true },
+                orderBy: { startDate: "desc" },
+              },
+              projects: true,
+            },
+          })
+        : await this.prisma.masterResume.findFirst({
+            include: {
+              experiences: {
+                include: { achievements: true },
+                orderBy: { startDate: "desc" },
+              },
+              projects: true,
+            },
+          });
 
       if (!masterResume) {
-        throw new Error("No master resume found");
+        throw new Error(resumeId ? "Resume not found" : "No master resume found");
       }
 
       const stories = await this.generateSTARStories(masterResume, targetRole);

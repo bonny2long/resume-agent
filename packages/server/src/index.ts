@@ -3,16 +3,50 @@ import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
 import bcrypt from "bcryptjs";
 import Anthropic from "@anthropic-ai/sdk";
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
-import { join, dirname } from "path";
+import { readFileSync, existsSync, writeFileSync, mkdirSync, statSync } from "fs";
+import { join, dirname, resolve, sep, extname, basename } from "path";
 import { fileURLToPath } from "url";
 import { prisma } from "@resume-agent/shared/src/client.js";
 import { parseResumeFile } from "./parser.js";
 import { getJobAnalyzerAgent } from "./agents/job-analyzer.js";
 import { getLLMService } from "./services/llm.service.js";
+import {
+  type CoverLetterTone,
+  applyCoverLetterTonePostProcessing,
+  assessCoverLetterTone,
+  getCoverLetterToneGuide,
+  normalizeCoverLetterTone,
+} from "./services/cover-letter-tone.service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const OUTPUT_ROOTS = [
+  resolve(process.cwd(), "data", "outputs"),
+  resolve(process.cwd(), "packages", "server", "data", "outputs"),
+];
+
+function resolveSafeOutputPath(rawPath: string): string | null {
+  const requested = `${rawPath || ""}`.trim();
+  if (!requested) return null;
+  const absolutePath = resolve(requested);
+
+  const allowed = OUTPUT_ROOTS.some(
+    (root) => absolutePath === root || absolutePath.startsWith(root + sep),
+  );
+  if (!allowed) return null;
+  return absolutePath;
+}
+
+function getFileContentType(filePath: string): string {
+  const ext = extname(filePath).toLowerCase();
+  if (ext === ".docx") {
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (ext === ".pdf") return "application/pdf";
+  if (ext === ".json") return "application/json";
+  if (ext === ".txt") return "text/plain; charset=utf-8";
+  return "application/octet-stream";
+}
 
 const fastify: FastifyInstance = Fastify({
   logger: true,
@@ -1482,6 +1516,80 @@ function toRecord(value: unknown): Record<string, unknown> {
 
 function toStringValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function buildEducationFactText(education: Array<{ degree?: string | null; field?: string | null; institution?: string | null }>): string {
+  if (!Array.isArray(education) || education.length === 0) {
+    return "No formal education records provided. Candidate may be self-taught.";
+  }
+
+  const lines = education
+    .map((entry) => {
+      const degree = `${entry.degree || ""}`.trim();
+      const field = `${entry.field || ""}`.trim();
+      const institution = `${entry.institution || ""}`.trim();
+      return [degree, field, institution].filter(Boolean).join(" - ");
+    })
+    .filter(Boolean);
+
+  return lines.length > 0 ? lines.join("; ") : "No formal education records provided. Candidate may be self-taught.";
+}
+
+function sanitizeCoverLetterClaims(
+  text: string,
+  education: Array<{ degree?: string | null; field?: string | null; institution?: string | null }>,
+): string {
+  let cleaned = `${text || ""}`.trim();
+  if (!cleaned) return cleaned;
+
+  const educationBlob = education
+    .map((entry) => `${entry.degree || ""} ${entry.field || ""} ${entry.institution || ""}`.toLowerCase())
+    .join(" ");
+  const hasCSDegree = /\b(computer science|software engineering)\b/i.test(educationBlob);
+  const hasAnyDegree = /\b(b\.?s\.?|bachelor|a\.?a\.?s\.?|associate|m\.?s\.?|master|phd|doctorate)\b/i.test(
+    educationBlob,
+  );
+
+  if (!hasCSDegree) {
+    cleaned = cleaned.replace(
+      /\b(strong|solid|robust)?\s*foundation in computer science\b/gi,
+      "strong software engineering fundamentals built through self-directed learning",
+    );
+    cleaned = cleaned.replace(
+      /\bdegree in computer science\b/gi,
+      "self-directed software engineering training",
+    );
+  }
+
+  if (!hasAnyDegree) {
+    cleaned = cleaned.replace(
+      /\bbachelor(?:'s)? degree\b/gi,
+      "professional experience and self-directed training",
+    );
+  }
+
+  cleaned = cleaned.replace(
+    /\bwith a strong software engineering fundamentals\b/gi,
+    "with strong software engineering fundamentals",
+  );
+
+  return cleaned
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]+([,.!?;:])/g, "$1")
+    .trim();
+}
+
+function finalizeCoverLetterBody(
+  text: string,
+  tone: CoverLetterTone,
+  education: Array<{ degree?: string | null; field?: string | null; institution?: string | null }>,
+): string {
+  const sanitized = sanitizeCoverLetterClaims(text, education);
+  const toned = applyCoverLetterTonePostProcessing(sanitized, tone);
+  return sanitizeCoverLetterClaims(toned, education);
 }
 
 function extractAchievementDescriptions(value: unknown, maxItems = 12): string[] {
@@ -2980,6 +3088,8 @@ fastify.post<{
       companyAddress,
       applicantAddress,
     } = request.body;
+    const requestedTone = normalizeCoverLetterTone(tone);
+    const toneGuide = getCoverLetterToneGuide(requestedTone);
     const normalizedJobDescription = `${jobDescription || ""}`.trim().slice(0, 12000);
 
     const masterResume = await prisma.masterResume.findFirst({
@@ -2988,6 +3098,7 @@ fastify.post<{
         experiences: { orderBy: { startDate: "desc" }, take: 3 },
         projects: { take: 2 },
         skills: true,
+        education: { orderBy: { startDate: "desc" }, take: 3 },
       },
     });
 
@@ -3023,6 +3134,7 @@ fastify.post<{
       .join("\n");
 
     const skillsText = masterResume.skills.map((s: any) => s.name).join(", ");
+    const educationFacts = buildEducationFactText(masterResume.education || []);
     const storySnippet = buildCareerStorySnippet(careerStory);
     const transferableSkills = formatTransferableSkills(careerStory?.transferableSkills);
     const avoidPhrases = parseAvoidPhrases(voiceProfile?.avoidPhrases);
@@ -3046,7 +3158,10 @@ Write a clear, human, professional cover letter that follows this exact layout o
 Rules:
 - No markdown, no bullets, no placeholders like [Company].
 - Use only facts from the provided resume/job context; do not invent outcomes or metrics.
-- Keep tone aligned to requested tone and keep writing readable.
+- Requested tone from UI is authoritative and must be followed exactly.
+- Tone contract for this letter: ${toneGuide}
+- Education truth guard: never claim a computer science degree, software engineering degree, or bachelor's degree unless explicitly present in Education Facts.
+- Use the provided Submission Date exactly as written.
 - If My Story context is provided, use it naturally to explain motivation and unique value.
 - Do not copy My Story text verbatim.
 
@@ -3056,7 +3171,7 @@ Output JSON format:
   "body": "Full cover letter text..."
 }`;
 
-    const userPrompt = `Write a ${tone} cover letter for this job application.
+    const userPrompt = `Write a ${requestedTone} cover letter for this job application.
 
 Job Title: ${jobTitle || "the position"}
 Company: ${companyName || "the company"}
@@ -3080,6 +3195,7 @@ Key Experiences:
 ${experiencesText}
 
 Skills: ${skillsText}
+Education Facts: ${educationFacts}
 
 My Story (user input):
 Narrative Anchor: ${storySnippet || "Not provided"}
@@ -3093,6 +3209,11 @@ Preferred Tone: ${voiceProfile?.tone || "Not provided"}
 Preferred Style: ${voiceProfile?.style || "Not provided"}
 Preferred Examples: ${(voiceProfile?.examples || "").slice(0, 700) || "Not provided"}
 Phrases To Avoid: ${avoidPhrases.length > 0 ? avoidPhrases.join(", ") : "Not provided"}
+
+Important:
+- Follow UI selected tone: ${requestedTone}
+- Apply tone contract: ${toneGuide}
+- Voice profile can refine wording but cannot override selected tone.
 
 Write the cover letter.`;
 
@@ -3136,6 +3257,11 @@ Write the cover letter.`;
         .replace(/^```\n?/gi, "")
         .replace(/```$/g, "")
         .trim();
+      coverLetter.body = finalizeCoverLetterBody(
+        coverLetter.body,
+        requestedTone,
+        masterResume.education || [],
+      );
 
       if (!coverLetter.body) {
         const rescuePrompt = `Write only the final cover letter text (no JSON, no markdown).
@@ -3148,6 +3274,9 @@ Keep this exact structure:
 - Two body paragraphs using relevant experience
 - Closing paragraph with interview call-to-action
 - Sign-off and name
+
+UI Selected Tone: ${requestedTone}
+Tone Contract: ${toneGuide}
 
 Role: ${jobTitle || "the position"}
 Company: ${companyName || "the company"}
@@ -3162,6 +3291,7 @@ Address: ${applicantAddress || masterResume.location || "Not provided"}
 Experiences:
 ${experiencesText}
 Skills: ${skillsText}
+Education Facts: ${educationFacts}
 Story Anchor: ${storySnippet || "Not provided"}`;
 
         const rescueResult = await llmService.complete(rescuePrompt, {
@@ -3173,6 +3303,12 @@ Story Anchor: ${storySnippet || "Not provided"}`;
         }
       }
 
+      coverLetter.body = finalizeCoverLetterBody(
+        coverLetter.body,
+        requestedTone,
+        masterResume.education || [],
+      );
+
       if (!coverLetter.body) {
         return reply.status(500).send({
           message: "Failed to generate cover letter",
@@ -3182,6 +3318,41 @@ Story Anchor: ${storySnippet || "Not provided"}`;
 
       if (!coverLetter.subject) {
         coverLetter.subject = `Application for ${jobTitle || "the position"}${companyName ? ` at ${companyName}` : ""}`;
+      }
+
+      let toneAssessment = assessCoverLetterTone(coverLetter.body, requestedTone);
+      if (!toneAssessment.passed) {
+        const toneRepairPrompt = `Rewrite the cover letter below for a ${requestedTone} tone while preserving all factual content and structure.
+
+Rules:
+- Keep the same header/date/employer/salutation/paragraph/sign-off structure.
+- Do not add or remove factual claims.
+- Keep it readable and natural.
+- Fix these tone issues: ${toneAssessment.issues.join(", ")}
+
+Cover letter:
+${coverLetter.body}`;
+
+        const toneRepairResult = await llmService.complete(toneRepairPrompt, {
+          maxTokens: 2200,
+          temperature: 0.2,
+        });
+
+        if (toneRepairResult.success && toneRepairResult.data) {
+          coverLetter.body = finalizeCoverLetterBody(
+            toneRepairResult.data.trim(),
+            requestedTone,
+            masterResume.education || [],
+          );
+          toneAssessment = assessCoverLetterTone(coverLetter.body, requestedTone);
+        }
+      }
+
+      if (!toneAssessment.passed) {
+        fastify.log.warn(
+          { tone: requestedTone, issues: toneAssessment.issues, metrics: toneAssessment.metrics },
+          "Cover letter tone assessment still has issues after repair pass",
+        );
       }
 
       return { coverLetter };
@@ -3646,7 +3817,221 @@ fastify.put<{
   },
 );
 
+// Download generated output files (resume, cover letter, JSON snapshots)
+fastify.get<{ Querystring: { path: string } }>(
+  "/api/files/download",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const rawPath = `${request.query?.path || ""}`.trim();
+    if (!rawPath) {
+      return reply.status(400).send({ message: "File path is required" });
+    }
+
+    const safePath = resolveSafeOutputPath(rawPath);
+    if (!safePath) {
+      return reply.status(403).send({ message: "File path is not allowed" });
+    }
+
+    if (!existsSync(safePath)) {
+      return reply.status(404).send({ message: "File not found" });
+    }
+
+    try {
+      const buffer = readFileSync(safePath);
+      const filename = basename(safePath);
+      const contentType = getFileContentType(safePath);
+
+      reply.header("Content-Type", contentType);
+      reply.header(
+        "Content-Disposition",
+        `attachment; filename="${filename.replace(/"/g, "")}"`,
+      );
+      return reply.send(buffer);
+    } catch (error: any) {
+      return reply.status(500).send({
+        message: "Failed to load file",
+        error: error?.message || "Unknown error",
+      });
+    }
+  },
+);
+
+// List generated output files for current user
+fastify.get(
+  "/api/files/outputs",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const resumes = await prisma.masterResume.findMany({
+      where: { userId: request.user.id },
+      select: {
+        id: true,
+        createdAt: true,
+        resumeData: true,
+        jobDescription: true,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+
+    const outputs = resumes
+      .map((resume) => {
+        const resumeData = toRecord(resume.resumeData);
+        const tailoredFor = toRecord(resumeData.tailoredFor);
+        const workflowOutputs = toRecord(resumeData.workflowOutputs);
+
+        const resumePathRaw = toStringValue(workflowOutputs.resumePath);
+        const coverLetterPathRaw = toStringValue(workflowOutputs.coverLetterPath);
+        const skillsSnapshotPathRaw = toStringValue(
+          workflowOutputs.skillsSnapshotPath,
+        );
+
+        const resumePath = resolveSafeOutputPath(resumePathRaw);
+        const coverLetterPath = resolveSafeOutputPath(coverLetterPathRaw);
+        const skillsSnapshotPath = resolveSafeOutputPath(skillsSnapshotPathRaw);
+
+        const hasAnyPath = Boolean(
+          (resumePath && existsSync(resumePath)) ||
+            (coverLetterPath && existsSync(coverLetterPath)) ||
+            (skillsSnapshotPath && existsSync(skillsSnapshotPath)),
+        );
+
+        if (!hasAnyPath) return null;
+
+        const fileMeta = (filePath: string | null) => {
+          if (!filePath || !existsSync(filePath)) return null;
+          const stats = statSync(filePath);
+          return {
+            path: filePath,
+            name: basename(filePath),
+            sizeBytes: stats.size,
+            updatedAt: stats.mtime.toISOString(),
+          };
+        };
+
+        return {
+          resumeId: resume.id,
+          createdAt: resume.createdAt.toISOString(),
+          jobTitle: toStringValue(tailoredFor.jobTitle) || null,
+          companyName: toStringValue(tailoredFor.companyName) || null,
+          jobDescription: resume.jobDescription || "",
+          files: {
+            resume: fileMeta(resumePath),
+            coverLetter: fileMeta(coverLetterPath),
+            skillsSnapshot: fileMeta(skillsSnapshotPath),
+          },
+        };
+      })
+      .filter(Boolean);
+
+    return { outputs };
+  },
+);
+
 // ==================== AGENT ROUTES ====================
+
+// End-to-end application workflow orchestrator
+fastify.post<{ Body: { jobUrl: string; enhanced?: boolean; resumeId?: string } }>(
+  "/api/agents/application-orchestrator",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const { jobUrl, enhanced = false, resumeId } = request.body;
+    const normalizedUrl = `${jobUrl || ""}`.trim();
+
+    if (!normalizedUrl) {
+      return reply.status(400).send({ message: "Job URL is required" });
+    }
+
+    if (resumeId) {
+      const resume = await prisma.masterResume.findFirst({
+        where: { id: resumeId, userId: request.user.id },
+      });
+      if (!resume) {
+        return reply.status(404).send({ message: "Resume not found" });
+      }
+    }
+
+    try {
+      const { getApplicationOrchestrator } = await import(
+        "./agents/application-orchestrator.agent.js"
+      );
+      const orchestrator = getApplicationOrchestrator();
+      const workflow = await orchestrator.applyToJob(normalizedUrl, {
+        enhanced: Boolean(enhanced),
+        resumeId,
+        userId: request.user.id,
+      });
+
+      if (!workflow.success || !workflow.data) {
+        return reply.status(500).send({
+          message: "Failed to run application workflow",
+          error: workflow.error || "Workflow failed",
+        });
+      }
+
+      return { result: workflow.data };
+    } catch (error: any) {
+      console.error("Application orchestrator failed:", error.message);
+      return reply.status(500).send({ message: "Failed to run application workflow", error: error.message });
+    }
+  },
+);
+
+// Tailor resume by job (agent orchestration path)
+fastify.post<{ Body: { resumeId: string; jobId: string; enhanced?: boolean } }>(
+  "/api/agents/resume-tailor",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const { resumeId, jobId, enhanced = false } = request.body;
+
+    const [resume, job] = await Promise.all([
+      prisma.masterResume.findFirst({
+        where: { id: resumeId, userId: request.user.id },
+      }),
+      prisma.job.findUnique({
+        where: { id: jobId },
+      }),
+    ]);
+
+    if (!resume) {
+      return reply.status(404).send({ message: "Resume not found" });
+    }
+
+    if (!job) {
+      return reply.status(404).send({ message: "Job not found" });
+    }
+
+    try {
+      const { getResumeTailorAgent } = await import(
+        "./agents/resume-tailor.agent.js"
+      );
+      const agent = getResumeTailorAgent();
+      const tailored = await agent.tailorResume(jobId, {
+        enhanced: Boolean(enhanced),
+        resumeId,
+      });
+
+      if (!tailored.success || !tailored.data) {
+        return reply.status(500).send({
+          message: "Failed to tailor resume",
+          error: tailored.error || "Tailoring failed",
+        });
+      }
+
+      return { result: tailored.data };
+    } catch (error: any) {
+      console.error("Resume tailor agent failed:", error.message);
+      return reply.status(500).send({ message: "Failed to tailor resume", error: error.message });
+    }
+  },
+);
 
 // Quantify achievements (McKinsey-style)
 fastify.post<{ Body: { resumeId: string } }>(
@@ -3659,68 +4044,27 @@ fastify.post<{ Body: { resumeId: string } }>(
 
     const resume = await prisma.masterResume.findFirst({
       where: { id: resumeId, userId: request.user.id },
-      include: {
-        experiences: { orderBy: { startDate: "desc" } },
-        projects: { take: 3 },
-      },
     });
 
     if (!resume) {
       return reply.status(404).send({ message: "Resume not found" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return reply.status(500).send({ message: "ANTHROPIC_API_KEY not configured" });
-    }
-
-    const anthropic = new Anthropic({ apiKey });
-
-    const experiencesText = resume.experiences
-      .map((exp) => `${exp.title} at ${exp.company}: ${exp.description}`)
-      .join("\n\n");
-
-    const projectsText = resume.projects
-      .map((proj) => `${proj.name}: ${proj.description}`)
-      .join("\n\n");
-
-    const systemPrompt = `You are a McKinsey-style achievement quantifier. Your task is to rewrite resume achievements to include metrics, numbers, and quantifiable impact. Output JSON with this structure:
-{
-  "achievements": [
-    {
-      "original": "original text",
-      "rewritten": "quantified version with metrics",
-      "metrics": { "percentage": "X%", "revenue": "$X", "scale": "X people", "time": "X% faster" },
-      "category": "leadership|technical|collaboration|innovation|impact"
-    }
-  ],
-  "summary": { "totalQuantified": number }
-}`;
-
-    const userPrompt = `Quantify these resume achievements:\n\nExperiences:\n${experiencesText}\n\nProjects:\n${projectsText}`;
-
     try {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 3000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      });
+      const { getAchievementQuantifierAgent } = await import(
+        "./agents/resume/achievement-quantifier.agent.js"
+      );
+      const agent = getAchievementQuantifierAgent();
+      const quantification = await agent.quantifyResumeAchievements(resumeId);
 
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
+      if (!quantification.success || !quantification.data) {
+        return reply.status(500).send({
+          message: "Failed to quantify achievements",
+          error: quantification.error || "Quantification failed",
+        });
       }
 
-      let result;
-      const text = content.text.replace(/^```json\n?/, '').replace(/```$/, '').trim();
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { achievements: [], error: "Failed to parse", raw: content.text };
-      }
-
-      return { result };
+      return { result: quantification.data };
     } catch (error: any) {
       console.error("Quantify failed:", error.message);
       return reply.status(500).send({ message: "Failed to quantify achievements", error: error.message });
@@ -3739,62 +4083,37 @@ fastify.post<{ Body: { resumeId: string } }>(
 
     const resume = await prisma.masterResume.findFirst({
       where: { id: resumeId, userId: request.user.id },
-      include: {
-        experiences: { take: 3, orderBy: { startDate: "desc" } },
-        skills: true,
-      },
     });
 
     if (!resume) {
       return reply.status(404).send({ message: "Resume not found" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return reply.status(500).send({ message: "ANTHROPIC_API_KEY not configured" });
-    }
-
-    const anthropic = new Anthropic({ apiKey });
-
-    const experiencesText = resume.experiences
-      .map((exp) => `${exp.title} at ${exp.company}: ${exp.description}`)
-      .join("\n\n");
-
-    const skillsText = resume.skills.map((s) => s.name).join(", ");
-
-    const systemPrompt = `You are a Harvard Career Services advisor. Write 5 different professional summary versions for a resume. Each should be 2-3 sentences. Output JSON:
-{
-  "summaries": [
-    { "version": 1, "style": "professional", "text": "..." },
-    { "version": 2, "style": "achievement-focused", "text": "..." },
-    { "version": 3, "style": "leadership", "text": "..." },
-    { "version": 4, "style": "technical", "text": "..." },
-    { "version": 5, "style": "growth-oriented", "text": "..." }
-  ]
-}`;
-
-    const userPrompt = `Write summaries for this professional:\n\nName: ${resume.fullName}\nSkills: ${skillsText}\nTop Experiences:\n${experiencesText}`;
-
     try {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      });
+      const { getHarvardSummaryAgent } = await import(
+        "./agents/resume/harvard-summary.agent.js"
+      );
+      const agent = getHarvardSummaryAgent();
+      const summaryResult = await agent.generateSummaries(undefined, resumeId);
 
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
+      if (!summaryResult.success || !summaryResult.data) {
+        return reply.status(500).send({
+          message: "Failed to generate summaries",
+          error: summaryResult.error || "Summary generation failed",
+        });
       }
 
-      let result;
-      const text = content.text.replace(/^```json\n?/, '').replace(/```$/, '').trim();
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { summaries: [], error: "Failed to parse", raw: content.text };
-      }
+      const summaries = summaryResult.data.versions.map((version, index) => ({
+        version: index + 1,
+        style: version.angle,
+        text: version.summary,
+      }));
+
+      const result = {
+        summaries,
+        recommendation: summaryResult.data.recommendation,
+        candidateBackground: summaryResult.data.candidateBackground,
+      };
 
       return { result };
     } catch (error: any) {
@@ -3826,56 +4145,68 @@ fastify.post<{ Body: { resumeId: string; jobDescription?: string } }>(
       return reply.status(404).send({ message: "Resume not found" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return reply.status(500).send({ message: "ANTHROPIC_API_KEY not configured" });
-    }
-
-    const anthropic = new Anthropic({ apiKey });
-
     const experiencesText = resume.experiences
-      .map((exp) => `${exp.title} at ${exp.company}: ${exp.description}`)
+      .map((exp: any) => `${exp.title} at ${exp.company}: ${exp.description}`)
       .join("\n\n");
-
-    const skillsText = resume.skills.map((s) => s.name).join(", ");
-
-    const systemPrompt = `You are a Google ATS optimization expert. Analyze the resume and provide optimization tips. Output JSON:
-{
-  "score": 0-100,
-  "keywordsFound": ["keyword1", "keyword2"],
-  "keywordsMissing": ["keyword3"],
-  "suggestions": [
-    { "type": "add", "text": "...", "priority": "high|medium|low" }
-  ],
-  "optimizedBullets": [
-    { "original": "...", "optimized": "...", "reason": "..." }
-  ]
-}`;
-
-    const userPrompt = jobDescription 
-      ? `Optimize this resume for the job:\n\nJob Description:\n${jobDescription}\n\nResume:\n${experiencesText}\n\nSkills: ${skillsText}`
-      : `Optimize this resume for ATS:\n\n${experiencesText}\n\nSkills: ${skillsText}`;
+    const projectsText = resume.projects
+      .map((proj: any) => `${proj.name}: ${proj.description}`)
+      .join("\n\n");
+    const skillsText = resume.skills.map((s: any) => s.name).join(", ");
+    const resumeText = [
+      `Name: ${resume.fullName || ""}`,
+      `Skills: ${skillsText}`,
+      experiencesText ? `Experiences:\n${experiencesText}` : "",
+      projectsText ? `Projects:\n${projectsText}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    const normalizedJobDescription =
+      `${jobDescription || ""}`.trim() ||
+      "General ATS optimization with focus on keyword alignment and standard section headings.";
 
     try {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 2500,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      });
+      const { getATSOptimizerAgent } = await import(
+        "./agents/resume/ats-optimizer.agent.js"
+      );
+      const agent = getATSOptimizerAgent();
+      const optimization = await agent.analyzeResumeATS(
+        resumeText,
+        normalizedJobDescription,
+      );
 
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
+      if (!optimization.success || !optimization.data) {
+        return reply.status(500).send({
+          message: "Failed to optimize for ATS",
+          error: optimization.error || "ATS optimization failed",
+        });
       }
 
-      let result;
-      const text = content.text.replace(/^```json\n?/, '').replace(/```$/, '').trim();
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { error: "Failed to parse", raw: content.text };
-      }
+      const analysis = optimization.data;
+      const keywordAnalysis = analysis.keywordAnalysis || [];
+      const keywordsFound = keywordAnalysis
+        .filter((entry) => entry.category !== "missing")
+        .map((entry) => entry.keyword);
+      const keywordsMissing = keywordAnalysis
+        .filter((entry) => entry.category === "missing")
+        .map((entry) => entry.keyword);
+      const suggestions = (analysis.recommendations || []).map((text) => ({
+        type: "add",
+        text,
+        priority: "medium",
+      }));
+
+      const result = {
+        score: analysis.overallScore,
+        keywordsFound,
+        keywordsMissing,
+        suggestions,
+        optimizedBullets: [],
+        overallScore: analysis.overallScore,
+        keywordAnalysis,
+        sectionScores: analysis.sectionScores,
+        formatGuidance: analysis.formatGuidance,
+        atsEstimatedMatch: analysis.atsEstimatedMatch,
+      };
 
       return { result };
     } catch (error: any) {
@@ -3896,68 +4227,51 @@ fastify.post<{ Body: { resumeId: string } }>(
 
     const resume = await prisma.masterResume.findFirst({
       where: { id: resumeId, userId: request.user.id },
-      include: {
-        experiences: { orderBy: { startDate: "desc" }, take: 5 },
-        projects: { take: 3 },
-      },
     });
 
     if (!resume) {
       return reply.status(404).send({ message: "Resume not found" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return reply.status(500).send({ message: "ANTHROPIC_API_KEY not configured" });
-    }
-
-    const anthropic = new Anthropic({ apiKey });
-
-    const experiencesText = resume.experiences
-      .map((exp) => `${exp.title} at ${exp.company}: ${exp.description}`)
-      .join("\n\n");
-
-    const projectsText = resume.projects
-      .map((proj) => `${proj.name}: ${proj.description}`)
-      .join("\n\n");
-
-    const systemPrompt = `You are a FAANG behavioral interview coach. Generate STAR method stories from resume experiences. Output JSON:
-{
-  "stories": [
-    {
-      "category": "leadership|conflict|teamwork|problem-solving|achievement",
-      "situation": "...",
-      "task": "...",
-      "action": "...",
-      "result": "...",
-      "metrics": "...",
-      "question": "Tell me about a time you..."
-    }
-  ]
-}`;
-
-    const userPrompt = `Generate STAR stories from:\n\nExperiences:\n${experiencesText}\n\nProjects:\n${projectsText}`;
-
     try {
-      const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 3000,
-        system: systemPrompt,
-        messages: [{ role: "user", content: userPrompt }],
-      });
+      const { getBehavioralCoachAgent } = await import(
+        "./agents/interview/behavioral-coach.agent.js"
+      );
+      const agent = getBehavioralCoachAgent();
+      const storyBank = await agent.generateStoryBank(undefined, resumeId);
 
-      const content = response.content[0];
-      if (content.type !== "text") {
-        throw new Error("Unexpected response type");
+      if (!storyBank.success || !storyBank.data) {
+        return reply.status(500).send({
+          message: "Failed to generate STAR stories",
+          error: storyBank.error || "Story bank generation failed",
+        });
       }
 
-      let result;
-      const text = content.text.replace(/^```json\n?/, '').replace(/```$/, '').trim();
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { stories: [], error: "Failed to parse", raw: content.text };
+      const questionByStoryId = new Map<string, string>();
+      for (const mapping of storyBank.data.questionMapping || []) {
+        for (const storyId of mapping.suggestedStoryIds || []) {
+          if (!questionByStoryId.has(storyId)) {
+            questionByStoryId.set(storyId, mapping.question);
+          }
+        }
       }
+
+      const stories = (storyBank.data.stories || []).map((story) => ({
+        category: story.category,
+        situation: story.situation,
+        task: story.task,
+        action: story.action,
+        result: story.result,
+        metrics: story.metrics,
+        question: questionByStoryId.get(story.id) || story.title || "",
+      }));
+
+      const result = {
+        stories,
+        questionMapping: storyBank.data.questionMapping,
+        commonQuestions: storyBank.data.commonQuestions,
+        deliveryTips: storyBank.data.deliveryTips,
+      };
 
       return { result };
     } catch (error: any) {
@@ -3988,3 +4302,5 @@ async function start() {
 }
 
 start();
+
+

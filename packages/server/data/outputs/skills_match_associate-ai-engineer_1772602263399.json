@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2026-03-04T05:31:03.399Z",
+  "companyName": "Premise Health",
+  "jobTitle": "Associate AI Engineer",
+  "jobUrl": "https://premisehealth2.avature.net/externalcareers/FolderDetail/Associate-AI-Engineer/38467",
+  "requiredSkills": [
+    "Python",
+    "ML frameworks",
+    "REST APIs",
+    "CI/CD",
+    "Docker",
+    "containerization"
+  ],
+  "preferredSkills": [
+    "Azure",
+    "AWS",
+    "Databricks",
+    "healthcare data experience"
+  ],
+  "candidateSkills": [
+    "aug 2025 – dec 2025",
+    "aws",
+    "backend & apis: node.js",
+    "claude",
+    "config",
+    "css",
+    "cypress",
+    "docker",
+    "dockerfile",
+    "express",
+    "gemini",
+    "git",
+    "github actions",
+    "github config",
+    "graphql",
+    "html",
+    "indexing",
+    "javascript",
+    "javascript es6+",
+    "jest",
+    "jwt",
+    "llm integrations",
+    "mysql",
+    "next.js",
+    "node.js",
+    "oauth 2.0",
+    "openai",
+    "php",
+    "postgresql",
+    "powershell",
+    "prisma",
+    "python",
+    "query optimization",
+    "rag pipelines",
+    "react",
+    "redux",
+    "relational schema design",
+    "rest",
+    "ruby",
+    "scss",
+    "semantic search",
+    "shell",
+    "sql",
+    "tailwind css",
+    "tsql",
+    "typescript",
+    "zustand"
+  ],
+  "match": {
+    "score": 35,
+    "matched": [
+      "python",
+      "docker"
+    ],
+    "missing": [
+      "ml frameworks",
+      "rest apis",
+      "ci/cd",
+      "containerization"
+    ],
+    "extras": [
+      "aws"
+    ]
+  }
+}

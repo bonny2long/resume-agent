@@ -334,58 +334,48 @@ export class LLMService {
         (process.env.ALLOW_ANTHROPIC_FALLBACK || "true").toLowerCase() !==
         "false";
 
-      // Try fallback if primary fails
-      if (this.provider === "huggingface") {
-        // Fallback Chain: HuggingFace -> Gemini -> Cohere
-        if (this.geminiClient) {
-          logger.info("Falling back to Gemini");
-          try {
-            return await this.completeWithGemini(prompt, options);
-          } catch (geminiError) {
-            logger.warn("Gemini fallback failed", geminiError);
+      // Try fallback chain if primary fails
+      const fallbackOrderByProvider: Record<
+        "anthropic" | "cohere" | "gemini" | "huggingface",
+        Array<"anthropic" | "cohere" | "gemini" | "huggingface">
+      > = {
+        huggingface: ["gemini", "cohere", "anthropic"],
+        gemini: ["huggingface", "cohere", "anthropic"],
+        anthropic: ["gemini", "huggingface", "cohere"],
+        cohere: ["gemini", "huggingface", "anthropic"],
+      };
+
+      for (const fallbackProvider of fallbackOrderByProvider[this.provider]) {
+        if (
+          fallbackProvider === "anthropic" &&
+          (!allowAnthropicFallback || !this.anthropicClient)
+        ) {
+          continue;
+        }
+        if (fallbackProvider === "huggingface" && !this.huggingFaceClient) {
+          continue;
+        }
+        if (fallbackProvider === "gemini" && !this.geminiClient) {
+          continue;
+        }
+        if (fallbackProvider === "cohere" && !this.cohereClientV2) {
+          continue;
+        }
+
+        logger.info(`Falling back to ${fallbackProvider}`);
+        try {
+          switch (fallbackProvider) {
+            case "anthropic":
+              return await this.completeWithAnthropic(prompt, options);
+            case "cohere":
+              return await this.completeWithCohere(prompt, options);
+            case "gemini":
+              return await this.completeWithGemini(prompt, options);
+            case "huggingface":
+              return await this.completeWithHuggingFace(prompt, options);
           }
-        }
-        if (this.cohereClientV2) {
-          logger.info("Falling back to Cohere");
-          return await this.completeWithCohere(prompt, options);
-        }
-      } else if (this.provider === "anthropic") {
-        if (this.cohereClientV2) {
-          logger.info("Falling back to Cohere");
-          try {
-            return await this.completeWithCohere(prompt, options);
-          } catch (cohereError) {
-            logger.warn("Cohere fallback failed", cohereError);
-          }
-        }
-        if (this.geminiClient) {
-          logger.info("Falling back to Gemini");
-          try {
-            return await this.completeWithGemini(prompt, options);
-          } catch (geminiError) {
-            logger.warn("Gemini fallback failed", geminiError);
-          }
-        }
-      } else if (this.provider === "cohere") {
-        if (this.geminiClient) {
-          logger.info("Falling back to Gemini");
-          try {
-            return await this.completeWithGemini(prompt, options);
-          } catch (geminiError) {
-            logger.warn("Gemini fallback failed", geminiError);
-          }
-        }
-        if (this.huggingFaceClient) {
-          logger.info("Falling back to HuggingFace");
-          try {
-            return await this.completeWithHuggingFace(prompt, options);
-          } catch (hfError) {
-            logger.warn("HuggingFace fallback failed", hfError);
-          }
-        }
-        if (allowAnthropicFallback && this.anthropicClient) {
-          logger.info("Falling back to Anthropic");
-          return this.completeWithAnthropic(prompt, options);
+        } catch (fallbackError) {
+          logger.warn(`${fallbackProvider} fallback failed`, fallbackError);
         }
       }
 

@@ -1,6 +1,6 @@
 # Resume Agent - Knowledge Transfer (Extensive)
 
-Last updated: March 3, 2026
+Last updated: March 4, 2026
 Owner: Bonny MakanianKhondo
 
 ## 1. Why this file exists
@@ -107,6 +107,10 @@ Why this matters:
 - Added URL import usage in cover letter flow
 - Injected My Story + Voice Profile into prompt
 - Added rescue fallback when model body is empty
+- Added deterministic tone post-processing + tone assessment (professional/friendly/enthusiastic/formal)
+- Added structure/tone validation scripts:
+  - `pnpm -C packages/server run validate:cover-letter-tones`
+  - `pnpm -C packages/server run validate:cover-letter-structure`
 
 ### 5.5 Multi-LLM provider behavior
 - Provider controlled by env (`LLM_PROVIDER`)
@@ -134,11 +138,12 @@ Important note:
 Symptom:
 - `uploadSnapshot.skills` may include junk tokens (label-like fragments, malformed entries).
 
-Current mitigation:
-- `isLikelySkill` filters obvious garbage during snapshot-to-tailor path.
+Fix status:
+- Parser normalization pass now runs in `packages/server/src/parser.ts` before save/merge.
+- Added token cleanup for labels/noise fragments and canonical formatting for common skills.
 
-Remaining work:
-- Add stronger parser normalization in `parser.ts` to reduce junk before DB save.
+Follow-up:
+- Validate with 2-3 real resume uploads to confirm noisy fragments are no longer persisted.
 
 ### 6.3 TypeScript build noise
 Server `tsc` shows existing project-level issues unrelated to latest features:
@@ -147,6 +152,16 @@ Server `tsc` shows existing project-level issues unrelated to latest features:
 - some legacy implicit `any` warnings
 
 These are not new functional blockers for dev runtime but should be cleaned.
+
+### 6.4 Upload Snapshot Bullets
+Status:
+- Validation script confirms `uploadSnapshot.experiences[].bullets` are now populated.
+- Backfill script was run on existing rows to populate missing bullets from description + achievements.
+
+Scripts:
+- `pnpm -C packages/server run backfill:upload-bullets`
+- `pnpm -C packages/server run backfill:upload-bullets:apply`
+- `pnpm -C packages/server run validate:upload-bullets`
 
 ---
 
@@ -177,7 +192,6 @@ Priority 1:
 - Ensure experience rewrite uses bullet preservation better (2-4 strongest bullets/role, avoid collapsing to one sentence).
 
 Priority 2:
-- Parser skill cleanup in `parser.ts` to prevent noisy skill tokens at upload.
 - Improve job extraction keyword taxonomy (expand synonyms by role focus).
 
 Priority 3:
@@ -261,4 +275,11 @@ First tasks:
 - Chose immutable upload snapshot as tailoring source to avoid master resume drift.
 - Added metadata-heavy diagnostics in `tailoredFor` to make failures inspectable.
 - Added defensive text cleanup because generation pipeline can still surface malformed input artifacts.
-
+- Wired `/api/agents/quantify-achievements` to `AchievementQuantifierAgent` and preserved the existing `{ result: ... }` API response wrapper for UI compatibility.
+- Wired `/api/agents/harvard-summary` to `HarvardSummaryAgent`, preserving the existing UI contract by mapping agent `versions` into `{ result: { summaries: [{ version, style, text }] } }`.
+- Wired `/api/agents/ats-optimize` to `ATSOptimizerAgent`, preserving current UI compatibility by mapping agent analysis into legacy fields (`score`, `keywordsFound`, `keywordsMissing`, `suggestions`, `optimizedBullets`) within `{ result: ... }`.
+- Wired `/api/agents/behavioral-coach` to `BehavioralCoachAgent`, preserving UI compatibility by mapping agent output into legacy `result.stories[]` fields (`category`, `question`, `situation`, `task`, `action`, `result`, `metrics`).
+- Wired `ResumeTailorAgent` into API orchestration via `POST /api/agents/resume-tailor` and added optional `resumeId` support in tailor/summary/enhanced pipeline methods to avoid `findFirst()` drift in multi-resume accounts.
+- Wired `ApplicationOrchestratorAgent` into API via `POST /api/agents/application-orchestrator` so end-to-end workflow can be triggered from server routes with a stable `{ result: ... }` wrapper; route now accepts optional `resumeId` for resume-targeted orchestration.
+- Extended orchestration workflow to generate and persist follow-up email drafts (`EmailAgent`) and exposed output in API result (`followUpEmail`), alongside hiring manager and LinkedIn outputs.
+- Integrated a UI-driven full workflow action in `dashboard/tailor` that calls the orchestrator route and renders hiring manager info, LinkedIn draft, and email draft in preview.
