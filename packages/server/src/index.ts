@@ -410,21 +410,27 @@ function buildCareerStorySnippet(careerStory: {
   if (!careerStory) return "";
   const transferable = formatTransferableSkills(careerStory.transferableSkills);
   const primaryInputs = [
-    careerStory.uniqueValue || "",
-    transferable,
     careerStory.turningPoint || "",
+    transferable,
+    careerStory.motivation || "",
   ].filter(Boolean);
+  const uniqueValue = `${careerStory.uniqueValue || ""}`.trim();
+  const hasUniqueOverlap = primaryInputs.some((value) =>
+    isNearDuplicateSentence(uniqueValue, `${value}`.trim()),
+  );
+  const optionalInputs =
+    uniqueValue && !hasUniqueOverlap ? [uniqueValue] : [];
   const orderedInputs =
     primaryInputs.length > 0 ?
-      primaryInputs
-    : [careerStory.motivation || ""].filter(Boolean);
+      [...primaryInputs, ...optionalInputs]
+    : [careerStory.motivation || "", uniqueValue].filter(Boolean);
 
   const combined = orderedInputs
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
   if (!combined) return "";
-  return trimToSentenceBoundary(cleanSummaryNarrative(deRobotize(combined)), 260, 90);
+  return trimToSentenceBoundary(cleanSummaryNarrative(deRobotize(combined)), 220, 70);
 }
 
 function parseAvoidPhrases(raw: string | null | undefined): string[] {
@@ -544,6 +550,14 @@ function rewriteFirstPersonSentence(text: string): string {
     .replace(/\bbecause\s+i\s+(?:feel|felt|think|thought|believe|believed)\b[^.?!;]*/gi, "")
     .replace(/\bi\s+(?:feel|felt|think|thought|believe|believed)\b[^.?!;]*/gi, "")
     .replace(/\bi\s+(?:want|wanted)\s+to\b/gi, "focused on")
+    // Fix mid-sentence "I" that leave broken grammar — rewrite to coherent form
+    .replace(/\bthat if i\b/gi, "that taking control of the future meant")
+    .replace(/\bif i\s+(?:want|wanted)\b/gi, "requiring")
+    .replace(/\bif i\s+(?:need|needed)\b/gi, "requiring")
+    .replace(/\bif i\b/gi, "once")
+    .replace(/\bwhen i\b/gi, "when")
+    .replace(/\bbecause i\b/gi, "through")
+    .replace(/\bthat i\b/gi, "that")
     .replace(/\bmy\s+background\b/gi, "Background")
     .replace(/\bmy\b/gi, "")
     .replace(/\bme\b/gi, "")
@@ -612,6 +626,56 @@ function cleanSummaryNarrative(text: string): string {
   }
 
   return kept.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function stripCandidateNameNarrative(
+  text: string,
+  candidateName?: string | null,
+): string {
+  const base = `${text || ""}`.trim();
+  const fullName = `${candidateName || ""}`.trim();
+  if (!base || !fullName) return base;
+
+  const nameParts = fullName.split(/\s+/).filter(Boolean);
+  const firstName = nameParts[0] && nameParts[0].length >= 3 ? nameParts[0] : "";
+  const refs = Array.from(
+    new Set(
+      [fullName, firstName]
+        .map((value) => `${value || ""}`.trim())
+        .filter((value) => value.length >= 3),
+    ),
+  );
+  if (refs.length === 0) return base;
+
+  const rewritten = splitSentences(base)
+    .map((rawSentence) => {
+      let sentence = `${rawSentence || ""}`.trim();
+      if (!sentence) return "";
+
+      for (const ref of refs) {
+        const escaped = escapeRegex(ref);
+        sentence = sentence
+          .replace(new RegExp(`^${escaped}\\b\\s+is\\s+(?:an?\\s+)?`, "i"), "")
+          .replace(new RegExp(`^${escaped}\\b\\s+`, "i"), "")
+          .replace(new RegExp(`\\b${escaped}'s\\b`, "gi"), "")
+          .replace(new RegExp(`\\b${escaped}\\b`, "gi"), "");
+      }
+
+      sentence = sentence
+        .replace(/^\s*is\s+(?:an?\s+)?/i, "")
+        .replace(/^\s*(brings|carries|specializes|focuses|approaches)\b\s+/i, "")
+        .replace(/\s{2,}/g, " ")
+        .replace(/\s+([,.;!?])/g, "$1")
+        .trim();
+
+      if (!sentence || sentence.length < 20) return "";
+      sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+      if (!/[.!?]$/.test(sentence)) sentence = `${sentence}.`;
+      return sentence;
+    })
+    .filter(Boolean);
+
+  return rewritten.join(" ").trim();
 }
 
 function formatTransferableSkills(value: unknown): string {
@@ -1248,6 +1312,7 @@ function buildTailoredSummaries(input: {
   sourceLong?: string | null;
   storySnippet?: string;
   avoidPhrases?: string[];
+  candidateName?: string | null;
 }): { short: string; long: string } {
   const generatedSummary = cleanSummaryNarrative(
     deRobotize((input.generatedSummary || "").replace(/\s+/g, " ").trim()),
@@ -1292,6 +1357,8 @@ function buildTailoredSummaries(input: {
 
   short = cleanSummaryNarrative(removeAvoidPhrases(deRobotize(short), avoidPhrases));
   long = cleanSummaryNarrative(removeAvoidPhrases(deRobotize(long), avoidPhrases));
+  short = cleanSummaryNarrative(stripCandidateNameNarrative(short, input.candidateName));
+  long = cleanSummaryNarrative(stripCandidateNameNarrative(long, input.candidateName));
 
   short = enforceShortSummaryLength(
     cleanSummaryNarrative(`${generatedSummaryShort} ${generatedSummary} ${short}`.trim()) || long,
@@ -1915,6 +1982,112 @@ fastify.put<{ Params: { id: string } }>(
   },
 );
 
+// Regenerate summaryShort and summaryLong for a master resume using the user's story + voice
+fastify.post<{ Params: { id: string } }>(
+  "/api/resumes/:id/regenerate-summary",
+  { preHandler: [fastify.authenticate] },
+  async (request: any, reply) => {
+    const { id } = request.params;
+
+    const [masterResume, careerStory, voiceProfile] = await Promise.all([
+      prisma.masterResume.findFirst({
+        where: { id, userId: request.user.id },
+        include: {
+          experiences: { orderBy: { startDate: "desc" }, take: 5 },
+          skills: { take: 20 },
+        },
+      }),
+      prisma.userStory.findFirst({
+        where: { userId: request.user.id, type: "career_transition" },
+        select: { motivation: true, turningPoint: true, uniqueValue: true },
+      }),
+      prisma.userVoiceProfile.findFirst({
+        where: { userId: request.user.id },
+        select: { tone: true, style: true, examples: true, avoidPhrases: true },
+      }),
+    ]);
+
+    if (!masterResume) {
+      return reply.status(404).send({ message: "Resume not found" });
+    }
+
+    const skillsList = masterResume.skills.map((s: any) => s.name).join(", ");
+    const experienceLines = masterResume.experiences
+      .map((e: any) => `${e.title} at ${e.company}${e.description ? ": " + e.description.slice(0, 120) : ""}`)
+      .join("\n");
+
+    const avoidList = parseAvoidPhrases(voiceProfile?.avoidPhrases);
+
+    // Build name variants to strip from output as a safety net
+    const nameParts = (masterResume.fullName || "").trim().split(/\s+/).filter((p: string) => p.length >= 3);
+    const nameVariants = Array.from(new Set([masterResume.fullName, ...nameParts])).filter(Boolean);
+
+    const systemPrompt = `You are an expert resume writer. Write a professional resume summary in the style of a strong LinkedIn About section — specific, grounded, no corporate filler.
+
+OUTPUT FORMAT RULES (non-negotiable):
+- summaryShort: one paragraph, 3-5 sentences.
+- summaryLong: exactly 3 paragraphs separated by blank lines. Paragraph 1: professional identity and skills. Paragraph 2: real projects built with specific technologies. Paragraph 3: what the trades background brings to software work.
+- NEVER start any sentence with a person's name or use any name in the body.
+- NEVER use pronouns: no "they", "their", "he", "she", "his", "her", "them".
+- Write in anonymous third person — start sentences with the role or verb: "A software engineer who...", "Brings...", "Built...", "Designed...", "Works across...".
+- NEVER use: "passionate", "driven", "dedicated", "compelling", "eager", "motivated by", "leverage", "synergy", "innovative solutions", "proven track record", "results-oriented".
+${avoidList.length > 0 ? `- Also avoid: ${avoidList.join(", ")}.` : ""}
+- Voice: ${voiceProfile?.tone || "direct"}, ${voiceProfile?.style || "concise"}. Specific over vague. Real project names over generic claims.
+
+Return strict JSON: { "summaryShort": "...", "summaryLong": "..." }`;
+
+    const userPrompt = `Skills: ${skillsList || "Not provided"}
+
+Recent Experience:
+${experienceLines || "Not provided"}
+
+Career Story Context (use as themes, do NOT copy verbatim):
+- What sparked the career change: ${careerStory?.turningPoint || "Not provided"}
+- What drives the work: ${careerStory?.motivation || "Not provided"}
+- What the background brings: ${careerStory?.uniqueValue || "Not provided"}
+
+${voiceProfile?.examples ? `Writing style examples to match:\n${voiceProfile.examples.slice(0, 600)}` : ""}
+
+Write summaryShort and summaryLong. Synthesize the career story themes into original prose — do not copy the story text.`;
+
+    const llmService = getLLMService();
+    const result = await llmService.completeJSON<{ summaryShort: string; summaryLong: string }>(
+      userPrompt,
+      { systemPrompt, maxTokens: 1800, temperature: 0.7 },
+    );
+
+    if (!result.success || !result.data) {
+      return reply.status(500).send({ message: "Summary generation failed" });
+    }
+
+    let newShort = (typeof result.data.summaryShort === "string" ? result.data.summaryShort : "").trim();
+    let newLong = (typeof result.data.summaryLong === "string" ? result.data.summaryLong : "").trim();
+
+    // Safety net: strip candidate name from output regardless of LLM compliance
+    for (const variant of nameVariants) {
+      const escaped = variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const nameRe = new RegExp(`\\b${escaped}\\b`, "gi");
+      newShort = newShort.replace(nameRe, "").replace(/\s{2,}/g, " ").trim();
+      newLong = newLong.replace(nameRe, "").replace(/\s{2,}/g, " ").trim();
+    }
+
+    // Strip leading "is a" / "is an" fragments left after name removal
+    newShort = newShort.replace(/^is (a|an)\b/i, "A").replace(/\.\s+is (a|an)\b/gi, ". A").trim();
+    newLong = newLong.replace(/^is (a|an)\b/i, "A").replace(/\.\s+is (a|an)\b/gi, ". A").trim();
+
+    if (!newShort) {
+      return reply.status(500).send({ message: "Generated summary was empty" });
+    }
+
+    await prisma.masterResume.update({
+      where: { id },
+      data: { summaryShort: newShort, summaryLong: newLong || newShort },
+    });
+
+    return { summaryShort: newShort, summaryLong: newLong || newShort };
+  },
+);
+
 // Delete resume
 fastify.delete<{ Params: { id: string } }>(
   "/api/resumes/:id",
@@ -2504,8 +2677,8 @@ Rules:
 2. Keep tense/status consistent for ongoing work.
 3. Keep summaryShort to 3-5 sentences.
 4. Keep summaryLong to 2-3 paragraphs.
-5. Avoid first-person narrative and avoid buzzword phrases.
-6. Apply user voice preferences when provided.
+5. Avoid buzzword phrases. Do NOT copy the Narrative Anchor text verbatim — use the story as background context only and synthesize its themes into completely fresh, original sentences.
+6. Apply user voice preferences when provided. Match the candidate's actual writing style — direct, specific, no corporate filler.
 7. Do not change professional identity to an unrelated title (e.g., do not switch to "Data Engineer" unless source evidence explicitly supports that primary title).
 8. Prioritize experience evidence over project-only claims when writing role-fit statements.
 Return strict JSON:
@@ -2553,7 +2726,7 @@ ${effectiveRewriteEvidence
       const rewriteResult = await llmService.completeJSON<any>(rewritePrompt, {
         systemPrompt: rewriteSystemPrompt,
         maxTokens: 3200,
-        temperature: 0.25,
+        temperature: 0.6,
       });
 
       if (rewriteResult.success && rewriteResult.data && typeof rewriteResult.data === "object") {
@@ -2736,6 +2909,7 @@ Return JSON:
           sourceLong: sourceSummaryLong,
           storySnippet,
           avoidPhrases,
+          candidateName: masterResume.fullName,
         },
       );
       let finalizedSummary = tailoredSummary;
@@ -2762,8 +2936,8 @@ Rules:
 2. Keep summaryShort as one paragraph with 3-5 sentences.
 3. Keep summaryLong as 2-3 paragraphs, each paragraph 2-4 sentences.
 4. Remove repetition, awkward phrasing, grammar mistakes, and typo artifacts.
-5. Avoid first-person voice and avoid buzzword-heavy cliches.
-6. Keep language direct, readable, and professional.
+5. Avoid buzzword-heavy cliches. Do NOT reproduce the story verbatim — synthesize its themes into fluent, original prose.
+6. Keep language direct, readable, and professional. Match the candidate's authentic writing style — specific, grounded, no filler.
 
 Return strict JSON:
 {
@@ -2820,6 +2994,7 @@ ${summaryQuality.issues.join(", ") || "none"}`;
               sourceLong: sourceSummaryLong,
               storySnippet,
               avoidPhrases,
+              candidateName: masterResume.fullName,
             });
             const repairedQuality = assessSummaryQuality(
               repairedSummary.short,
@@ -3528,6 +3703,80 @@ fastify.post(
   },
 );
 
+// Add/update achievement story
+fastify.post(
+  "/api/stories/achievement",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const { projectName, role, timeline, status, quantifiableAchievements, technicalAchievements, keyImpact } =
+      request.body as any;
+
+    if (!projectName) {
+      return reply.status(400).send({ message: "projectName is required" });
+    }
+
+    const quantArr = Array.isArray(quantifiableAchievements)
+      ? quantifiableAchievements
+      : typeof quantifiableAchievements === "string"
+        ? quantifiableAchievements.split("\n").map((s: string) => s.trim()).filter(Boolean)
+        : [];
+
+    const techArr = Array.isArray(technicalAchievements)
+      ? technicalAchievements
+      : typeof technicalAchievements === "string"
+        ? technicalAchievements.split("\n").map((s: string) => s.trim()).filter(Boolean)
+        : [];
+
+    const story = await prisma.userAchievementStory.upsert({
+      where: { userId_projectName: { userId: request.user.id, projectName } },
+      create: {
+        userId: request.user.id,
+        projectName,
+        role: role || null,
+        timeline: timeline || null,
+        status: status || null,
+        quantifiableAchievements: quantArr,
+        technicalAchievements: techArr,
+        keyImpact: keyImpact || null,
+      },
+      update: {
+        role: role || null,
+        timeline: timeline || null,
+        status: status || null,
+        quantifiableAchievements: quantArr,
+        technicalAchievements: techArr,
+        keyImpact: keyImpact || null,
+      },
+    });
+
+    return { story };
+  },
+);
+
+// Delete achievement story
+fastify.delete(
+  "/api/stories/achievement/:id",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const { id } = request.params as { id: string };
+
+    const existing = await prisma.userAchievementStory.findFirst({
+      where: { id, userId: request.user.id },
+    });
+
+    if (!existing) {
+      return reply.status(404).send({ message: "Achievement not found" });
+    }
+
+    await prisma.userAchievementStory.delete({ where: { id } });
+    return { success: true };
+  },
+);
+
 // Save/update voice profile
 fastify.post(
   "/api/stories/voice",
@@ -4016,6 +4265,7 @@ fastify.post<{ Body: { resumeId: string; jobId: string; enhanced?: boolean } }>(
       const tailored = await agent.tailorResume(jobId, {
         enhanced: Boolean(enhanced),
         resumeId,
+        userId: request.user.id,
       });
 
       if (!tailored.success || !tailored.data) {

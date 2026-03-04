@@ -99,6 +99,7 @@ export default function ResumeDetailPage() {
   const [agentRunning, setAgentRunning] = useState<string | null>(null);
   const [lastAgentType, setLastAgentType] = useState<string | null>(null);
   const [agentResults, setAgentResults] = useState<any>(null);
+  const [regeneratingSummary, setRegeneratingSummary] = useState(false);
 
   useEffect(() => {
     fetchResume();
@@ -197,6 +198,35 @@ export default function ResumeDetailPage() {
       console.error("Failed to delete:", error);
     }
     setSaving(false);
+  };
+
+  const handleRegenerateSummary = async () => {
+    if (!resume) return;
+    setRegeneratingSummary(true);
+    try {
+      const token =
+        localStorage.getItem("next-auth.session-token") ||
+        localStorage.getItem("auth_token") ||
+        "dev-token";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/resumes/${resume.id}/regenerate-summary`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setResume({ ...resume, summaryShort: data.summaryShort, summaryLong: data.summaryLong });
+      } else {
+        console.error("Failed to regenerate summary");
+      }
+    } catch (error) {
+      console.error("Failed to regenerate summary:", error);
+    }
+    setRegeneratingSummary(false);
   };
 
   const runAgent = async (agentType: string) => {
@@ -554,6 +584,17 @@ export default function ResumeDetailPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
+          </div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm font-medium text-gray-700">Summary</span>
+            <button
+              onClick={handleRegenerateSummary}
+              disabled={regeneratingSummary}
+              className="flex items-center gap-1.5 text-sm bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 disabled:opacity-50"
+            >
+              <Wand2 className="w-3.5 h-3.5" />
+              {regeneratingSummary ? "Generating..." : "Regenerate from Story"}
+            </button>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

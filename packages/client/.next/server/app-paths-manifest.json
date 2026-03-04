@@ -1,8 +1,7 @@
 {
-  "/dashboard/outputs/page": "app/dashboard/outputs/page.js",
-  "/dashboard/tailor/page": "app/dashboard/tailor/page.js",
-  "/dashboard/upload/page": "app/dashboard/upload/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
   "/dashboard/resumes/[id]/page": "app/dashboard/resumes/[id]/page.js",
+  "/dashboard/stories/page": "app/dashboard/stories/page.js",
   "/dashboard/resumes/page": "app/dashboard/resumes/page.js",
-  "/dashboard/page": "app/dashboard/page.js"
+  "/dashboard/tailor/page": "app/dashboard/tailor/page.js"
 }

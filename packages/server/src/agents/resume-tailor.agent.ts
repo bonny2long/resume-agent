@@ -102,7 +102,9 @@ export class ResumeTailorAgent {
   private embeddings = getEmbeddingsService();
   private prisma = getPrismaClient();
 
-  private async resolveRootResumeId(resumeId?: string): Promise<string | undefined> {
+  private async resolveRootResumeId(
+    resumeId?: string,
+  ): Promise<string | undefined> {
     if (!resumeId) return undefined;
 
     let currentId = resumeId;
@@ -132,10 +134,11 @@ export class ResumeTailorAgent {
    */
   async tailorResume(
     jobId: string,
-    options?: { enhanced?: boolean; resumeId?: string },
+    options?: { enhanced?: boolean; resumeId?: string; userId?: string },
   ): Promise<AgentResponse<TailoredResume>> {
     const enhanced = options?.enhanced || false;
     const requestedResumeId = options?.resumeId;
+    const userId = options?.userId;
 
     try {
       const resumeId = await this.resolveRootResumeId(requestedResumeId);
@@ -164,8 +167,9 @@ export class ResumeTailorAgent {
 
       // Step 2: Get master resume
       logger.step(2, 5, "Loading master resume...");
-      const masterResume = resumeId
-        ? await this.prisma.masterResume.findUnique({
+      const masterResume =
+        resumeId ?
+          await this.prisma.masterResume.findUnique({
             where: { id: resumeId },
             include: {
               experiences: {
@@ -219,7 +223,9 @@ export class ResumeTailorAgent {
           });
 
       if (!masterResume) {
-        throw new Error(resumeId ? "Resume not found" : "No master resume found");
+        throw new Error(
+          resumeId ? "Resume not found" : "No master resume found",
+        );
       }
 
       logger.success(`Resume: ${masterResume.fullName}`);
@@ -323,11 +329,13 @@ export class ResumeTailorAgent {
 
       // Step 5: Optimize everything with AI
       logger.step(5, 5, "Optimizing with AI...");
+      const resolvedUserId = userId || masterResume.userId || undefined;
       const tailored = await this.optimizeWithAI(
         job,
         masterResume,
         deduplicatedExperiences,
         relevantProjects,
+        resolvedUserId,
       );
 
       logger.success("Resume tailored successfully!");
@@ -349,7 +357,10 @@ export class ResumeTailorAgent {
    * Generate only the tailored summary for a job (public method)
    * Useful for passing to other agents for cohesive messaging
    */
-  async generateSummaryOnly(jobId: string, resumeId?: string): Promise<AgentResponse<string>> {
+  async generateSummaryOnly(
+    jobId: string,
+    resumeId?: string,
+  ): Promise<AgentResponse<string>> {
     try {
       const resolvedResumeId = await this.resolveRootResumeId(resumeId);
       const job = await this.prisma.job.findUnique({
@@ -361,8 +372,9 @@ export class ResumeTailorAgent {
         throw new Error("Job not found");
       }
 
-      const masterResume = resolvedResumeId
-        ? await this.prisma.masterResume.findUnique({
+      const masterResume =
+        resolvedResumeId ?
+          await this.prisma.masterResume.findUnique({
             where: { id: resolvedResumeId },
             include: { skills: true, experiences: true },
           })
@@ -374,10 +386,17 @@ export class ResumeTailorAgent {
           });
 
       if (!masterResume) {
-        throw new Error(resolvedResumeId ? "Resume not found" : "No master resume found");
+        throw new Error(
+          resolvedResumeId ? "Resume not found" : "No master resume found",
+        );
       }
 
-      const summary = await this.generateTailoredSummary(job, masterResume);
+      const resolvedUserId = masterResume.userId || undefined;
+      const summary = await this.generateTailoredSummary(
+        job,
+        masterResume,
+        resolvedUserId,
+      );
 
       return {
         success: true,
@@ -400,30 +419,39 @@ export class ResumeTailorAgent {
     masterResume: any,
     relevantExperiences: Array<{ experience: any; similarity: number }>,
     relevantProjects: Array<{ project: any; similarity: number }>,
+    userId?: string,
   ): Promise<TailoredResume> {
     // Try to use Harvard summary from DB first, otherwise generate new
     let summary: string;
-    const { getHarvardSummaryAgent } = await import("./resume/harvard-summary.agent");
+    const { getHarvardSummaryAgent } =
+      await import("./resume/harvard-summary.agent");
     const summaryAgent = getHarvardSummaryAgent();
-    
+
     // Try job-specific first, then fall back to any summary for this resume
-    let dbSummaries = await summaryAgent.getFromDatabase(masterResume.id, job.id);
+    let dbSummaries = await summaryAgent.getFromDatabase(
+      masterResume.id,
+      job.id,
+    );
     if (!dbSummaries || dbSummaries.length === 0) {
       dbSummaries = await summaryAgent.getFromDatabase(masterResume.id);
     }
-    
+
     if (dbSummaries && dbSummaries.length > 0) {
-      const recommended = dbSummaries.find(s => s.bestFor === "Recommended") || dbSummaries[0];
+      const recommended =
+        dbSummaries.find((s) => s.bestFor === "Recommended") || dbSummaries[0];
       summary = recommended.summary;
       console.log(chalk.gray("  → Using Harvard summary from database"));
     } else {
-      summary = await this.generateTailoredSummary(job, masterResume);
+      summary = await this.generateTailoredSummary(job, masterResume, userId);
     }
 
     // Try to use quantified achievements from DB first
-    const { getAchievementQuantifierAgent } = await import("./resume/achievement-quantifier.agent");
+    const { getAchievementQuantifierAgent } =
+      await import("./resume/achievement-quantifier.agent");
     const quantifier = getAchievementQuantifierAgent();
-    const dbQuantified = await quantifier.getQuantifiedFromDatabase(masterResume.id);
+    const dbQuantified = await quantifier.getQuantifiedFromDatabase(
+      masterResume.id,
+    );
     const hasQuantifiedData = dbQuantified && dbQuantified.length > 0;
     const normalizeText = (value: string) =>
       `${value || ""}`
@@ -440,9 +468,11 @@ export class ResumeTailorAgent {
       metrics: q.metrics,
     }));
     const consumedQuantifiedIndexes = new Set<number>();
-    
+
     if (hasQuantifiedData) {
-      logger.info(`Using ${dbQuantified.length} quantified achievements from database`);
+      logger.info(
+        `Using ${dbQuantified.length} quantified achievements from database`,
+      );
     }
 
     // Distribute optimized achievements back to experiences
@@ -454,17 +484,24 @@ export class ResumeTailorAgent {
         // If we have quantified achievements from DB, use them
         if (hasQuantifiedData) {
           const experienceId = `${experience?.id || ""}`.trim();
-          const expAchievementTexts = Array.isArray(experience?.achievements)
-            ? experience.achievements
-                .map((achievement: any) => `${achievement?.description || ""}`.trim())
+          const expAchievementTexts =
+            Array.isArray(experience?.achievements) ?
+              experience.achievements
+                .map((achievement: any) =>
+                  `${achievement?.description || ""}`.trim(),
+                )
                 .filter(Boolean)
             : [];
-          const expAchievementNormalized = expAchievementTexts.map((value: string) =>
-            normalizeText(value),
+          const expAchievementNormalized = expAchievementTexts.map(
+            (value: string) => normalizeText(value),
           );
           const directMatches = quantifiedPool.filter((item) => {
             if (consumedQuantifiedIndexes.has(item.index)) return false;
-            if (experienceId && item.experienceId && item.experienceId === experienceId) {
+            if (
+              experienceId &&
+              item.experienceId &&
+              item.experienceId === experienceId
+            ) {
               return true;
             }
             if (!item.originalNormalized) return false;
@@ -483,12 +520,15 @@ export class ResumeTailorAgent {
               Math.min(3, expAchievementTexts.length || directMatches.length),
             );
             const selectedMatches = directMatches.slice(0, matchLimit);
-            selectedMatches.forEach((item) => consumedQuantifiedIndexes.add(item.index));
+            selectedMatches.forEach((item) =>
+              consumedQuantifiedIndexes.add(item.index),
+            );
 
             currentAchievements = selectedMatches.map((item) => ({
               description: item.rewritten || item.original,
-              metrics: item.metrics?.percentage
-                ? `${item.metrics.percentage}%`
+              metrics:
+                item.metrics?.percentage ?
+                  `${item.metrics.percentage}%`
                 : item.metrics?.scale || item.metrics?.revenue || "",
               impact: "high" as const,
             }));
@@ -496,12 +536,13 @@ export class ResumeTailorAgent {
           }
         }
 
-        if (!appliedQuantified && (
+        if (
+          !appliedQuantified &&
           experience.title &&
           (experience.title.toLowerCase().includes("insulator") ||
             experience.title.toLowerCase().includes("electrical") ||
             experience.title.toLowerCase().includes("technician"))
-        )) {
+        ) {
           // Enhance trades experience with tech relevance
           currentAchievements = await this.enhanceTradesExperience(
             experience.achievements,
@@ -542,15 +583,18 @@ export class ResumeTailorAgent {
     const dedupedOptimizedExperiences = optimizedExperiences.map(
       (optimizedExperience, index) => {
         const signature = (optimizedExperience.achievements || [])
-          .map((achievement: any) => normalizeText(`${achievement?.description || ""}`))
+          .map((achievement: any) =>
+            normalizeText(`${achievement?.description || ""}`),
+          )
           .filter(Boolean)
           .join(" | ");
         if (!signature) return optimizedExperience;
 
         if (seenAchievementSignatures.has(signature)) {
           const sourceExperience = relevantExperiences[index]?.experience;
-          const sourceAchievements = Array.isArray(sourceExperience?.achievements)
-            ? sourceExperience.achievements.map((achievement: any) => ({
+          const sourceAchievements =
+            Array.isArray(sourceExperience?.achievements) ?
+              sourceExperience.achievements.map((achievement: any) => ({
                 description: `${achievement?.description || ""}`.trim(),
                 metrics: `${achievement?.metrics || ""}`.trim(),
                 impact: `${achievement?.impact || "medium"}`.trim() || "medium",
@@ -558,7 +602,9 @@ export class ResumeTailorAgent {
             : [];
           if (sourceAchievements.length > 0) {
             const sourceSignature = sourceAchievements
-              .map((achievement: any) => normalizeText(`${achievement?.description || ""}`))
+              .map((achievement: any) =>
+                normalizeText(`${achievement?.description || ""}`),
+              )
               .filter(Boolean)
               .join(" | ");
             if (sourceSignature && sourceSignature !== signature) {
@@ -771,15 +817,38 @@ Return exactly 2 enhanced achievements in JSON format:
   /**
    * Load career transition story using shared loader
    */
-  private async loadCareerStory(): Promise<string> {
+  private async loadCareerStory(userId?: string): Promise<string> {
+    // Prefer DB story if userId is available
+    if (userId) {
+      try {
+        const dbStory = await this.prisma.userStory.findFirst({
+          where: { userId, type: "career_transition" },
+          select: { motivation: true, turningPoint: true, uniqueValue: true },
+        });
+        if (dbStory) {
+          const parts = [
+            dbStory.turningPoint,
+            dbStory.motivation,
+            dbStory.uniqueValue,
+          ]
+            .map((s) => (s || "").trim())
+            .filter(Boolean);
+          if (parts.length > 0) return parts.join(" ");
+        }
+      } catch (error) {
+        logger.warn(
+          "Could not load career story from DB, falling back to files",
+          error,
+        );
+      }
+    }
+
+    // Fall back to file-based story
     try {
       const story = await storyLoader.loadTransitionStory();
-
-      // Combine elements for a comprehensive story
       const storyElements = [story.motivation, story.uniqueValue]
         .filter(Boolean)
         .join(" ");
-
       return (
         storyElements ||
         "Career transitioner bringing systematic problem-solving from trades to software engineering"
@@ -788,6 +857,44 @@ Return exactly 2 enhanced achievements in JSON format:
       logger.warn("Could not load transition story", error);
       return "Career transition to technology with strong technical background and systematic problem-solving approach.";
     }
+  }
+
+  private async loadVoiceGuidance(userId?: string): Promise<string> {
+    if (userId) {
+      try {
+        const dbVoice = await this.prisma.userVoiceProfile.findFirst({
+          where: { userId },
+          select: {
+            tone: true,
+            style: true,
+            examples: true,
+            avoidPhrases: true,
+          },
+        });
+        if (dbVoice) {
+          const avoidList = (dbVoice.avoidPhrases || "")
+            .split(/\r?\n|,/)
+            .map((s: string) => s.trim())
+            .filter(Boolean)
+            .join(", ");
+          return `VOICE INSTRUCTIONS — Write in this candidate's authentic voice:
+Tone: ${dbVoice.tone || "direct and genuine"}
+Style: ${dbVoice.style || "concise"}
+${dbVoice.examples ? `Example phrases that sound right:\n${dbVoice.examples}` : ""}
+${avoidList ? `NEVER use these phrases: ${avoidList}` : ""}
+- Write in first person ("I built", "I designed") — NOT third person
+- Be specific with project names, numbers, and technologies
+- Sound like a real person talking, not a job-application template
+- Avoid all corporate buzzwords`;
+        }
+      } catch (error) {
+        logger.warn(
+          "Could not load voice profile from DB, using defaults",
+          error,
+        );
+      }
+    }
+    return VoiceLoader.getVoiceGuidance();
   }
 
   /**
@@ -823,16 +930,17 @@ Return exactly 2 enhanced achievements in JSON format:
   private async generateTailoredSummary(
     job: any,
     masterResume: any,
+    userId?: string,
   ): Promise<string> {
     const calculatedYears = this.calculateYearsExperience(
       masterResume.experiences,
     );
 
-    // Load career transition story
-    const storyContext = await this.loadCareerStory();
+    // Load career transition story — DB first, files as fallback
+    const storyContext = await this.loadCareerStory(userId);
 
-    // Load voice guidance for authentic writing
-    const voiceGuidance = await VoiceLoader.getVoiceGuidance();
+    // Load voice guidance — DB first, static default as fallback
+    const voiceGuidance = await this.loadVoiceGuidance(userId);
 
     // Extract company-specific details for tailored summary
     const companyName = job.company?.name || "this innovative company";
@@ -1546,49 +1654,75 @@ Response format (strict JSON):
    * Enhanced Pipeline: Run all enhancement agents and save to database
    * Priority: A) Quantify Achievements → C) Harvard Summary → B) ATS Optimization
    */
-  private async runEnhancedPipeline(jobId: string, resumeId?: string): Promise<void> {
+  private async runEnhancedPipeline(
+    jobId: string,
+    resumeId?: string,
+  ): Promise<void> {
     logger.info("Starting enhanced pipeline");
     const effectiveResumeId = await this.resolveRootResumeId(resumeId);
 
     // Get master resume
-    const masterResume = effectiveResumeId
-      ? await this.prisma.masterResume.findUnique({ where: { id: effectiveResumeId } })
+    const masterResume =
+      effectiveResumeId ?
+        await this.prisma.masterResume.findUnique({
+          where: { id: effectiveResumeId },
+        })
       : await this.prisma.masterResume.findFirst({
           where: {
             tailoredFromId: null,
           },
         });
     if (!masterResume) {
-      throw new Error(effectiveResumeId ? "Resume not found" : "No master resume found");
+      throw new Error(
+        effectiveResumeId ? "Resume not found" : "No master resume found",
+      );
     }
 
     const targetResumeId = effectiveResumeId || masterResume.id;
 
     // STEP A: Quantify Achievements (McKinsey)
     logger.step(1, 5, "Quantifying achievements (McKinsey)...");
-    const { getAchievementQuantifierAgent } = await import("./resume/achievement-quantifier.agent");
+    const { getAchievementQuantifierAgent } =
+      await import("./resume/achievement-quantifier.agent");
     const quantifier = getAchievementQuantifierAgent();
-    const quantifyResult = await quantifier.quantifyResumeAchievements(targetResumeId);
-    
+    const quantifyResult =
+      await quantifier.quantifyResumeAchievements(targetResumeId);
+
     if (quantifyResult.success && quantifyResult.data) {
-      await quantifier.saveToDatabase(masterResume.id, quantifyResult.data.achievements);
-      logger.success(`Quantified ${quantifyResult.data.achievements.length} achievements`);
+      await quantifier.saveToDatabase(
+        masterResume.id,
+        quantifyResult.data.achievements,
+      );
+      logger.success(
+        `Quantified ${quantifyResult.data.achievements.length} achievements`,
+      );
     }
 
     // STEP C: Harvard Summary
     logger.step(2, 5, "Generating Harvard summaries...");
-    const { getHarvardSummaryAgent } = await import("./resume/harvard-summary.agent");
+    const { getHarvardSummaryAgent } =
+      await import("./resume/harvard-summary.agent");
     const summaryAgent = getHarvardSummaryAgent();
-    const summaryResult = await summaryAgent.generateSummaries(jobId, targetResumeId);
+    const summaryResult = await summaryAgent.generateSummaries(
+      jobId,
+      targetResumeId,
+    );
 
     if (summaryResult.success && summaryResult.data) {
-      await summaryAgent.saveToDatabase(masterResume.id, jobId, summaryResult.data.versions);
-      logger.success(`Generated ${summaryResult.data.versions.length} summary versions`);
+      await summaryAgent.saveToDatabase(
+        masterResume.id,
+        jobId,
+        summaryResult.data.versions,
+      );
+      logger.success(
+        `Generated ${summaryResult.data.versions.length} summary versions`,
+      );
     }
 
     // STEP B: ATS Optimization
     logger.step(3, 5, "Running ATS optimization (Google)...");
-    const { getATSOptimizerAgent } = await import("./resume/ats-optimizer.agent");
+    const { getATSOptimizerAgent } =
+      await import("./resume/ats-optimizer.agent");
     const atsAgent = getATSOptimizerAgent();
     const atsResult = await atsAgent.optimizeForATS(jobId, targetResumeId);
 
@@ -1599,24 +1733,34 @@ Response format (strict JSON):
 
     // STEP D: Cover Letter Generation (Bain Style)
     logger.step(4, 5, "Generating cover letter (Bain Style)...");
-    const { getCoverLetterAgent } = await import("@/agents/cover-letter-generator");
+    const { getCoverLetterAgent } =
+      await import("@/agents/cover-letter-generator");
     const coverLetterAgent = getCoverLetterAgent();
-    const coverLetterResult = await coverLetterAgent.generateCoverLetter(jobId, {
-      tone: "professional",
-      includeCareerStory: true,
-      maxParagraphs: 4,
-      resumeId: targetResumeId,
-    });
+    const coverLetterResult = await coverLetterAgent.generateCoverLetter(
+      jobId,
+      {
+        tone: "professional",
+        includeCareerStory: true,
+        maxParagraphs: 4,
+        resumeId: targetResumeId,
+      },
+    );
 
     if (coverLetterResult.success && coverLetterResult.data) {
-      logger.success(`Cover letter generated for ${coverLetterResult.data.companyName}`);
+      logger.success(
+        `Cover letter generated for ${coverLetterResult.data.companyName}`,
+      );
     }
 
     // STEP E: Interview Prep (FAANG Style)
     logger.step(5, 5, "Generating interview prep (FAANG Style)...");
-    const { getBehavioralCoachAgent } = await import("./interview/behavioral-coach.agent");
+    const { getBehavioralCoachAgent } =
+      await import("./interview/behavioral-coach.agent");
     const behavioralCoach = getBehavioralCoachAgent();
-    const storyBankResult = await behavioralCoach.generateStoryBank(undefined, targetResumeId);
+    const storyBankResult = await behavioralCoach.generateStoryBank(
+      undefined,
+      targetResumeId,
+    );
 
     if (storyBankResult.success && storyBankResult.data) {
       // Save STAR stories to database
@@ -1636,7 +1780,9 @@ Response format (strict JSON):
             },
           });
         }
-        logger.success(`Generated ${storyBankResult.data.stories.length} STAR stories`);
+        logger.success(
+          `Generated ${storyBankResult.data.stories.length} STAR stories`,
+        );
       } catch (error) {
         logger.warn("Failed to save STAR stories to database", error);
       }

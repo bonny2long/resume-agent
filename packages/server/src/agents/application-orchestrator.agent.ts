@@ -252,6 +252,7 @@ export class ApplicationOrchestratorAgent {
       const tailorResult = await resumeTailor.tailorResume(jobId, {
         enhanced,
         resumeId,
+        userId,
       });
 
       if (!tailorResult.success || !tailorResult.data) {

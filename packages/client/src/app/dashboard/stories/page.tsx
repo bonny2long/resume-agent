@@ -36,6 +36,8 @@ export default function StoriesPage() {
   const [activeTab, setActiveTab] = useState<"career" | "achievements" | "voice">("career");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingAchievement, setSavingAchievement] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   
   const [careerStory, setCareerStory] = useState<CareerStory | null>(null);
@@ -180,6 +182,82 @@ export default function StoriesPage() {
       setMessage({ type: "error", text: "Something went wrong" });
     }
     setSaving(false);
+  };
+
+  const handleAddAchievement = async () => {
+    if (!achievementForm.projectName.trim()) {
+      setMessage({ type: "error", text: "Project name is required" });
+      return;
+    }
+    setSavingAchievement(true);
+    setMessage(null);
+    try {
+      const token =
+        localStorage.getItem("next-auth.session-token") ||
+        localStorage.getItem("auth_token") ||
+        "dev-token";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/stories/achievement`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(achievementForm),
+        },
+      );
+
+      if (response.ok) {
+        setMessage({ type: "success", text: "Achievement saved!" });
+        setAchievementForm({
+          projectName: "",
+          role: "",
+          timeline: "",
+          status: "",
+          quantifiableAchievements: "",
+          technicalAchievements: "",
+          keyImpact: "",
+        });
+        fetchStories();
+      } else {
+        const err = await response.json().catch(() => ({}));
+        setMessage({ type: "error", text: (err as any).message || "Failed to save achievement" });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Something went wrong" });
+    }
+    setSavingAchievement(false);
+  };
+
+  const handleDeleteAchievement = async (id: string) => {
+    setDeletingId(id);
+    setMessage(null);
+    try {
+      const token =
+        localStorage.getItem("next-auth.session-token") ||
+        localStorage.getItem("auth_token") ||
+        "dev-token";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/stories/achievement/${id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+
+      if (response.ok) {
+        setMessage({ type: "success", text: "Achievement deleted" });
+        fetchStories();
+      } else {
+        setMessage({ type: "error", text: "Failed to delete achievement" });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Something went wrong" });
+    }
+    setDeletingId(null);
   };
 
   if (loading) {
@@ -335,7 +413,11 @@ export default function StoriesPage() {
                         <p className="text-sm text-gray-600">{story.role}</p>
                         <p className="text-xs text-gray-400 mt-1">{story.timeline}</p>
                       </div>
-                      <button className="text-gray-400 hover:text-red-500">
+                      <button
+                        onClick={() => handleDeleteAchievement(story.id)}
+                        disabled={deletingId === story.id}
+                        className="text-gray-400 hover:text-red-500 disabled:opacity-40"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -391,10 +473,12 @@ export default function StoriesPage() {
               </div>
 
               <button
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                onClick={handleAddAchievement}
+                disabled={savingAchievement}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
               >
                 <Plus className="w-5 h-5" />
-                Add Achievement
+                {savingAchievement ? "Saving..." : "Save Achievement"}
               </button>
             </div>
           </div>
