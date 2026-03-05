@@ -69,7 +69,10 @@ export default function CoverLetterPage() {
 
   const handleGenerate = async () => {
     if (!selectedResumeId || !jobDescription) {
-      setMessage({ type: "error", text: "Please select a resume and enter job description" });
+      setMessage({
+        type: "error",
+        text: "Select a resume and paste a job description (or import from URL) before generating.",
+      });
       return;
     }
 
@@ -106,7 +109,7 @@ export default function CoverLetterPage() {
         const data = await response.json();
         
         if (!data.coverLetter) {
-          setMessage({ type: "error", text: "No cover letter returned from server" });
+          setMessage({ type: "error", text: "Couldn't generate a cover letter. Server returned an empty response." });
           setGenerating(false);
           return;
         }
@@ -117,7 +120,7 @@ export default function CoverLetterPage() {
           try {
             cl = JSON.parse(cl);
           } catch {
-            cl = { subject: 'Cover Letter', body: cl };
+            cl = { subject: "Cover Letter", body: cl };
           }
         }
         
@@ -142,24 +145,27 @@ export default function CoverLetterPage() {
         }
         
         setCoverLetter(cl);
-        setMessage({ type: "success", text: "Cover letter generated! Click Save to store it." });
+        setMessage({
+          type: "success",
+          text: "Generation complete. Review in Preview, then save to Saved Letters.",
+        });
       } else {
         const data = await response.json().catch(() => ({}));
         const detail =
-          data?.error ? `${data.message || "Failed to generate cover letter"}: ${data.error}` :
+          data?.error ? `${data.message || "Couldn't generate cover letter"}: ${data.error}` :
           data?.message ? data.message
-          : "Failed to generate cover letter";
+          : "Couldn't generate cover letter. Try again.";
         setMessage({ type: "error", text: detail });
       }
     } catch (error: any) {
-      setMessage({ type: "error", text: error?.message || "Something went wrong" });
+      setMessage({ type: "error", text: error?.message || "Couldn't generate cover letter. Try again." });
     }
     setGenerating(false);
   };
 
   const handleParseJobUrl = async () => {
     if (!jobUrl.trim()) {
-      setMessage({ type: "error", text: "Please enter a job posting URL first" });
+      setMessage({ type: "error", text: "Enter a job posting URL to import." });
       return;
     }
 
@@ -187,7 +193,7 @@ export default function CoverLetterPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         const detail =
-          data?.message || `Failed to parse job URL (HTTP ${response.status})`;
+          data?.message || `Couldn't import the job URL (HTTP ${response.status})`;
         setMessage({ type: "error", text: detail });
         return;
       }
@@ -203,9 +209,9 @@ export default function CoverLetterPage() {
         setCompanyName(parsed.companyName.trim());
       }
 
-      setMessage({ type: "success", text: "Imported job description from URL" });
+      setMessage({ type: "success", text: "Import complete. Job details added from URL." });
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to fetch job posting URL" });
+      setMessage({ type: "error", text: "Couldn't import the job URL. Try again." });
     }
 
     setParsingUrl(false);
@@ -241,12 +247,12 @@ export default function CoverLetterPage() {
       );
 
       if (response.ok) {
-        setMessage({ type: "success", text: "Cover letter saved!" });
+        setMessage({ type: "success", text: "Save complete. Cover letter added to Saved Letters." });
       } else {
-        setMessage({ type: "error", text: "Failed to save cover letter" });
+        setMessage({ type: "error", text: "Couldn't save cover letter. Try again." });
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to save" });
+      setMessage({ type: "error", text: "Couldn't save cover letter. Try again." });
     }
   };
 
@@ -261,45 +267,48 @@ export default function CoverLetterPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-gray-500">Loading resume options...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-4 mb-8">
+    <div className="ra-page">
+      <div className="ra-panel flex items-center gap-4 p-5 md:p-6">
         <Link
           href="/dashboard"
-          className="p-2 hover:bg-gray-100 rounded-lg"
+          className="rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-100"
         >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <ArrowLeft className="w-5 h-5 text-slate-600" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Cover Letter</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-slate-900">Cover Letter</h1>
+          <p className="text-slate-600 mt-1">
             Generate a personalized cover letter for your job application
           </p>
         </div>
       </div>
 
       {resumes.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">No resumes found</p>
+        <div className="ra-empty">
+          <FileText className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+          <p className="ra-empty-title">No resumes found</p>
+          <p className="ra-empty-copy mb-4">
+            Upload a master resume first. Then this page can generate letters using your story and voice profile.
+          </p>
           <Link
             href="/dashboard/upload"
-            className="text-blue-600 hover:underline"
+            className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            Upload your first resume
+            Upload Resume
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 gap-7 xl:grid-cols-[minmax(0,1fr)_430px]">
           {/* Input Section */}
           <div className="space-y-6">
             {/* Select Resume */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="ra-panel p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 1. Select Resume
               </h2>
@@ -318,7 +327,7 @@ export default function CoverLetterPage() {
             </div>
 
             {/* Job Details */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="ra-panel p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 2. Job Details
               </h2>
@@ -431,7 +440,7 @@ export default function CoverLetterPage() {
               {generating ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Generating...
+                  Generating Cover Letter...
                 </>
               ) : (
                 <>
@@ -444,7 +453,7 @@ export default function CoverLetterPage() {
             {coverLetter && (
               <button
                 onClick={handleSave}
-                className="w-full flex items-center justify-center gap-2 bg-green-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-green-700"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 px-6 font-semibold text-white hover:bg-emerald-700"
               >
                 <Save className="w-5 h-5" />
                 Save Cover Letter
@@ -453,7 +462,7 @@ export default function CoverLetterPage() {
           </div>
 
           {/* Preview Section */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="ra-panel p-6 xl:sticky xl:top-24 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">
                 Preview
@@ -494,7 +503,10 @@ export default function CoverLetterPage() {
             ) : (
               <div className="text-gray-500 text-center py-12">
                 <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p>Your cover letter will appear here after generation.</p>
+                <p>Your letter preview will appear here.</p>
+                <p className="mt-1 text-sm text-gray-400">
+                  Next: select a resume, import/paste a job description, choose tone, then generate.
+                </p>
               </div>
             )}
           </div>

@@ -94,37 +94,40 @@ export default function SavedCoverLettersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-gray-500">Loading saved cover letters...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-4 mb-8">
+    <div className="ra-page">
+      <div className="ra-panel flex items-center gap-4 p-5 md:p-6">
         <Link
           href="/dashboard"
-          className="p-2 hover:bg-gray-100 rounded-lg"
+          className="rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-100"
         >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <ArrowLeft className="w-5 h-5 text-slate-600" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Saved Cover Letters</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-slate-900">Saved Cover Letters</h1>
+          <p className="text-slate-600 mt-1">
             View and manage your saved cover letters
           </p>
         </div>
       </div>
 
       {coverLetters.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-          <Mail className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">No saved cover letters yet</p>
+        <div className="ra-empty">
+          <Mail className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+          <p className="ra-empty-title">No saved cover letters yet</p>
+          <p className="ra-empty-copy mb-4">
+            Create one from the Cover Letter page, save it, then return here to manage and reuse it.
+          </p>
           <Link
             href="/dashboard/cover-letter"
-            className="text-blue-600 hover:underline"
+            className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            Generate your first cover letter
+            Generate Cover Letter
           </Link>
         </div>
       ) : (
@@ -135,10 +138,10 @@ export default function SavedCoverLettersPage() {
               <div
                 key={cl.id}
                 onClick={() => setSelectedCl(cl)}
-                className={`bg-white border rounded-lg p-4 cursor-pointer transition-all ${
+                className={`ra-panel p-4 cursor-pointer transition-all ${
                   selectedCl?.id === cl.id
                     ? "border-blue-500 ring-2 ring-blue-100"
-                    : "border-gray-200 hover:border-gray-300"
+                    : "hover:border-gray-300"
                 }`}
               >
                 <div className="flex items-start justify-between">
@@ -168,7 +171,7 @@ export default function SavedCoverLettersPage() {
           {/* Preview */}
           <div className="lg:col-span-2">
             {selectedCl ? (
-              <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <div className="ra-panel p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">
@@ -206,9 +209,10 @@ export default function SavedCoverLettersPage() {
                 </div>
               </div>
             ) : (
-              <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-                <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Select a cover letter to preview</p>
+              <div className="ra-empty">
+                <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="ra-empty-title">Select a cover letter to preview.</p>
+                <p className="ra-empty-copy">Pick a letter on the left, then copy or delete from this panel.</p>
               </div>
             )}
           </div>

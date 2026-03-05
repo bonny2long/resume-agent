@@ -35,7 +35,7 @@ export default function UploadPage() {
       if (file.type === "application/pdf" || file.name.endsWith(".docx")) {
         setSelectedFile(file);
       } else {
-        setMessage({ type: "error", text: "Please upload a PDF or DOCX file" });
+        setMessage({ type: "error", text: "Use a PDF or DOCX file." });
       }
     }
   };
@@ -84,20 +84,20 @@ export default function UploadPage() {
         if (response.ok) {
           setMessage({
             type: "success",
-            text: "Resume uploaded successfully!",
+            text: "Upload complete. Redirecting to Resumes to review parsed data.",
           });
           setTimeout(() => {
             router.push("/dashboard/resumes");
           }, 1500);
         } else {
           const data = await response.json();
-          setMessage({ type: "error", text: data.message || "Upload failed" });
+          setMessage({ type: "error", text: data.message || "Couldn't upload resume. Try again." });
         }
         setUploading(false);
       };
       reader.readAsDataURL(selectedFile);
     } catch (error) {
-      setMessage({ type: "error", text: "Something went wrong" });
+      setMessage({ type: "error", text: "Couldn't upload resume. Try again." });
       setUploading(false);
     }
   };
@@ -128,83 +128,100 @@ export default function UploadPage() {
       if (response.ok) {
         router.push("/dashboard/resumes");
       } else {
-        setMessage({ type: "error", text: "Failed to create resume" });
+        setMessage({ type: "error", text: "Couldn't create a blank resume. Try again in a few seconds." });
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Something went wrong" });
+      setMessage({ type: "error", text: "Couldn't create a blank resume. Try again." });
     }
     setUploading(false);
   };
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Upload Resume</h1>
-        <p className="text-gray-600 mt-1">
+    <div className="ra-page">
+      <div className="ra-panel p-5 md:p-6">
+        <h1 className="text-2xl font-bold text-slate-900">Upload Resume</h1>
+        <p className="text-slate-600 mt-1">
           Upload your existing resume or create a new one from scratch
         </p>
       </div>
 
-      {/* Drop Zone */}
-      <div
-        className={`border-2 border-dashed rounded-lg p-12 text-center mb-6 transition-colors ${
-          dragActive
-            ? "border-blue-500 bg-blue-50"
-            : selectedFile
-              ? "border-green-500 bg-green-50"
-              : "border-gray-300 hover:border-gray-400"
-        }`}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.docx"
-          onChange={handleFileChange}
-          className="hidden"
-        />
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+        {/* Drop Zone */}
+        <div
+          className={`ra-panel border-2 border-dashed p-10 text-center transition-colors ${
+            dragActive
+              ? "border-blue-500 bg-blue-50/80"
+              : selectedFile
+                ? "border-emerald-500 bg-emerald-50/80"
+                : "border-slate-300 hover:border-slate-400"
+          }`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.docx"
+            onChange={handleFileChange}
+            className="hidden"
+          />
 
-        {selectedFile ? (
-          <div className="flex flex-col items-center">
-            <FileText className="w-12 h-12 text-green-600 mb-4" />
-            <p className="font-medium text-gray-900">{selectedFile.name}</p>
-            <p className="text-sm text-gray-500">
-              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-            </p>
-            <button
-              onClick={() => setSelectedFile(null)}
-              className="mt-4 text-sm text-blue-600 hover:underline"
-            >
-              Choose different file
-            </button>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center">
-            <Upload className="w-12 h-12 text-gray-400 mb-4" />
-            <p className="text-gray-600 mb-2">
-              Drag and drop your resume here, or{" "}
+          {selectedFile ? (
+            <div className="flex flex-col items-center">
+              <FileText className="w-12 h-12 text-emerald-600 mb-4" />
+              <p className="font-semibold text-slate-900">{selectedFile.name}</p>
+              <p className="text-sm text-slate-500">
+                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+              </p>
               <button
-                onClick={() => fileInputRef.current?.click()}
-                className="text-blue-600 hover:underline"
+                onClick={() => setSelectedFile(null)}
+                className="mt-4 text-sm text-blue-600 hover:underline"
               >
-                browse
+                Choose a different file
               </button>
-            </p>
-            <p className="text-sm text-gray-400">Supports PDF and DOCX</p>
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <Upload className="w-12 h-12 text-slate-400 mb-4" />
+              <p className="text-slate-700 mb-2">
+                Drag and drop your resume here, or{" "}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-blue-600 hover:underline font-medium"
+                >
+                  browse
+                </button>
+              </p>
+              <p className="text-sm text-slate-500">Supports PDF and DOCX</p>
+            </div>
+          )}
+        </div>
+
+        <div className="ra-panel p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-3">
+            Upload Tips
+          </h2>
+          <ul className="space-y-2 text-sm text-slate-600">
+            <li>- Use your most complete master resume.</li>
+            <li>- Keep clear section headings for better parsing.</li>
+            <li>- Include measurable outcomes in experience bullets.</li>
+            <li>- Add project technologies directly in descriptions.</li>
+          </ul>
+          <p className="mt-4 text-xs text-slate-500">
+            The parser creates an immutable upload snapshot used by tailoring.
+          </p>
+        </div>
       </div>
 
       {/* Message */}
       {message && (
         <div
-          className={`p-4 rounded-lg mb-6 flex items-center gap-3 ${
+          className={`rounded-xl border px-4 py-3 flex items-center gap-3 ${
             message.type === "success"
-              ? "bg-green-50 text-green-800"
-              : "bg-red-50 text-red-800"
+              ? "border-green-200 bg-green-50 text-green-800"
+              : "border-red-200 bg-red-50 text-red-800"
           }`}
         >
           {message.type === "success" ? (
@@ -217,11 +234,11 @@ export default function UploadPage() {
       )}
 
       {/* Actions */}
-      <div className="flex gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <button
           onClick={handleUpload}
           disabled={!selectedFile || uploading}
-          className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center rounded-xl bg-blue-600 text-white py-3 px-6 font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {uploading ? "Uploading..." : "Upload Resume"}
         </button>
@@ -229,7 +246,7 @@ export default function UploadPage() {
         <button
           onClick={handleCreateBlank}
           disabled={uploading}
-          className="flex-1 bg-gray-100 text-gray-700 py-3 px-6 rounded-lg font-medium hover:bg-gray-200 disabled:opacity-50"
+          className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 py-3 px-6 font-semibold hover:bg-slate-50 disabled:opacity-50"
         >
           Create Blank Resume
         </button>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileText, Wand2, Loader2, Check, Link2, Briefcase, Mail, Download } from "lucide-react";
+import { ArrowLeft, FileText, Wand2, Loader2, Check, Link2, Briefcase, Mail, Download, Search } from "lucide-react";
 
 interface Resume {
   id: string;
@@ -41,6 +41,26 @@ interface OrchestratorResult {
   summary: string;
 }
 
+interface HiringManagerCandidate {
+  name?: string;
+  title?: string;
+  linkedInUrl?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  confidence?: number;
+  source?: string;
+  verified?: boolean;
+}
+
+interface HiringManagerLookupResult {
+  jobId: string;
+  jobTitle: string;
+  companyName: string;
+  searchMethod: string;
+  topMatch?: HiringManagerCandidate | null;
+  savedHiringManager?: HiringManagerCandidate | null;
+}
+
 export default function TailorPage() {
   const router = useRouter();
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -55,10 +75,13 @@ export default function TailorPage() {
   const [jobUrl, setJobUrl] = useState("");
   const [parsingUrl, setParsingUrl] = useState(false);
   const [workflowSubmitting, setWorkflowSubmitting] = useState(false);
+  const [findingManager, setFindingManager] = useState(false);
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
   const [workflowResult, setWorkflowResult] = useState<OrchestratorResult | null>(
     null,
   );
+  const [hiringManagerResult, setHiringManagerResult] =
+    useState<HiringManagerLookupResult | null>(null);
   const masterResumes = resumes.filter((resume) => !resume.tailoredFromId);
 
   useEffect(() => {
@@ -98,7 +121,10 @@ export default function TailorPage() {
 
   const handleTailor = async () => {
     if (!selectedResumeId || !jobDescription) {
-      setMessage({ type: "error", text: "Please select a resume and enter job description" });
+      setMessage({
+        type: "error",
+        text: "Select a master resume and provide a job description (or import from URL) to tailor.",
+      });
       return;
     }
 
@@ -129,7 +155,7 @@ export default function TailorPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setMessage({ type: "success", text: "Resume tailored successfully!" });
+        setMessage({ type: "success", text: "Tailor complete. Opening your tailored resume." });
         setTimeout(() => {
           router.push(`/dashboard/resumes/${data.tailoredResume.id}`);
         }, 1500);
@@ -141,21 +167,21 @@ export default function TailorPage() {
           // no-op
         }
         const detail =
-          data?.error ? `${data.message || "Failed to tailor resume"}: ${data.error}` :
+          data?.error ? `${data.message || "Couldn't tailor resume"}: ${data.error}` :
           data?.message ? data.message
-          : `Failed to tailor resume (HTTP ${response.status})`;
+          : `Couldn't tailor resume (HTTP ${response.status})`;
         console.error("Tailor request failed", { status: response.status, data });
         setMessage({ type: "error", text: detail });
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Something went wrong" });
+      setMessage({ type: "error", text: "Couldn't tailor resume. Try again." });
     }
     setSubmitting(false);
   };
 
   const handleParseJobUrl = async () => {
     if (!jobUrl.trim()) {
-      setMessage({ type: "error", text: "Please enter a job posting URL first" });
+      setMessage({ type: "error", text: "Enter a job posting URL to import." });
       return;
     }
 
@@ -182,7 +208,7 @@ export default function TailorPage() {
 
       const data = await response.json();
       if (!response.ok) {
-        setMessage({ type: "error", text: data.message || "Failed to parse job URL" });
+        setMessage({ type: "error", text: data.message || "Couldn't import the job URL. Try again." });
         return;
       }
 
@@ -197,9 +223,9 @@ export default function TailorPage() {
         setCompanyName(parsed.companyName.trim());
       }
 
-      setMessage({ type: "success", text: "Imported job description from URL" });
+      setMessage({ type: "success", text: "Import complete. Job details added from URL." });
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to fetch job posting URL" });
+      setMessage({ type: "error", text: "Couldn't import the job URL. Try again." });
     }
 
     setParsingUrl(false);
@@ -209,7 +235,7 @@ export default function TailorPage() {
     if (!selectedResumeId || !jobUrl.trim()) {
       setMessage({
         type: "error",
-        text: "Select a resume and provide a job posting URL to run the full workflow",
+        text: "Select a resume and enter a job posting URL to run the workflow.",
       });
       return;
     }
@@ -244,7 +270,7 @@ export default function TailorPage() {
       if (!response.ok) {
         setMessage({
           type: "error",
-          text: data?.message || "Failed to run application workflow",
+          text: data?.message || "Couldn't run the workflow. Try again.",
         });
         return;
       }
@@ -252,13 +278,66 @@ export default function TailorPage() {
       setWorkflowResult(data.result || null);
       setMessage({
         type: "success",
-        text: "Application workflow completed. Review hiring manager, LinkedIn, and email drafts in Preview.",
+        text: "Workflow complete. Review outputs and outreach drafts in Preview.",
       });
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to run application workflow" });
+      setMessage({ type: "error", text: "Couldn't run the workflow. Try again." });
     }
 
     setWorkflowSubmitting(false);
+  };
+
+  const handleFindHiringManager = async () => {
+    if (!jobUrl.trim()) {
+      setMessage({
+        type: "error",
+        text: "Enter a job posting URL to find a hiring manager.",
+      });
+      return;
+    }
+
+    setFindingManager(true);
+    setMessage(null);
+
+    try {
+      const token =
+        localStorage.getItem("next-auth.session-token") ||
+        localStorage.getItem("auth_token") ||
+        "dev-token";
+
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/agents/hiring-manager-finder`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            jobUrl: jobUrl.trim(),
+          }),
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage({
+          type: "error",
+          text: data?.message || "Couldn't find a hiring manager. Try again.",
+        });
+        return;
+      }
+
+      setHiringManagerResult(data.result || null);
+      setMessage({
+        type: "success",
+        text: "Lookup complete. Review confidence and contact details in Preview.",
+      });
+    } catch (error) {
+      setMessage({ type: "error", text: "Couldn't find a hiring manager. Try again." });
+    }
+
+    setFindingManager(false);
   };
 
   const handleDownloadOutput = async (filePath: string) => {
@@ -281,7 +360,7 @@ export default function TailorPage() {
       );
 
       if (!response.ok) {
-        let errorMessage = "Failed to download file";
+        let errorMessage = "Couldn't download file. Try again.";
         try {
           const data = await response.json();
           errorMessage = data?.message || errorMessage;
@@ -307,7 +386,7 @@ export default function TailorPage() {
       anchor.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to download file" });
+      setMessage({ type: "error", text: "Couldn't download file. Try again." });
     } finally {
       setDownloadingPath(null);
     }
@@ -316,45 +395,48 @@ export default function TailorPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-gray-500">Loading resume options...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-4 mb-8">
+    <div className="ra-page">
+      <div className="ra-panel flex items-center gap-4 p-5 md:p-6">
         <Link
           href="/dashboard"
-          className="p-2 hover:bg-gray-100 rounded-lg"
+          className="rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-100"
         >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <ArrowLeft className="w-5 h-5 text-slate-600" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tailor Resume</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-slate-900">Tailor Resume</h1>
+          <p className="text-slate-600 mt-1">
             Create a job-specific version of your master resume
           </p>
         </div>
       </div>
 
       {masterResumes.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">No master resumes found</p>
+        <div className="ra-empty">
+          <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <p className="ra-empty-title">No master resumes found</p>
+          <p className="ra-empty-copy mb-4">
+            Upload a master resume first. Tailoring, workflow orchestration, and hiring-manager search all start from it.
+          </p>
           <Link
             href="/dashboard/upload"
-            className="text-blue-600 hover:underline"
+            className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            Upload your first resume
+            Upload Resume
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 gap-7 xl:grid-cols-[minmax(0,1fr)_430px]">
           {/* Input Section */}
           <div className="space-y-6">
             {/* Select Resume */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="ra-panel p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 1. Select Master Resume
               </h2>
@@ -373,7 +455,7 @@ export default function TailorPage() {
             </div>
 
             {/* Job Details */}
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="ra-panel p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
                 2. Job Details
               </h2>
@@ -461,45 +543,64 @@ export default function TailorPage() {
             )}
 
             {/* Submit Button */}
-            <button
-              onClick={handleTailor}
-              disabled={submitting || !selectedResumeId || !jobDescription}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Tailoring...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-5 h-5" />
-                  Tailor Resume
-                </>
-              )}
-            </button>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                onClick={handleTailor}
+                disabled={submitting || !selectedResumeId || !jobDescription}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 px-6 font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Tailoring...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-5 h-5" />
+                    Tailor Resume
+                  </>
+                )}
+              </button>
 
+              <button
+                onClick={handleFindHiringManager}
+                disabled={findingManager || !jobUrl.trim()}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white py-3 px-6 font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {findingManager ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Finding Hiring Manager...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-5 h-5" />
+                    Find Hiring Manager
+                  </>
+                )}
+              </button>
+            </div>
             <button
               onClick={handleRunApplicationWorkflow}
               disabled={workflowSubmitting || !selectedResumeId || !jobUrl.trim()}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 px-6 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {workflowSubmitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Running Full Workflow...
+                  Running Workflow...
                 </>
               ) : (
                 <>
                   <Briefcase className="w-5 h-5" />
-                  Run Full Apply Workflow
+                  Run Full Workflow
                 </>
               )}
             </button>
           </div>
 
           {/* Preview Section */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="ra-panel overflow-x-hidden p-6 xl:sticky xl:top-24 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Preview
             </h2>
@@ -514,7 +615,7 @@ export default function TailorPage() {
                   </p>
                 </div>
 
-                <div className="space-y-2 text-sm text-gray-700">
+                <div className="space-y-2 text-sm text-gray-700 break-all">
                   <p><span className="font-medium">Resume Output:</span> {workflowResult.resumePath}</p>
                   <button
                     type="button"
@@ -568,7 +669,7 @@ export default function TailorPage() {
                 {workflowResult.linkedInMessage ? (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                     <p className="text-sm font-medium text-gray-900 mb-2">LinkedIn Message Draft</p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
                       {workflowResult.linkedInMessage}
                     </p>
                   </div>
@@ -586,7 +687,7 @@ export default function TailorPage() {
                     <p className="text-xs text-blue-800 mb-3">
                       Subject: {workflowResult.followUpEmail.subject}
                     </p>
-                    <p className="text-sm text-blue-900 whitespace-pre-wrap">
+                    <p className="text-sm text-blue-900 whitespace-pre-wrap break-words">
                       {workflowResult.followUpEmail.body}
                     </p>
                   </div>
@@ -594,15 +695,69 @@ export default function TailorPage() {
 
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                   <p className="text-sm font-medium text-gray-900 mb-2">Workflow Summary</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-all">
                     {workflowResult.summary}
                   </p>
                 </div>
               </div>
+            ) : hiringManagerResult ? (
+              <div className="space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-slate-900">
+                    Hiring Manager Lookup
+                  </p>
+                  <p className="text-xs text-slate-700 mt-1">
+                    {hiringManagerResult.jobTitle} at {hiringManagerResult.companyName}
+                  </p>
+                </div>
+
+                {(() => {
+                  const manager =
+                    hiringManagerResult.savedHiringManager ||
+                    hiringManagerResult.topMatch ||
+                    null;
+                  if (!manager) {
+                    return (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <p className="text-sm text-amber-900">
+                          No strong hiring manager match found yet.
+                        </p>
+                        <p className="mt-1 text-xs text-amber-800">
+                          Next: verify company name in URL import, then run lookup again or run full workflow for broader signals.
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 text-sm text-gray-700 space-y-2">
+                      <p>
+                        <span className="font-medium">Name:</span> {manager.name || "Not available"}
+                      </p>
+                      <p>
+                        <span className="font-medium">Title:</span> {manager.title || "Not available"}
+                      </p>
+                      <p>
+                        <span className="font-medium">Email:</span> {manager.email || "Not available"}
+                      </p>
+                      <p>
+                        <span className="font-medium">LinkedIn:</span> {manager.linkedInUrl || "Not available"}
+                      </p>
+                      <p>
+                        <span className="font-medium">Confidence:</span>{" "}
+                        {typeof manager.confidence === "number" ? `${manager.confidence}%` : "N/A"}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
             ) : (
               <div className="text-gray-500 text-center py-12">
                 <FileText className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p>Your tailored resume or full workflow output will appear here after processing.</p>
+                <p>Your workflow preview will appear here.</p>
+                <p className="mt-1 text-sm text-gray-400">
+                  Next: import a job URL, then run Tailor Resume, Find Hiring Manager, or Run Full Workflow.
+                </p>
               </div>
             )}
           </div>

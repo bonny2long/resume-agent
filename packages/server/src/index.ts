@@ -2026,7 +2026,7 @@ fastify.post<{ Params: { id: string } }>(
 
 OUTPUT FORMAT RULES (non-negotiable):
 - summaryShort: one paragraph, 3-5 sentences.
-- summaryLong: exactly 3 paragraphs separated by blank lines. Paragraph 1: professional identity and skills. Paragraph 2: real projects built with specific technologies. Paragraph 3: what the trades background brings to software work.
+- summaryLong: 2-3 paragraphs separated by blank lines. Paragraph 1: professional identity and skills. Paragraph 2: real projects and specific technologies. Paragraph 3 (optional): what the trades background brings to software work.
 - NEVER start any sentence with a person's name or use any name in the body.
 - NEVER use pronouns: no "they", "their", "he", "she", "his", "her", "them".
 - Write in anonymous third person — start sentences with the role or verb: "A software engineer who...", "Brings...", "Built...", "Designed...", "Works across...".
@@ -2053,7 +2053,7 @@ Write summaryShort and summaryLong. Synthesize the career story themes into orig
     const llmService = getLLMService();
     const result = await llmService.completeJSON<{ summaryShort: string; summaryLong: string }>(
       userPrompt,
-      { systemPrompt, maxTokens: 1800, temperature: 0.7 },
+      { systemPrompt, maxTokens: 1800, temperature: 0.45 },
     );
 
     if (!result.success || !result.data) {
@@ -2062,6 +2062,10 @@ Write summaryShort and summaryLong. Synthesize the career story themes into orig
 
     let newShort = (typeof result.data.summaryShort === "string" ? result.data.summaryShort : "").trim();
     let newLong = (typeof result.data.summaryLong === "string" ? result.data.summaryLong : "").trim();
+
+    // Run through existing first-person → third-person rewriter and deduplicator
+    newShort = cleanSummaryNarrative(deRobotize(newShort));
+    newLong = cleanSummaryNarrative(deRobotize(newLong));
 
     // Safety net: strip candidate name from output regardless of LLM compliance
     for (const variant of nameVariants) {
@@ -2074,6 +2078,103 @@ Write summaryShort and summaryLong. Synthesize the career story themes into orig
     // Strip leading "is a" / "is an" fragments left after name removal
     newShort = newShort.replace(/^is (a|an)\b/i, "A").replace(/\.\s+is (a|an)\b/gi, ". A").trim();
     newLong = newLong.replace(/^is (a|an)\b/i, "A").replace(/\.\s+is (a|an)\b/gi, ". A").trim();
+
+    // Strip forbidden phrases — catch full contextual phrases to avoid leaving fragments
+    const forbiddenPhrases: [RegExp, string][] = [
+      [/\beager to \w+\b/gi, ""],
+      [/\bpassionate(?: about| for)? \w+\b/gi, ""],
+      [/\bdriven by [^,.]+/gi, ""],
+      [/\bdriven\b/gi, ""],
+      [/\bdedicated(?: to)?(?: \w+)?\b/gi, ""],
+      [/\beverag(?:e|ing) [^,.]+/gi, ""],
+      [/\bleverage\b/gi, ""],
+      [/\bsynergy\b/gi, ""],
+      [/\binnovative solutions\b/gi, "solutions"],
+      [/\bproven track record\b/gi, ""],
+      [/\bresults-oriented\b/gi, ""],
+    ];
+    for (const [re, replacement] of forbiddenPhrases) {
+      newShort = newShort.replace(re, replacement).replace(/\s{2,}/g, " ").replace(/\s+([.,;])/g, "$1").trim();
+      newLong = newLong.replace(re, replacement).replace(/\s{2,}/g, " ").replace(/\s+([.,;])/g, "$1").trim();
+    }
+
+    // Apply user's own avoid phrases
+    if (avoidList.length > 0) {
+      newShort = removeAvoidPhrases(newShort, avoidList);
+      newLong = removeAvoidPhrases(newLong, avoidList);
+    }
+
+    // Force output shape regardless of model drift:
+    // - Short: 3-5 sentences, single paragraph
+    // - Long: 2-3 paragraphs
+    const uniqueLongSentences: string[] = [];
+    const pushUniqueLongSentence = (candidate: string) => {
+      const sentence = `${candidate || ""}`.trim();
+      if (!sentence) return;
+      if (uniqueLongSentences.some((existing) => isNearDuplicateSentence(existing, sentence))) return;
+      uniqueLongSentences.push(sentence);
+    };
+
+    const longSeed = cleanSummaryNarrative(deRobotize(newLong || newShort));
+    splitSentences(longSeed).forEach(pushUniqueLongSentence);
+    splitSentences(cleanSummaryNarrative(deRobotize(newShort))).forEach(pushUniqueLongSentence);
+
+    if (uniqueLongSentences.length === 0) {
+      return reply.status(500).send({ message: "Generated summary was empty" });
+    }
+
+    const longSelected = uniqueLongSentences.slice(
+      0,
+      Math.max(4, Math.min(8, uniqueLongSentences.length)),
+    );
+    const targetLongParagraphs = longSelected.length >= 7 ? 3 : 2;
+    let enforcedLong = buildParagraphs(longSelected, targetLongParagraphs);
+    const longParagraphs = splitParagraphs(enforcedLong);
+    if (longParagraphs.length > 3) {
+      enforcedLong = `${longParagraphs[0]}\n\n${longParagraphs[1]}\n\n${longParagraphs.slice(2).join(" ").trim()}`.trim();
+    }
+    if (splitParagraphs(enforcedLong).length < 2 && longSelected.length >= 2) {
+      enforcedLong = buildParagraphs(longSelected, 2);
+    }
+    const cleanedLongParagraphs = splitParagraphs(enforcedLong)
+      .slice(0, 3)
+      .map((paragraph) => cleanSummaryNarrative(deRobotize(paragraph)))
+      .filter(Boolean);
+    if (cleanedLongParagraphs.length < 2) {
+      const rebuilt = buildParagraphs(longSelected, 2);
+      enforcedLong = splitParagraphs(rebuilt)
+        .slice(0, 2)
+        .map((paragraph) => cleanSummaryNarrative(deRobotize(paragraph)))
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+    } else {
+      enforcedLong = cleanedLongParagraphs.slice(0, 3).join("\n\n").trim();
+    }
+
+    let enforcedShort = enforceShortSummaryLength(cleanSummaryNarrative(deRobotize(newShort || enforcedLong)));
+    let shortSentences = splitSentences(enforcedShort);
+    if (shortSentences.length > 5) {
+      enforcedShort = shortSentences.slice(0, 5).join(" ");
+      shortSentences = splitSentences(enforcedShort);
+    }
+    if (shortSentences.length < 3) {
+      const fromLong = splitSentences(enforcedLong);
+      const expanded = [...shortSentences];
+      for (const sentence of fromLong) {
+        if (expanded.some((existing) => isNearDuplicateSentence(existing, sentence))) continue;
+        expanded.push(sentence);
+        if (expanded.length >= 3) break;
+      }
+      enforcedShort = enforceShortSummaryLength(expanded.join(" "));
+      shortSentences = splitSentences(enforcedShort);
+      if (shortSentences.length > 5) {
+        enforcedShort = shortSentences.slice(0, 5).join(" ");
+      }
+    }
+
+    newShort = enforcedShort.trim();
+    newLong = enforcedLong.trim();
 
     if (!newShort) {
       return reply.status(500).send({ message: "Generated summary was empty" });
@@ -4527,6 +4628,269 @@ fastify.post<{ Body: { resumeId: string } }>(
     } catch (error: any) {
       console.error("Behavioral coach failed:", error.message);
       return reply.status(500).send({ message: "Failed to generate STAR stories", error: error.message });
+    }
+  },
+);
+
+// Hiring manager finder without manual CLI jobId (accepts jobId or jobUrl)
+fastify.post<{ Body: { jobId?: string; jobUrl?: string } }>(
+  "/api/agents/hiring-manager-finder",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const rawJobId = `${request.body?.jobId || ""}`.trim();
+    const rawJobUrl = `${request.body?.jobUrl || ""}`.trim();
+
+    if (!rawJobId && !rawJobUrl) {
+      return reply
+        .status(400)
+        .send({ message: "Either jobId or jobUrl is required" });
+    }
+
+    let job: any = null;
+
+    if (rawJobId) {
+      job = await prisma.job.findUnique({
+        where: { id: rawJobId },
+        include: { company: true },
+      });
+      if (!job) {
+        return reply.status(404).send({ message: "Job not found" });
+      }
+    } else {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(rawJobUrl);
+      } catch {
+        return reply.status(400).send({ message: "Invalid job URL format" });
+      }
+
+      if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+        return reply
+          .status(400)
+          .send({ message: "Only http(s) URLs are supported" });
+      }
+
+      job = await prisma.job.findFirst({
+        where: { url: parsedUrl.toString() },
+        include: { company: true },
+      });
+
+      if (!job) {
+        const analysisResult = await getJobAnalyzerAgent().analyzeJobFromUrl(
+          parsedUrl.toString(),
+        );
+        if (!analysisResult.success || !analysisResult.data) {
+          return reply.status(500).send({
+            message: "Failed to analyze job URL",
+            error: analysisResult.error || "Job analysis failed",
+          });
+        }
+
+        const analysis = analysisResult.data;
+        let company = await prisma.company.findFirst({
+          where: { name: { equals: analysis.company, mode: "insensitive" } },
+        });
+
+        if (!company) {
+          company = await prisma.company.create({
+            data: {
+              name: analysis.company,
+              domain: parsedUrl.hostname,
+              lastResearched: new Date(),
+            },
+          });
+        }
+
+        job = await prisma.job.create({
+          data: {
+            companyId: company.id,
+            title: analysis.title || "Unknown Position",
+            url: parsedUrl.toString(),
+            location: analysis.location || "Remote",
+            salary: analysis.salary || undefined,
+            rawDescription: analysis.rawDescription || parsedUrl.toString(),
+            requiredSkills: analysis.requiredSkills || [],
+            preferredSkills: analysis.preferredSkills || [],
+            responsibilities: analysis.responsibilities || [],
+            qualifications: analysis.qualifications || [],
+            keywords: analysis.keywords || [],
+            experienceLevel: analysis.experienceLevel || "entry",
+          },
+          include: { company: true },
+        });
+      }
+    }
+
+    try {
+      const { getHiringManagerFinderAgent } = await import(
+        "./agents/hiring-manager-finder.js"
+      );
+      const finder = getHiringManagerFinderAgent();
+      const hmResult = await finder.findHiringManager(job.id);
+
+      if (!hmResult.success || !hmResult.data) {
+        return reply.status(500).send({
+          message: "Failed to find hiring manager",
+          error: hmResult.error || "Hiring manager search failed",
+        });
+      }
+
+      let savedHiringManager: any = null;
+      const topMatch = hmResult.data.topMatch;
+      const normalizedName = `${topMatch?.name || ""}`.trim();
+
+      if (topMatch && normalizedName) {
+        const sourceList = topMatch.source ? [topMatch.source] : [];
+        const managerData = {
+          name: normalizedName,
+          title: `${topMatch.title || ""}`.trim() || "Hiring Manager",
+          linkedInUrl: `${topMatch.linkedInUrl || ""}`.trim() || null,
+          email: `${topMatch.email || ""}`.trim() || null,
+          phone: `${topMatch.phone || ""}`.trim() || null,
+          confidence:
+            typeof topMatch.confidence === "number" ? topMatch.confidence : 0,
+          verified: Boolean(topMatch.verified),
+        };
+
+        const existingHM = await prisma.hiringManager.findFirst({
+          where: { jobId: job.id, name: normalizedName },
+        });
+
+        if (existingHM) {
+          const mergedSources = Array.from(
+            new Set([...(existingHM.sources || []), ...sourceList]),
+          );
+          savedHiringManager = await prisma.hiringManager.update({
+            where: { id: existingHM.id },
+            data: {
+              ...managerData,
+              sources: mergedSources,
+            },
+          });
+        } else {
+          try {
+            savedHiringManager = await prisma.hiringManager.create({
+              data: {
+                jobId: job.id,
+                ...managerData,
+                sources: sourceList,
+              },
+            });
+          } catch (error: any) {
+            if (error?.code === "P2002") {
+              const deduped = await prisma.hiringManager.findFirst({
+                where: { jobId: job.id, name: normalizedName },
+              });
+              if (deduped) {
+                const mergedSources = Array.from(
+                  new Set([...(deduped.sources || []), ...sourceList]),
+                );
+                savedHiringManager = await prisma.hiringManager.update({
+                  where: { id: deduped.id },
+                  data: {
+                    ...managerData,
+                    sources: mergedSources,
+                  },
+                });
+              }
+            } else {
+              throw error;
+            }
+          }
+        }
+      }
+
+      return {
+        result: {
+          jobId: job.id,
+          jobTitle: job.title,
+          companyName: job.company?.name || "",
+          searchMethod: hmResult.data.searchMethod,
+          managers: hmResult.data.managers,
+          topMatch: hmResult.data.topMatch || null,
+          savedHiringManager,
+        },
+      };
+    } catch (error: any) {
+      console.error("Hiring manager finder failed:", error.message);
+      return reply.status(500).send({
+        message: "Failed to find hiring manager",
+        error: error.message,
+      });
+    }
+  },
+);
+
+// Email draft generation from application context
+fastify.post<{
+  Body: {
+    applicationId: string;
+    type?: "initial_followup" | "post_interview" | "check_in";
+    tone?: "professional" | "enthusiastic" | "friendly";
+    includeCareerStory?: boolean;
+  };
+}>(
+  "/api/agents/email-agent",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const applicationId = `${request.body?.applicationId || ""}`.trim();
+    const type = request.body?.type || "initial_followup";
+    const tone = request.body?.tone || "professional";
+    const includeCareerStory = request.body?.includeCareerStory !== false;
+
+    if (!applicationId) {
+      return reply.status(400).send({ message: "applicationId is required" });
+    }
+
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        hiringManagerId: true,
+      },
+    });
+
+    if (!application) {
+      return reply.status(404).send({ message: "Application not found" });
+    }
+
+    try {
+      const { getEmailAgent } = await import("./agents/email-agent.js");
+      const emailAgent = getEmailAgent();
+      const emailResult = await emailAgent.generateEmail(applicationId, {
+        type,
+        tone,
+        includeCareerStory,
+      });
+
+      if (!emailResult.success || !emailResult.data) {
+        return reply.status(500).send({
+          message: "Failed to generate email draft",
+          error: emailResult.error || "Email generation failed",
+        });
+      }
+
+      await emailAgent.saveEmail(
+        applicationId,
+        emailResult.data.type || type,
+        emailResult.data.to || "",
+        emailResult.data.subject || "",
+        emailResult.data.body || "",
+        emailResult.data.tone || tone,
+        application.hiringManagerId || undefined,
+      );
+
+      return { result: emailResult.data };
+    } catch (error: any) {
+      console.error("Email agent failed:", error.message);
+      return reply.status(500).send({
+        message: "Failed to generate email draft",
+        error: error.message,
+      });
     }
   },
 );

@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 220 25% 97%;
+    --foreground: 222.2 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222.2 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --popover-foreground: 222.2 47% 11%;
+    --primary: 222 80% 56%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
+    --secondary: 214 37% 95%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
+    --muted: 214 37% 95%;
+    --muted-foreground: 217 15% 43%;
+    --accent: 214 37% 95%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 214 28% 88%;
+    --input: 214 28% 88%;
     --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --radius: 0.9rem;
   }
 }
 
@@ -32,6 +32,36 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(1200px 600px at 100% -10%, rgba(59, 130, 246, 0.08), transparent 58%),
+      radial-gradient(800px 500px at -10% 20%, rgba(16, 185, 129, 0.08), transparent 60%);
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .ra-glass {
+    @apply bg-white/80 border border-white/70 shadow-sm backdrop-blur;
+  }
+
+  .ra-panel {
+    @apply ra-glass rounded-2xl;
+  }
+
+  .ra-page {
+    @apply space-y-6;
+  }
+
+  .ra-empty {
+    @apply ra-panel p-10 text-center min-h-[260px] flex flex-col items-center justify-center;
+  }
+
+  .ra-empty-title {
+    @apply mt-2 text-sm font-semibold text-slate-700;
+  }
+
+  .ra-empty-copy {
+    @apply mt-1 text-sm text-slate-500;
   }
 }

@@ -283,3 +283,7 @@ First tasks:
 - Wired `ApplicationOrchestratorAgent` into API via `POST /api/agents/application-orchestrator` so end-to-end workflow can be triggered from server routes with a stable `{ result: ... }` wrapper; route now accepts optional `resumeId` for resume-targeted orchestration.
 - Extended orchestration workflow to generate and persist follow-up email drafts (`EmailAgent`) and exposed output in API result (`followUpEmail`), alongside hiring manager and LinkedIn outputs.
 - Integrated a UI-driven full workflow action in `dashboard/tailor` that calls the orchestrator route and renders hiring manager info, LinkedIn draft, and email draft in preview.
+- Added direct non-CLI agent routes:
+  - `POST /api/agents/hiring-manager-finder` accepts `jobId` or `jobUrl`; `jobUrl` path auto-analyzes/creates job and runs finder without manual job ID entry.
+  - `POST /api/agents/email-agent` accepts `applicationId` (+ optional tone/type/story flag), generates email draft through `EmailAgent`, and persists it to `email_messages`.
+- Hiring manager discovery now enriches top candidates through `contact-finder.service` waterfall (Apollo -> Hunter -> RocketReach based on availability/credits) to improve direct manager email capture in API/UI workflows.

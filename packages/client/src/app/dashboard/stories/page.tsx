@@ -140,13 +140,16 @@ export default function StoriesPage() {
       );
 
       if (response.ok) {
-        setMessage({ type: "success", text: "Career story saved!" });
+        setMessage({
+          type: "success",
+          text: "Save complete. Next: regenerate your summary from Resume Details.",
+        });
         fetchStories();
       } else {
-        setMessage({ type: "error", text: "Failed to save career story" });
+        setMessage({ type: "error", text: "Couldn't save career story. Try again." });
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Something went wrong" });
+      setMessage({ type: "error", text: "Couldn't save career story. Try again." });
     }
     setSaving(false);
   };
@@ -173,20 +176,23 @@ export default function StoriesPage() {
       );
 
       if (response.ok) {
-        setMessage({ type: "success", text: "Voice profile saved!" });
+        setMessage({
+          type: "success",
+          text: "Save complete. Next: run Tailor Resume or Generate Cover Letter to apply this voice.",
+        });
         fetchStories();
       } else {
-        setMessage({ type: "error", text: "Failed to save voice profile" });
+        setMessage({ type: "error", text: "Couldn't save voice profile. Try again." });
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Something went wrong" });
+      setMessage({ type: "error", text: "Couldn't save voice profile. Try again." });
     }
     setSaving(false);
   };
 
   const handleAddAchievement = async () => {
     if (!achievementForm.projectName.trim()) {
-      setMessage({ type: "error", text: "Project name is required" });
+      setMessage({ type: "error", text: "Enter a project name." });
       return;
     }
     setSavingAchievement(true);
@@ -210,7 +216,10 @@ export default function StoriesPage() {
       );
 
       if (response.ok) {
-        setMessage({ type: "success", text: "Achievement saved!" });
+        setMessage({
+          type: "success",
+          text: "Save complete. Next: run Quantify Achievements in Resume AI Agents.",
+        });
         setAchievementForm({
           projectName: "",
           role: "",
@@ -223,10 +232,10 @@ export default function StoriesPage() {
         fetchStories();
       } else {
         const err = await response.json().catch(() => ({}));
-        setMessage({ type: "error", text: (err as any).message || "Failed to save achievement" });
+        setMessage({ type: "error", text: (err as any).message || "Couldn't save achievement. Try again." });
       }
     } catch {
-      setMessage({ type: "error", text: "Something went wrong" });
+      setMessage({ type: "error", text: "Couldn't save achievement. Try again." });
     }
     setSavingAchievement(false);
   };
@@ -249,13 +258,13 @@ export default function StoriesPage() {
       );
 
       if (response.ok) {
-        setMessage({ type: "success", text: "Achievement deleted" });
+        setMessage({ type: "success", text: "Delete complete." });
         fetchStories();
       } else {
-        setMessage({ type: "error", text: "Failed to delete achievement" });
+        setMessage({ type: "error", text: "Couldn't delete achievement. Try again." });
       }
     } catch {
-      setMessage({ type: "error", text: "Something went wrong" });
+      setMessage({ type: "error", text: "Couldn't delete achievement. Try again." });
     }
     setDeletingId(null);
   };
@@ -263,22 +272,22 @@ export default function StoriesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-gray-500">Loading story profile...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">My Story</h1>
-        <p className="text-gray-600 mt-1">
+    <div className="ra-page">
+      <div className="ra-panel p-5 md:p-6">
+        <h1 className="text-2xl font-bold text-slate-900">My Story</h1>
+        <p className="text-slate-600 mt-1">
           Tell your career story and establish your professional voice
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
+      <div className="ra-panel border-b border-slate-200 p-2">
         <nav className="flex gap-6">
           {[
             { id: "career", label: "Career Story", icon: FileText },
@@ -290,8 +299,8 @@ export default function StoriesPage() {
               onClick={() => setActiveTab(tab.id as any)}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
                 activeTab === tab.id
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -304,8 +313,10 @@ export default function StoriesPage() {
       {/* Message */}
       {message && (
         <div
-          className={`p-4 rounded-lg mb-6 ${
-            message.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          className={`rounded-xl border px-4 py-3 ${
+            message.type === "success"
+              ? "border-green-200 bg-green-50 text-green-800"
+              : "border-red-200 bg-red-50 text-red-800"
           }`}
         >
           {message.text}
@@ -314,7 +325,7 @@ export default function StoriesPage() {
 
       {/* Career Story Tab */}
       {activeTab === "career" && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
+        <div className="ra-panel p-6 space-y-6">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Career Transition Story
@@ -386,7 +397,7 @@ export default function StoriesPage() {
       {/* Achievements Tab */}
       {activeTab === "achievements" && (
         <div className="space-y-6">
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="ra-panel p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Achievement Stories
             </h2>
@@ -395,8 +406,11 @@ export default function StoriesPage() {
             </p>
 
             {achievementStories.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No achievement stories yet. Add your first one!
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+                <p className="text-sm font-semibold text-slate-700">No achievement stories yet.</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add one below. These entries feed tailored summaries, cover letters, and interview stories.
+                </p>
               </div>
             ) : (
               <div className="space-y-4 mb-6">
@@ -430,7 +444,7 @@ export default function StoriesPage() {
             )}
 
             <div className="border-t border-gray-200 pt-6 space-y-4">
-              <h3 className="font-medium text-gray-900">Add New Achievement</h3>
+              <h3 className="font-medium text-gray-900">Add Achievement</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -487,7 +501,7 @@ export default function StoriesPage() {
 
       {/* Voice Profile Tab */}
       {activeTab === "voice" && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-6">
+        <div className="ra-panel p-6 space-y-6">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Voice Profile

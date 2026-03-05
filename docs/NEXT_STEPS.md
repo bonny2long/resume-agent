@@ -96,6 +96,10 @@ Acceptance for each route:
   - Implemented (March 4, 2026): added `POST /api/agents/application-orchestrator` calling `ApplicationOrchestratorAgent.applyToJob(jobUrl, { enhanced, resumeId })` with `{ result: ... }` response wrapper.
 - [x] Integrate hiring manager + LinkedIn + email agents in UI-driven flow.
   - Implemented (March 4, 2026): `dashboard/tailor` now runs full workflow via `/api/agents/application-orchestrator` and renders hiring manager details, LinkedIn message draft, and follow-up email draft in Preview.
+- [x] Add direct API routes for hiring manager and email agents so manual CLI `jobId` entry is not required.
+  - Implemented (March 4, 2026):
+    - `POST /api/agents/hiring-manager-finder` accepts `{ jobId }` or `{ jobUrl }`; when only `jobUrl` is provided it analyzes/creates the job, runs finder, and persists top match.
+    - `POST /api/agents/email-agent` accepts `{ applicationId, type?, tone?, includeCareerStory? }`, generates a draft via `EmailAgent`, and persists it.
 
 Acceptance:
 - One API workflow can execute: analyze job -> tailor -> cover letter -> manager/contact output.
@@ -131,7 +135,12 @@ After coding:
 
 ## Recommended Next Task (Start Here)
 
-Implement Phase 2, item 1:
-- Connect `/api/agents/quantify-achievements` to migrated agent class
-- Preserve response shape
-- Add a quick verification run and document result
+Phase 2 and Phase 3 are complete. Start with Phase 4 reliability work:
+
+1. Fix server TS module/config issues (`TS1343`, `TS1378`).
+2. Fix shared output dependency issue (`TS6305`) in local dev flow.
+3. Reduce implicit `any` warnings in `packages/server/src/index.ts`.
+
+After those pass, continue cleanup:
+- Remove duplicated inline prompt blocks in `index.ts` once parity is confirmed.
+- Deprecate/remove old CLI runtime paths after endpoint parity validation.

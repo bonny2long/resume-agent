@@ -75,14 +75,14 @@ export default function OutputsPage() {
       if (!response.ok) {
         setMessage({
           type: "error",
-          text: data?.message || "Failed to load outputs",
+          text: data?.message || "Couldn't load outputs. Try again.",
         });
         return;
       }
 
       setOutputs(Array.isArray(data.outputs) ? data.outputs : []);
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to load outputs" });
+      setMessage({ type: "error", text: "Couldn't load outputs. Try again." });
     } finally {
       setLoading(false);
     }
@@ -102,7 +102,7 @@ export default function OutputsPage() {
       );
 
       if (!response.ok) {
-        let errorMessage = "Failed to download file";
+        let errorMessage = "Couldn't download file. Try again.";
         try {
           const data = (await response.json()) as { message?: string };
           errorMessage = data?.message || errorMessage;
@@ -126,9 +126,9 @@ export default function OutputsPage() {
       anchor.click();
       anchor.remove();
       window.URL.revokeObjectURL(url);
-      setMessage({ type: "success", text: `Downloaded ${filename}` });
+      setMessage({ type: "success", text: `Download complete: ${filename}` });
     } catch (error) {
-      setMessage({ type: "error", text: "Failed to download file" });
+      setMessage({ type: "error", text: "Couldn't download file. Try again." });
     } finally {
       setDownloadingPath(null);
     }
@@ -188,22 +188,22 @@ export default function OutputsPage() {
   }
 
   return (
-    <div>
-      <div className="mb-8 flex items-center justify-between gap-4">
+    <div className="ra-page">
+      <div className="ra-panel flex items-center justify-between gap-4 p-5 md:p-6">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="rounded-lg p-2 hover:bg-gray-100">
-            <ArrowLeft className="h-5 w-5 text-gray-600" />
+          <Link href="/dashboard" className="rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-100">
+            <ArrowLeft className="h-5 w-5 text-slate-600" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Generated Outputs</h1>
-            <p className="mt-1 text-gray-600">
+            <h1 className="text-2xl font-bold text-slate-900">Generated Outputs</h1>
+            <p className="mt-1 text-slate-600">
               Browse and download resumes, cover letters, and skills snapshots.
             </p>
           </div>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-right">
-          <p className="text-2xl font-bold text-gray-900">{totalFiles}</p>
-          <p className="text-xs text-gray-500">Files available</p>
+        <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 px-5 py-3 text-right">
+          <p className="text-2xl font-bold text-blue-900">{totalFiles}</p>
+          <p className="text-xs font-medium text-blue-700">Files available</p>
         </div>
       </div>
 
@@ -220,29 +220,43 @@ export default function OutputsPage() {
       ) : null}
 
       {outputs.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-10 text-center">
-          <Briefcase className="mx-auto mb-3 h-10 w-10 text-gray-300" />
-          <p className="text-gray-600">No generated output files yet.</p>
-          <p className="mt-1 text-sm text-gray-500">
-            Run a workflow from Tailor Resume and your files will appear here.
+        <div className="ra-empty">
+          <Briefcase className="mb-2 h-11 w-11 text-slate-300" />
+          <p className="ra-empty-title">No generated files yet</p>
+          <p className="ra-empty-copy">
+            Start from Tailor Resume, run a workflow, then come back here to download your resume, cover letter, and skills JSON.
           </p>
-          <Link
-            href="/dashboard/tailor"
-            className="mt-4 inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Go to Tailor Resume
-          </Link>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/dashboard/tailor"
+              className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Tailor Resume
+            </Link>
+            <Link
+              href="/dashboard/cover-letter"
+              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Generate Cover Letter
+            </Link>
+            <Link
+              href="/dashboard/upload"
+              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Upload Resume
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
           {outputs.map((output) => (
-            <div key={output.resumeId} className="rounded-lg border border-gray-200 bg-white p-5">
+            <div key={output.resumeId} className="ra-panel p-5">
               <div className="mb-4 flex flex-wrap items-center gap-4">
-                <div className="inline-flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-1.5 text-sm text-gray-700">
+                <div className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-3 py-1.5 text-sm text-slate-700">
                   <Building className="h-4 w-4" />
                   <span>{output.companyName || "Unknown Company"}</span>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-1.5 text-sm text-blue-700">
+                <div className="inline-flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-1.5 text-sm text-blue-700">
                   <Briefcase className="h-4 w-4" />
                   <span>{output.jobTitle || "Unknown Role"}</span>
                 </div>

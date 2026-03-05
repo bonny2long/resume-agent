@@ -94,13 +94,16 @@ export default function SettingsPage() {
       );
 
       if (response.ok) {
-        setMessage({ type: "success", text: "Settings saved!" });
+        setMessage({
+          type: "success",
+          text: "Save complete. Restart the server if you changed API keys so providers reload.",
+        });
         fetchSettings();
       } else {
-        setMessage({ type: "error", text: "Failed to save settings" });
+        setMessage({ type: "error", text: "Couldn't save settings. Try again." });
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Something went wrong" });
+      setMessage({ type: "error", text: "Couldn't save settings. Try again." });
     }
     setSaving(false);
   };
@@ -108,16 +111,16 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-gray-500">Loading settings...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">
+    <div className="ra-page">
+      <div className="ra-panel p-5 md:p-6">
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
+        <p className="text-slate-600 mt-1">
           Configure your API keys and preferences
         </p>
       </div>
@@ -125,8 +128,10 @@ export default function SettingsPage() {
       {/* Message */}
       {message && (
         <div
-          className={`p-4 rounded-lg mb-6 ${
-            message.type === "success" ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+          className={`rounded-xl border px-4 py-3 ${
+            message.type === "success"
+              ? "border-green-200 bg-green-50 text-green-800"
+              : "border-red-200 bg-red-50 text-red-800"
           }`}
         >
           {message.text}
@@ -134,7 +139,7 @@ export default function SettingsPage() {
       )}
 
       {/* AI Providers */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+      <div className="ra-panel p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-blue-50 rounded-lg">
             <Key className="w-5 h-5 text-blue-600" />
@@ -220,7 +225,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Features */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+      <div className="ra-panel p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-blue-50 rounded-lg">
             <SettingsIcon className="w-5 h-5 text-blue-600" />
@@ -277,11 +282,14 @@ export default function SettingsPage() {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
       >
         <Save className="w-5 h-5" />
         {saving ? "Saving..." : "Save Settings"}
       </button>
+      <p className="text-xs text-slate-500">
+        Next: run Tailor Resume or Generate Cover Letter to validate your keys.
+      </p>
     </div>
   );
 }

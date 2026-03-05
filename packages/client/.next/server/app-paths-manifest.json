@@ -1,7 +1,9 @@
 {
+  "/dashboard/cover-letters/page": "app/dashboard/cover-letters/page.js",
+  "/dashboard/cover-letter/page": "app/dashboard/cover-letter/page.js",
+  "/dashboard/tailor/page": "app/dashboard/tailor/page.js",
   "/dashboard/page": "app/dashboard/page.js",
-  "/dashboard/resumes/[id]/page": "app/dashboard/resumes/[id]/page.js",
   "/dashboard/stories/page": "app/dashboard/stories/page.js",
-  "/dashboard/resumes/page": "app/dashboard/resumes/page.js",
-  "/dashboard/tailor/page": "app/dashboard/tailor/page.js"
+  "/dashboard/resumes/[id]/page": "app/dashboard/resumes/[id]/page.js",
+  "/dashboard/applications/page": "app/dashboard/applications/page.js"
 }

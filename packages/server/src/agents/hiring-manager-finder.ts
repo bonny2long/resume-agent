@@ -5,6 +5,7 @@ import { logger } from "@/utils/logger";
 import { AgentResponse } from "@/types";
 import getPrismaClient from "@/database/client";
 import config from "@/config";
+import { getContactFinderService } from "@/services/contact-finder.service";
 import axios from "axios";
 
 export interface HiringManager {
@@ -18,7 +19,7 @@ export interface HiringManager {
   location?: string;
   profileSummary?: string;
   confidence: number; // 0-100
-  source: string; // "linkedin" | "hunter" | "apollo" | "company_website" | "ai_suggestion"
+  source: string; // "linkedin" | "hunter" | "apollo" | "rocketreach" | "company_website" | "ai_suggestion"
   verified: boolean;
 }
 
@@ -96,20 +97,27 @@ export class HiringManagerFinderAgent {
 
       // Rank and deduplicate
       const rankedCandidates = this.rankCandidates(candidates);
-      const topMatch = rankedCandidates[0];
+      const enrichedCandidates = await this.enrichCandidatesWithContactData(
+        rankedCandidates,
+        {
+          companyName: job.company?.name || "",
+          companyDomain: job.company?.domain || undefined,
+        },
+      );
+      const topMatch = enrichedCandidates[0];
 
       logger.success(
-        rankedCandidates.length > 0 ?
-          `Found ${rankedCandidates.length} candidates`
+        enrichedCandidates.length > 0 ?
+          `Found ${enrichedCandidates.length} candidates`
         : "No candidates found",
       );
 
       return {
         success: true,
         data: {
-          managers: rankedCandidates,
+          managers: enrichedCandidates,
           topMatch,
-          searchMethod: this.determineSearchMethod(rankedCandidates),
+          searchMethod: this.determineSearchMethod(enrichedCandidates),
         },
       };
     } catch (error: any) {
@@ -420,8 +428,10 @@ If no relevant managers found, return empty array: []`;
         return b.confidence - a.confidence;
       }
 
-      // 4. Source priority (hunter > company_website > ai_suggestion)
+      // 4. Source priority (rocketreach > apollo > hunter > company_website > ai_suggestion)
       const sourcePriority = {
+        rocketreach: 5,
+        apollo: 4,
         hunter: 3,
         company_website: 2,
         ai_suggestion: 1,
@@ -432,6 +442,77 @@ If no relevant managers found, return empty array: []`;
         sourcePriority[b.source as keyof typeof sourcePriority] || 0;
       return bPriority - aPriority;
     });
+  }
+
+  /**
+   * Use service-layer waterfall (Apollo/Hunter/RocketReach) to enrich top candidates
+   * with contact fields when we only have a likely name/title.
+   */
+  private async enrichCandidatesWithContactData(
+    candidates: HiringManager[],
+    context: { companyName: string; companyDomain?: string },
+  ): Promise<HiringManager[]> {
+    if (candidates.length === 0) return candidates;
+
+    const enriched = [...candidates];
+    const contactFinder = getContactFinderService();
+    const maxEnrich = Math.min(3, enriched.length);
+
+    for (let i = 0; i < maxEnrich; i += 1) {
+      const candidate = enriched[i];
+      if (candidate.email) continue;
+      if (!this.isLikelyRealName(candidate.name)) continue;
+
+      const parts = candidate.name.trim().split(/\s+/);
+      if (parts.length < 2) continue;
+      const firstName = parts[0];
+      const lastName = parts.slice(1).join(" ");
+
+      try {
+        const found = await contactFinder.findContact(
+          {
+            firstName,
+            lastName,
+            fullName: candidate.name,
+            company: context.companyName,
+            companyDomain: context.companyDomain,
+            title: candidate.title,
+            linkedinUrl: candidate.linkedInUrl,
+          },
+          "medium",
+        );
+
+        if (!found) continue;
+
+        enriched[i] = {
+          ...candidate,
+          title: found.title || candidate.title,
+          linkedInUrl: found.linkedinUrl || candidate.linkedInUrl,
+          email: found.email || candidate.email,
+          phone: found.phone || candidate.phone,
+          confidence: Math.max(candidate.confidence, found.confidence || 0),
+          source: found.source || candidate.source,
+          verified: candidate.verified || found.verified,
+        };
+      } catch (error) {
+        logger.warn("Contact enrichment failed", {
+          candidate: candidate.name,
+          error,
+        });
+      }
+    }
+
+    return this.rankCandidates(enriched);
+  }
+
+  private isLikelyRealName(name: string): boolean {
+    const normalized = `${name || ""}`.trim();
+    if (!normalized) return false;
+    if (normalized.includes("[") || normalized.includes("]")) return false;
+    if (/search linkedin/i.test(normalized)) return false;
+    const parts = normalized.split(/\s+/);
+    if (parts.length < 2) return false;
+    return parts.every((part) => /^[A-Za-z.'-]{2,}$/.test(part));
   }
 
   /**

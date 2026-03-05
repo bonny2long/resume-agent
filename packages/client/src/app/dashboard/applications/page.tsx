@@ -87,44 +87,52 @@ export default function ApplicationsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-gray-500">Loading applications...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
+    <div className="ra-page">
+      <div className="ra-panel flex items-center justify-between p-5 md:p-6">
         <div className="flex items-center gap-4">
           <Link
             href="/dashboard"
-            className="p-2 hover:bg-gray-100 rounded-lg"
+            className="rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-100"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Applications</h1>
-            <p className="text-gray-600 mt-1">
-              Track your job applications and tailored resumes
+            <h1 className="text-2xl font-bold text-slate-900">Applications</h1>
+            <p className="text-slate-600 mt-1">
+              Track application status and tailored resumes
             </p>
           </div>
         </div>
       </div>
 
       {applications.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded-lg p-12 text-center">
-          <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">No applications yet</p>
-          <p className="text-sm text-gray-400 mb-6">
-            Tailor a resume for a job to start tracking your applications
+        <div className="ra-empty">
+          <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+          <p className="ra-empty-title">No applications yet</p>
+          <p className="ra-empty-copy mb-5">
+            Start by tailoring a resume for a target role. Tailored resumes automatically appear in this tracker.
           </p>
-          <Link
-            href="/dashboard/tailor"
-            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-5 h-5" />
-            Tailor Resume
-          </Link>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/dashboard/tailor"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
+            >
+              <Plus className="w-5 h-5" />
+              Tailor Resume
+            </Link>
+            <Link
+              href="/dashboard/upload"
+              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Upload Resume
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -133,7 +141,7 @@ export default function ApplicationsPage() {
             return (
               <div
                 key={app.id}
-                className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition"
+                className="ra-panel p-4 transition hover:border-slate-300"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
@@ -163,7 +171,7 @@ export default function ApplicationsPage() {
                       href={`/dashboard/resumes/${app.id}`}
                       className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                     >
-                      View
+                      View Resume
                     </Link>
                   </div>
                 </div>

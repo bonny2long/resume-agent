@@ -88,47 +88,57 @@ export default function ResumesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
+        <div className="text-gray-500">Loading resumes...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
+    <div className="ra-page">
+      <div className="ra-panel flex items-center justify-between p-5 md:p-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Resumes</h1>
-          <p className="text-gray-600 mt-1">
-            {resumes.length} resume{resumes.length !== 1 ? "s" : ""} in your
-            bank
+          <h1 className="text-2xl font-bold text-slate-900">My Resumes</h1>
+          <p className="text-slate-600 mt-1">
+            {resumes.length} resume{resumes.length !== 1 ? "s" : ""} in your workspace
           </p>
         </div>
         <Link
           href="/dashboard/upload"
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
         >
           <Plus className="w-5 h-5" />
-          Add Resume
+          Upload Resume
         </Link>
       </div>
 
       {resumes.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">No resumes yet</p>
-          <Link
-            href="/dashboard/upload"
-            className="text-blue-600 hover:underline"
-          >
-            Upload your first resume
-          </Link>
+        <div className="ra-empty">
+          <FileText className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+          <p className="ra-empty-title mb-2">No resumes yet</p>
+          <p className="ra-empty-copy mb-4">
+            Upload a master resume to start tailoring and generating cover letters.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link
+              href="/dashboard/upload"
+              className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Upload Resume
+            </Link>
+            <Link
+              href="/dashboard/stories"
+              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Update My Story
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {resumes.map((resume) => (
             <div
               key={resume.id}
-              className="bg-white border border-gray-200 rounded-lg p-6 hover:border-blue-300 transition"
+              className="ra-panel p-6 hover:border-blue-300 transition"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="p-2 bg-blue-50 rounded-lg">
@@ -170,7 +180,7 @@ export default function ResumesPage() {
                   href={`/dashboard/resumes/${resume.id}`}
                   className="text-sm text-blue-600 hover:underline"
                 >
-                  View Details
+                  Open Resume
                 </Link>
               </div>
             </div>

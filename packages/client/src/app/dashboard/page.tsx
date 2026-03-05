@@ -97,14 +97,14 @@ export default function DashboardPage() {
     },
     {
       title: "Tailor Resume",
-      description: "Create job-specific version",
+      description: "Create a job-specific version",
       href: "/dashboard/tailor",
       icon: Briefcase,
       color: "bg-indigo-600 hover:bg-indigo-700",
     },
     {
-      title: "Cover Letter",
-      description: "Generate personalized letter",
+      title: "Generate Cover Letter",
+      description: "Generate a personalized letter",
       href: "/dashboard/cover-letter",
       icon: Mail,
       color: "bg-green-600 hover:bg-green-700",
@@ -120,34 +120,34 @@ export default function DashboardPage() {
 
   const steps = [
     {
-      title: "Upload your resume",
+      title: "Upload Resume",
       description: "Add your master resume with all your experience",
       href: "/dashboard/upload",
     },
     {
-      title: "Tell your story",
+      title: "Tell Your Story",
       description: "Add your career story for personalized applications",
       href: "/dashboard/stories",
     },
     {
-      title: "Tailor for jobs",
+      title: "Tailor Resume",
       description: "Create job-specific resumes optimized for each role",
       href: "/dashboard/tailor",
     },
     {
-      title: "Apply with confidence",
+      title: "Generate Cover Letter",
       description: "Generate cover letters and land your dream job",
       href: "/dashboard/cover-letter",
     },
   ];
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">
+    <div className="ra-page">
+      <div className="ra-panel p-5 md:p-6">
+        <h1 className="text-2xl font-bold text-slate-900">
           Welcome to Resume Agent
         </h1>
-        <p className="text-gray-600 mt-1">
+        <p className="text-slate-600 mt-1">
           AI-powered job application assistant
         </p>
       </div>
@@ -155,7 +155,7 @@ export default function DashboardPage() {
       {/* Stats */}
       {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="ra-panel p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-50 rounded-lg">
                 <FileText className="w-5 h-5 text-blue-600" />
@@ -166,7 +166,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="ra-panel p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-50 rounded-lg">
                 <TrendingUp className="w-5 h-5 text-indigo-600" />
@@ -177,7 +177,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="ra-panel p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-50 rounded-lg">
                 <Users className="w-5 h-5 text-purple-600" />
@@ -192,7 +192,7 @@ export default function DashboardPage() {
       )}
 
       {/* Recent Resumes */}
-      {resumes.length > 0 && (
+      {resumes.length > 0 ? (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Recent Resumes</h2>
@@ -205,7 +205,7 @@ export default function DashboardPage() {
               <Link
                 key={resume.id}
                 href={`/dashboard/resumes/${resume.id}`}
-                className="bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition"
+                className="ra-panel p-4 hover:border-blue-300 transition"
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-medium text-gray-900 truncate">
@@ -227,6 +227,30 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
+      ) : (
+        !loading && (
+          <div className="ra-empty">
+            <FileText className="h-11 w-11 text-slate-300" />
+            <p className="ra-empty-title">No resumes in your workspace yet</p>
+            <p className="ra-empty-copy">
+              Start by uploading your master resume. Then tailor it for jobs and track outputs automatically.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="/dashboard/upload"
+                className="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Upload Resume
+              </Link>
+              <Link
+                href="/dashboard/stories"
+                className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Update My Story
+              </Link>
+            </div>
+          </div>
+        )
       )}
 
       {/* Quick Actions */}
@@ -250,7 +274,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Getting Started */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="ra-panel p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           Getting Started
         </h2>

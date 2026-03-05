@@ -192,7 +192,7 @@ export default function ResumeDetailPage() {
       if (response.ok) {
         router.push("/dashboard/resumes");
       } else {
-        alert("Failed to delete resume");
+        alert("Couldn't delete resume. Try again.");
       }
     } catch (error) {
       console.error("Failed to delete:", error);
@@ -266,7 +266,7 @@ export default function ResumeDetailPage() {
         setAgentResults(data.result);
       } else {
         const data = await response.json();
-        alert(data.message || "Agent failed");
+        alert(data.message || "Couldn't run agent. Try again.");
       }
     } catch (error) {
       console.error("Agent failed:", error);
@@ -397,18 +397,20 @@ export default function ResumeDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading...</div>
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-500">
+          Loading resume...
+        </div>
       </div>
     );
   }
 
   if (!resume) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-500">Resume not found</p>
+      <div className="ra-empty">
+        <p className="ra-empty-title">Resume not found</p>
         <Link
           href="/dashboard/resumes"
-          className="text-blue-600 hover:underline mt-2 inline-block"
+          className="mt-3 inline-block text-blue-700 hover:underline"
         >
           Back to Resumes
         </Link>
@@ -431,19 +433,19 @@ export default function ResumeDetailPage() {
         : [];
 
   return (
-    <div>
+    <div className="ra-page">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-4">
+      <div className="ra-panel flex flex-wrap items-center justify-between gap-4 p-5 md:p-6">
+        <div className="flex min-w-0 items-center gap-4">
           <Link
             href="/dashboard/resumes"
-            className="p-2 hover:bg-gray-100 rounded-lg"
+            className="rounded-xl border border-slate-200 bg-white p-2 hover:bg-slate-100"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
           </Link>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="truncate text-2xl font-bold text-slate-900">
                 {resume.fullName || "Untitled Resume"}
               </h1>
               {resume.tailoredFromId && (
@@ -457,26 +459,28 @@ export default function ResumeDetailPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
-          <Save className="w-5 h-5" />
-          {saving ? "Saving..." : "Save"}
-        </button>
-        <button
-          onClick={handleDelete}
-          disabled={saving}
-          className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50"
-        >
-          <Trash2 className="w-5 h-5" />
-          Delete
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            <Save className="w-5 h-5" />
+            {saving ? "Saving..." : "Save Changes"}
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            <Trash2 className="w-5 h-5" />
+            Delete
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
+      <div className="ra-panel border-b border-slate-200 p-2">
         <nav className="flex gap-6 overflow-x-auto">
           {[
             { id: "details", label: "Details", icon: Briefcase },
@@ -492,8 +496,8 @@ export default function ResumeDetailPage() {
               onClick={() => setActiveTab(tab.id as any)}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${
                 activeTab === tab.id
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
               {tab.label}
@@ -504,7 +508,7 @@ export default function ResumeDetailPage() {
 
       {/* Tab Content */}
       {activeTab === "details" && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
+        <div className="ra-panel p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -590,10 +594,10 @@ export default function ResumeDetailPage() {
             <button
               onClick={handleRegenerateSummary}
               disabled={regeneratingSummary}
-              className="flex items-center gap-1.5 text-sm bg-violet-600 text-white px-3 py-1.5 rounded-lg hover:bg-violet-700 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
             >
               <Wand2 className="w-3.5 h-3.5" />
-              {regeneratingSummary ? "Generating..." : "Regenerate from Story"}
+              {regeneratingSummary ? "Regenerating..." : "Regenerate Summary"}
             </button>
           </div>
           <div>
@@ -630,23 +634,26 @@ export default function ResumeDetailPage() {
           <div className="flex justify-end">
             <button
               onClick={handleAddExperience}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
             >
               <Plus className="w-5 h-5" />
               Add Experience
             </button>
           </div>
           {resume.experiences.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-              <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No experiences added yet</p>
+            <div className="ra-empty">
+              <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+              <p className="ra-empty-title">No experiences added yet</p>
+              <p className="ra-empty-copy">
+                Use Add Experience to build your timeline. Experience entries are the strongest input for tailoring quality.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
               {resume.experiences.map((exp) => (
                 <div
                   key={exp.id}
-                  className="bg-white border border-gray-200 rounded-lg p-6"
+                  className="ra-panel p-6"
                 >
                   <div className="flex justify-between items-start">
                     <div>
@@ -675,16 +682,19 @@ export default function ResumeDetailPage() {
       {activeTab === "projects" && (
         <div className="space-y-4">
           {displayProjects.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-              <Code className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No projects added yet</p>
+            <div className="ra-empty">
+              <Code className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+              <p className="ra-empty-title">No projects added yet</p>
+              <p className="ra-empty-copy">
+                Add projects with concrete outcomes and technologies to improve job-match evidence.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
               {displayProjects.map((project: Project) => (
                 <div
                   key={project.id}
-                  className="bg-white border border-gray-200 rounded-lg p-6"
+                  className="ra-panel p-6"
                 >
                   <h3 className="font-semibold text-gray-900">
                     {project.name}
@@ -700,16 +710,19 @@ export default function ResumeDetailPage() {
       {activeTab === "skills" && (
         <div className="space-y-4">
           {resume.skills.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-              <Code className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No skills added yet</p>
+            <div className="ra-empty">
+              <Code className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+              <p className="ra-empty-title">No skills added yet</p>
+              <p className="ra-empty-copy">
+                Skills help ATS optimization and matching. Add technical tools you can defend in interviews.
+              </p>
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
               {resume.skills.map((skill) => (
                 <span
                   key={skill.id}
-                  className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-700"
                 >
                   {skill.name}
                 </span>
@@ -722,16 +735,19 @@ export default function ResumeDetailPage() {
       {activeTab === "education" && (
         <div className="space-y-4">
           {resume.education.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-              <GraduationCap className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No education added yet</p>
+            <div className="ra-empty">
+              <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+              <p className="ra-empty-title">No education added yet</p>
+              <p className="ra-empty-copy">
+                Add degrees, certificates, or relevant training to complete your profile.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
               {resume.education.map((edu) => (
                 <div
                   key={edu.id}
-                  className="bg-white border border-gray-200 rounded-lg p-6"
+                  className="ra-panel p-6"
                 >
                   <h3 className="font-semibold text-gray-900">
                     {edu.degree} in {edu.field}
@@ -748,7 +764,7 @@ export default function ResumeDetailPage() {
         <div className="space-y-6">
           {/* Tailored Resume Info */}
           {resume.tailoredFromId && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
               <div className="flex items-center gap-2 text-yellow-800">
                 <LinkIcon className="w-5 h-5" />
                 <span className="font-medium">Tailored Resume</span>
@@ -769,7 +785,7 @@ export default function ResumeDetailPage() {
 
           {/* Raw Text */}
           {resume.rawText && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="ra-panel p-6">
               <div className="flex items-center gap-2 mb-4">
                 <FileText className="w-5 h-5 text-gray-600" />
                 <h3 className="font-semibold text-gray-900">Raw Text</h3>
@@ -782,7 +798,7 @@ export default function ResumeDetailPage() {
 
           {/* Resume Data JSON */}
           {resume.resumeData && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="ra-panel p-6">
               <div className="flex items-center gap-2 mb-4">
                 <Database className="w-5 h-5 text-gray-600" />
                 <h3 className="font-semibold text-gray-900">Full Resume Data (JSON)</h3>
@@ -794,9 +810,12 @@ export default function ResumeDetailPage() {
           )}
 
           {!resume.rawText && !resume.resumeData && (
-            <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-              <Database className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No raw data stored for this resume</p>
+            <div className="ra-empty">
+              <Database className="w-12 h-12 text-slate-300 mx-auto mb-2" />
+              <p className="ra-empty-title">No raw data stored for this resume</p>
+              <p className="ra-empty-copy">
+                Raw data appears after upload and helps debug parsing and tailoring output quality.
+              </p>
             </div>
           )}
         </div>
@@ -804,7 +823,7 @@ export default function ResumeDetailPage() {
 
       {activeTab === "agents" && (
         <div className="space-y-6">
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="ra-panel p-6">
             <h3 className="font-semibold text-gray-900 mb-4">Resume Enhancement Agents</h3>
             <p className="text-sm text-gray-600 mb-6">
               Run AI agents to enhance your resume with quantifiable achievements, professional summaries, ATS optimization, and interview prep.
@@ -814,7 +833,7 @@ export default function ResumeDetailPage() {
               <button
                 onClick={() => runAgent("quantify")}
                 disabled={agentRunning !== null}
-                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition text-left disabled:opacity-50"
+                className="rounded-xl border border-gray-200 p-4 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <Target className="w-5 h-5 text-blue-600" />
@@ -826,7 +845,7 @@ export default function ResumeDetailPage() {
               <button
                 onClick={() => runAgent("harvard")}
                 disabled={agentRunning !== null}
-                className="p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition text-left disabled:opacity-50"
+                className="rounded-xl border border-gray-200 p-4 text-left transition hover:border-green-300 hover:bg-green-50 disabled:opacity-50"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <FileText className="w-5 h-5 text-green-600" />
@@ -838,7 +857,7 @@ export default function ResumeDetailPage() {
               <button
                 onClick={() => runAgent("ats")}
                 disabled={agentRunning !== null}
-                className="p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition text-left disabled:opacity-50"
+                className="rounded-xl border border-gray-200 p-4 text-left transition hover:border-purple-300 hover:bg-purple-50 disabled:opacity-50"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <Code className="w-5 h-5 text-purple-600" />
@@ -850,7 +869,7 @@ export default function ResumeDetailPage() {
               <button
                 onClick={() => runAgent("behavioral")}
                 disabled={agentRunning !== null}
-                className="p-4 border border-gray-200 rounded-lg hover:border-orange-300 hover:bg-orange-50 transition text-left disabled:opacity-50"
+                className="rounded-xl border border-gray-200 p-4 text-left transition hover:border-orange-300 hover:bg-orange-50 disabled:opacity-50"
               >
                 <div className="flex items-center gap-3 mb-2">
                   <Users className="w-5 h-5 text-orange-600" />
@@ -863,13 +882,13 @@ export default function ResumeDetailPage() {
             {agentRunning && (
               <div className="mt-6 p-4 bg-blue-50 rounded-lg flex items-center gap-3">
                 <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                <span className="text-blue-700">Running {agentRunning} agent...</span>
+                <span className="text-blue-700">Running {agentRunning}...</span>
               </div>
             )}
           </div>
 
           {agentResults && (
-            <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <div className="ra-panel p-6">
               <h3 className="font-semibold text-gray-900 mb-4">Results</h3>
               {renderAgentResults()}
             </div>
