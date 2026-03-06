@@ -1,8 +1,8 @@
-// File: C:\Users\BonnyMakaniankhondo\Documents\GitHub\resume-agent\packages\client\src\app\dashboard\stories\page.tsx
-import * as entry from '../../../../../src/app/dashboard/stories/page.js'
+// File: C:\Users\BonnyMakaniankhondo\Documents\GitHub\resume-agent\packages\client\src\app\page.tsx
+import * as entry from '../../../src/app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../../../src/app/dashboard/stories/page.js')
+type TEntry = typeof import('../../../src/app/page.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{

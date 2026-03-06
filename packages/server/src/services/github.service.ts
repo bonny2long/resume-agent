@@ -1,5 +1,5 @@
 // src/services/github.service.ts
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { logger } from "@/utils/logger";
 
 interface GitHubRepo {
@@ -38,12 +38,17 @@ interface GitHubUser {
 }
 
 export class GitHubService {
-  constructor(private prisma: PrismaClient) {}
+  constructor(
+    private prisma: PrismaClient,
+    private tokenOverride?: string,
+  ) {}
 
   private getHeaders(): Record<string, string> {
-    const token = process.env.GITHUB_TOKEN;
+    const token = this.tokenOverride || process.env.GITHUB_TOKEN;
     if (!token) {
-      throw new Error("GITHUB_TOKEN environment variable is required");
+      throw new Error(
+        "GitHub token is required. Provide one from Settings or set GITHUB_TOKEN.",
+      );
     }
 
     return {
@@ -256,5 +261,6 @@ export class GitHubService {
   }
 }
 
-// Export singleton instance
-export const githubService = new GitHubService(new PrismaClient());
+export function getGitHubService(prisma: PrismaClient, token?: string) {
+  return new GitHubService(prisma, token);
+}

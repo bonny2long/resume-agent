@@ -1,0 +1,3116 @@
+{
+  "generatedAt": "2026-03-05T15:29:40.891Z",
+  "userId": "8efff37a-2f0a-46b2-830c-c21747f0ac04",
+  "repositorySync": {
+    "added": 70,
+    "total": 70
+  },
+  "extractedCount": 254,
+  "resumeSync": {
+    "added": 244,
+    "updated": 10,
+    "total": 254
+  },
+  "skills": [
+    {
+      "name": "TypeScript",
+      "source": "language",
+      "confidence": 0.7,
+      "repositories": [
+        "resume-agent",
+        "portfolio",
+        "devlogs",
+        "dash_demo",
+        "threebody-uni",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "Twenty5clock",
+        "react-calculator"
+      ],
+      "category": "Language"
+    },
+    {
+      "name": "CSS",
+      "source": "language",
+      "confidence": 0.7,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "pig-game-2",
+        "modalwindow2",
+        "TechAssessmentManager",
+        "devlogs",
+        "dash_demo",
+        "DeveloperLogs",
+        "united-sidebar",
+        "united-top-nav",
+        "devisionai",
+        "modal-windows",
+        "guess-my-number",
+        "pig-game",
+        "threebody-uni",
+        "fast-react-pizza",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "Twenty5clock",
+        "react-calculator",
+        "worldwise-app",
+        "eatNsplit",
+        "pizza-menu",
+        "TicTacToe",
+        "tailwind-landing-page",
+        "Bankist-Marketing",
+        "Bankist-App",
+        "GuessMyNumb",
+        "palindrome-checker",
+        "num-converter",
+        "myResume",
+        "Portifolio-last",
+        "motion-modals",
+        "Auto-Text",
+        "Carusel",
+        "Dad-Jokes",
+        "Expanding-Cards",
+        "Github-Profile-Checker",
+        "Love-Calc",
+        "Rotating-navbar",
+        "Password-Generator",
+        "Password-strength",
+        "Split-Page",
+        "Sticky-Navbar",
+        "Dark-Theme-Clock",
+        "Vertical-Slider",
+        "surveyform",
+        "Newsletter-Signup",
+        "landingPage",
+        "techDoc",
+        "personalPage",
+        "tribute",
+        "blog"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "JavaScript",
+      "source": "language",
+      "confidence": 0.7,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "pig-game-2",
+        "modalwindow2",
+        "TechAssessmentManager",
+        "devlogs",
+        "APIs101Bonny",
+        "dash_demo",
+        "DeveloperLogs",
+        "T7A-Functions-Errors-Debugging",
+        "Programming-One-Control-Flow",
+        "devisionai",
+        "modal-windows",
+        "guess-my-number",
+        "pig-game",
+        "the-wild-oasis",
+        "threebody-uni",
+        "fast-react-pizza",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "Twenty5clock",
+        "react-calculator",
+        "worldwise-app",
+        "eatNsplit",
+        "pizza-menu",
+        "TicTacToe",
+        "MarkdownPreviewer",
+        "tailwind-landing-page",
+        "forkify-app",
+        "Bankist-Marketing",
+        "Bankist-App",
+        "GuessMyNumb",
+        "palindrome-checker",
+        "num-converter",
+        "motion-modals",
+        "Auto-Text",
+        "Carusel",
+        "Dad-Jokes",
+        "Expanding-Cards",
+        "Github-Profile-Checker",
+        "Love-Calc",
+        "Rotating-navbar",
+        "Password-Generator",
+        "Password-strength",
+        "Split-Page",
+        "Sticky-Navbar",
+        "Dark-Theme-Clock",
+        "Vertical-Slider",
+        "Newsletter-Signup",
+        "blog"
+      ],
+      "category": "Language"
+    },
+    {
+      "name": "HTML",
+      "source": "language",
+      "confidence": 0.7,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "pig-game-2",
+        "modalwindow2",
+        "TechAssessmentManager",
+        "devlogs",
+        "dash_demo",
+        "DeveloperLogs",
+        "united-sidebar",
+        "united-top-nav",
+        "devisionai",
+        "modal-windows",
+        "guess-my-number",
+        "pig-game",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "Twenty5clock",
+        "react-calculator",
+        "worldwise-app",
+        "eatNsplit",
+        "pizza-menu",
+        "MarkdownPreviewer",
+        "forkify-app",
+        "Bankist-Marketing",
+        "Bankist-App",
+        "GuessMyNumb",
+        "palindrome-checker",
+        "num-converter",
+        "myResume",
+        "Portifolio-last",
+        "motion-modals",
+        "Auto-Text",
+        "Carusel",
+        "Dad-Jokes",
+        "Expanding-Cards",
+        "Github-Profile-Checker",
+        "Love-Calc",
+        "Rotating-navbar",
+        "Password-Generator",
+        "Password-strength",
+        "Split-Page",
+        "Sticky-Navbar",
+        "Dark-Theme-Clock",
+        "Vertical-Slider",
+        "surveyform",
+        "Newsletter-Signup",
+        "landingPage",
+        "techDoc",
+        "personalPage",
+        "tribute",
+        "blog"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "config",
+      "source": "topic",
+      "confidence": 0.7,
+      "repositories": [
+        "bonny2long"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "github-config",
+      "source": "topic",
+      "confidence": 0.7,
+      "repositories": [
+        "bonny2long"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "PowerShell",
+      "source": "language",
+      "confidence": 0.7,
+      "repositories": [
+        "SyncUp",
+        "TechAssessmentManager"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "TSQL",
+      "source": "language",
+      "confidence": 0.7,
+      "repositories": [
+        "devlogs"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Bash",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "TechAssessmentManager",
+        "T7A-Functions-Errors-Debugging",
+        "modal-windows",
+        "guess-my-number",
+        "the-wild-oasis",
+        "threebody-uni",
+        "fast-react-pizza",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe",
+        "GuessMyNumb"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "PostgreSQL",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Database"
+    },
+    {
+      "name": "Git",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "T7A-Functions-Errors-Debugging",
+        "GitForTeams",
+        "modal-windows",
+        "guess-my-number",
+        "the-wild-oasis",
+        "threebody-uni",
+        "Bankist-Marketing",
+        "GuessMyNumb",
+        "surveyform"
+      ],
+      "category": "Tools"
+    },
+    {
+      "name": "GitHub",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "dash_demo",
+        "T7A-Functions-Errors-Debugging",
+        "GitForTeams",
+        "modal-windows",
+        "guess-my-number",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "Twenty5clock",
+        "react-calculator",
+        "TicTacToe",
+        "Bankist-Marketing",
+        "surveyform"
+      ],
+      "category": "Tools"
+    },
+    {
+      "name": "Prisma",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Provider",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Technical Architecture",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Metrics",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Optimization",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Stack",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "modal-windows",
+        "guess-my-number",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "worldwise-app",
+        "eatNsplit",
+        "pizza-menu"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Software",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "portfolio",
+        "icstarsPort"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Application",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "TechAssessmentManager",
+        "dash_demo",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "Twenty5clock",
+        "react-calculator",
+        "worldwise-app",
+        "TicTacToe",
+        "forkify-app",
+        "Bankist-App",
+        "palindrome-checker",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Service",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Client",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Enhancement",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Integration",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Pipeline",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Workflow",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Business",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Engineering",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Requirements",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Architecture",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "MarkdownPreviewer"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Standard",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Style",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "Bankist-Marketing",
+        "Bankist-App",
+        "surveyform"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Node",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "TechAssessmentManager",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "npm",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "TechAssessmentManager",
+        "GitForTeams",
+        "the-wild-oasis",
+        "threebody-uni",
+        "fast-react-pizza",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Tools"
+    },
+    {
+      "name": "Manager",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Semantic",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "pizza-menu"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Documentation",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "TechAssessmentManager",
+        "dash_demo",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "API",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "TechAssessmentManager",
+        "APIs101Bonny",
+        "the-wild-oasis",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "worldwise-app",
+        "TicTacToe",
+        "forkify-app",
+        "Bankist-Marketing"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Docs",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "README",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "GitForTeams",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Core",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "ChefBonBon",
+        "GuessMyNumb",
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Command",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "portfolio",
+        "icstarsPort"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Open",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "TechAssessmentManager",
+        "modal-windows",
+        "guess-my-number",
+        "threebody-uni",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe",
+        "Bankist-Marketing",
+        "GuessMyNumb",
+        "palindrome-checker",
+        "surveyform"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Status",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Reference",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "marketplace-demo2",
+        "marketplac",
+        "wall"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Extension",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Strategy",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Behavioral",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Letter",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Database",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "threebody-uni"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Schema",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Root",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "resume-agent",
+        "Metis",
+        "ChefBonBon",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "React",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "TechAssessmentManager",
+        "dash_demo",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "Twenty5clock",
+        "react-calculator",
+        "worldwise-app",
+        "eatNsplit",
+        "pizza-menu",
+        "MarkdownPreviewer"
+      ],
+      "category": "Frontend"
+    },
+    {
+      "name": "Tailwind",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Express",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio"
+      ],
+      "category": "Backend"
+    },
+    {
+      "name": "AWS",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "DevOps"
+    },
+    {
+      "name": "Google Cloud",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Heroku",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Vercel",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Netlify",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "DigitalOcean",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Railway",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "HTTP",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "the-wild-oasis",
+        "threebody-uni",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "HTTPS",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "dash_demo",
+        "T7A-Functions-Errors-Debugging",
+        "GitForTeams",
+        "modal-windows",
+        "guess-my-number",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "Twenty5clock",
+        "react-calculator",
+        "TicTacToe",
+        "Bankist-Marketing",
+        "surveyform"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "SSL",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Repository",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "devlogs",
+        "APIs101Bonny",
+        "T7A-Functions-Errors-Debugging",
+        "the-wild-oasis",
+        "threebody-uni",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe",
+        "Bankist-Marketing",
+        "GuessMyNumb",
+        "surveyform",
+        "tribute"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Context",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "worldwise-app"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Actions",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "GuessMyNumb"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Playwright",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Testing Library",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "ESLint",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "dash_demo",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "Twenty5clock",
+        "react-calculator"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Prettier",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "portfolio",
+        "fast-react-pizza"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Test",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "TechAssessmentManager",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Branch",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "portfolio",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Function",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "T7A-Functions-Errors-Debugging",
+        "modal-windows",
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Backup",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Monitoring",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "portfolio",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Logging",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "SyncUp",
+        "worldwise-app"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Performance",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "worldwise-app",
+        "Bankist-Marketing"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Pull",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Push",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Future",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "TechAssessmentManager"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Platform",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "SyncUp",
+        "portfolio",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Server",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Frontend",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "worldwise-app",
+        "MarkdownPreviewer"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Backend",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "TechAssessmentManager",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Full-stack",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Static",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "portfolio",
+        "icstarsPort",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Dynamic",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "guess-my-number",
+        "pizza-menu",
+        "Bankist-Marketing",
+        "GuessMyNumb",
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Responsive",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "guess-my-number",
+        "worldwise-app",
+        "MarkdownPreviewer",
+        "forkify-app",
+        "Bankist-Marketing",
+        "num-converter",
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Cloud",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Web",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "TechAssessmentManager",
+        "Bankist-Marketing",
+        "Bankist-App",
+        "GuessMyNumb",
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Utilities",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "TechAssessmentManager"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Public",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "TechAssessmentManager",
+        "APIs101Bonny",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Deployment",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "portfolio",
+        "TechAssessmentManager",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Management",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "worldwise-app",
+        "eatNsplit",
+        "MarkdownPreviewer",
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Response",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Planning",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Roadmap",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "SyncUp",
+        "icstarsPort",
+        "devlogs"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Configuration",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "dash_demo",
+        "the-wild-oasis",
+        "Twenty5clock",
+        "react-calculator"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Control",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "TechAssessmentManager",
+        "Programming-One-Control-Flow",
+        "the-wild-oasis",
+        "Bankist-Marketing",
+        "GuessMyNumb"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Source",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "surveyform"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Code",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "devlogs",
+        "T7A-Functions-Errors-Debugging",
+        "Programming-One-Control-Flow",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "GuessMyNumb",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Request",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "SyncUp",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Analysis",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "portfolio",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Testing",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Quality",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "the-wild-oasis",
+        "fast-react-pizza"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Audit",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Update",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "the-wild-oasis",
+        "Bankist-Marketing",
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Refactoring",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "T7A-Functions-Errors-Debugging"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Domain",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "System",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "MarkdownPreviewer"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Design",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "guess-my-number",
+        "MarkdownPreviewer",
+        "forkify-app",
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Convention",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Linting",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Formatting",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "fast-react-pizza",
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "JSON",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "TechAssessmentManager",
+        "APIs101Bonny"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "PostCSS",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Autoprefixer",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Vite",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "dash_demo",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "Twenty5clock",
+        "react-calculator",
+        "worldwise-app"
+      ],
+      "category": "Tools"
+    },
+    {
+      "name": "Package",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "TechAssessmentManager"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Notes",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "devlogs"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Framework",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Data",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "threebody-uni",
+        "pizza-menu",
+        "Bankist-Marketing",
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Access",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "threebody-uni",
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Unit",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "of",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio",
+        "icstarsPort",
+        "devlogs",
+        "dash_demo",
+        "T7A-Functions-Errors-Debugging",
+        "modal-windows",
+        "threebody-uni",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "worldwise-app",
+        "eatNsplit",
+        "pizza-menu",
+        "TicTacToe",
+        "MarkdownPreviewer",
+        "forkify-app",
+        "Bankist-Marketing",
+        "Bankist-App",
+        "GuessMyNumb",
+        "palindrome-checker",
+        "num-converter",
+        "surveyform",
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Work",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "SyncUp",
+        "pizza-menu"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Implementation",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "modal-windows",
+        "Bankist-Marketing",
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Variable",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Value",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Type",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "dash_demo",
+        "Twenty5clock",
+        "react-calculator",
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Export",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Default",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "TechAssessmentManager",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Header",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Category",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Patterns",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "out",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "dash_demo",
+        "the-wild-oasis",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "Twenty5clock",
+        "react-calculator",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Load",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Metis",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe",
+        "Bankist-Marketing"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Supabase",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "RESTful",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "WebSocket",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Hooks",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio",
+        "TechAssessmentManager",
+        "the-wild-oasis",
+        "worldwise-app"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Middleware",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "TechAssessmentManager"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Security",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Scalability",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Async",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Await",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Infrastructure",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Mobile",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "worldwise-app",
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Social",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "SyncUp",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "DevOps",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Version",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Migration",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Modeling",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Pattern",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "yarn",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio",
+        "icstarsPort",
+        "the-wild-oasis",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Tools"
+    },
+    {
+      "name": "Query",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Private",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Protected",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Error",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "T7A-Functions-Errors-Debugging",
+        "the-wild-oasis",
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Proxy",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon",
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Read",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Model",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Write",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "ChefBonBon"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "MySQL",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp",
+        "TechAssessmentManager"
+      ],
+      "category": "Database"
+    },
+    {
+      "name": "Azure",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp",
+        "portfolio"
+      ],
+      "category": "DevOps"
+    },
+    {
+      "name": "Should",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Tagging",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Collaboration",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp",
+        "portfolio",
+        "GitForTeams"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Peer",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Layer",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Internal",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp",
+        "TechAssessmentManager"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Reflection",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Bridge",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "State",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp",
+        "portfolio",
+        "the-wild-oasis",
+        "fast-react-pizza",
+        "worldwise-app",
+        "eatNsplit",
+        "MarkdownPreviewer",
+        "GuessMyNumb"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Systems",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp",
+        "portfolio",
+        "icstarsPort"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Discovery",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "SyncUp"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Next.js",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Frontend"
+    },
+    {
+      "name": "MongoDB",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Database"
+    },
+    {
+      "name": "Buddy",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Continuous Deployment",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "CI/CD",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Enterprise",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Education",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Agile",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Continuous",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Privacy",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "CI",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Webpack",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio"
+      ],
+      "category": "Tools"
+    },
+    {
+      "name": "Template",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "portfolio",
+        "dash_demo",
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "Twenty5clock",
+        "react-calculator",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Path",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "icstarsPort"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Snapshot",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "icstarsPort"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "PHP",
+      "source": "language",
+      "confidence": 0.6,
+      "repositories": [
+        "TechAssessmentManager"
+      ],
+      "category": "Language"
+    },
+    {
+      "name": "Change",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "TechAssessmentManager",
+        "GitForTeams"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Visibility",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "TechAssessmentManager"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "per",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "TechAssessmentManager"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Programming",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "devlogs",
+        "Programming-One-Control-Flow",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Postman",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "APIs101Bonny"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Store",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "APIs101Bonny"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Mock",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "APIs101Bonny"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Practice",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "APIs101Bonny",
+        "T7A-Functions-Errors-Debugging",
+        "pizza-menu"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Handle",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "APIs101Bonny",
+        "Bankist-Marketing",
+        "GuessMyNumb"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Guide",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "dash_demo"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Babel",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "dash_demo",
+        "Twenty5clock",
+        "react-calculator"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "SWC",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "dash_demo",
+        "Twenty5clock",
+        "react-calculator"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Process",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "T7A-Functions-Errors-Debugging"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Try",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "T7A-Functions-Errors-Debugging",
+        "guess-my-number"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Catch",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "T7A-Functions-Errors-Debugging"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Resolution",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "GitForTeams"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Merge",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "GitForTeams"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Review",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "GitForTeams"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Class",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "modal-windows",
+        "myResume"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Event",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "modal-windows",
+        "MarkdownPreviewer",
+        "Bankist-Marketing",
+        "GuessMyNumb",
+        "palindrome-checker",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "React Query",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "TanStack Query",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "the-wild-oasis"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Hook",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "the-wild-oasis",
+        "eatNsplit"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Saga",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "threebody-uni"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Body",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "threebody-uni"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Redux",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "fast-react-pizza"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "SPA",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "fast-react-pizza"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Delivery",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "fast-react-pizza"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Single",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "fast-react-pizza"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "pnpm",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Bun",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "marketplace-demo2",
+        "marketplac",
+        "wall",
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Desktop",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "worldwise-app",
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Travel",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "worldwise-app",
+        "surveyform"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Shared",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "eatNsplit"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Canary",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "TicTacToe"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "SCSS",
+      "source": "language",
+      "confidence": 0.6,
+      "repositories": [
+        "MarkdownPreviewer",
+        "forkify-app"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Event-driven",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "MarkdownPreviewer",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "SASS",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "MarkdownPreviewer"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Markdown",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "MarkdownPreviewer"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Driven",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "MarkdownPreviewer",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Parcel",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "forkify-app"
+      ],
+      "category": "Tools"
+    },
+    {
+      "name": "Effects",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Bankist-Marketing"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Observer",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Bankist-Marketing"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Delegation",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Bankist-Marketing"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Banking",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Timeout",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Transaction",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "Bankist-App"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Field",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "GuessMyNumb",
+        "palindrome-checker",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Maintainability",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Interface",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "palindrome-checker",
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Listener",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "palindrome-checker"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Edge",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "LESS",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "num-converter"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Subscribe",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Tablet",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Media",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Action",
+      "source": "readme",
+      "confidence": 0.6,
+      "repositories": [
+        "landingPage"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Ruby",
+      "source": "language",
+      "confidence": 0.5,
+      "repositories": [
+        "blog"
+      ],
+      "category": "Language"
+    },
+    {
+      "name": "Dockerfile",
+      "source": "language",
+      "confidence": 0.5,
+      "repositories": [
+        "blog"
+      ],
+      "category": "Technical"
+    },
+    {
+      "name": "Shell",
+      "source": "language",
+      "confidence": 0.5,
+      "repositories": [
+        "blog"
+      ],
+      "category": "Technical"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 // src/services/github-skills.service.ts
-import { PrismaClient, Proficiency } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { GitHubService } from "./github.service";
 import { logger } from "@/utils/logger";
 
@@ -14,8 +14,8 @@ export interface GitHubSkill {
 export class GitHubSkillsService {
   private githubService: GitHubService;
 
-  constructor(private prisma: PrismaClient) {
-    this.githubService = new GitHubService(prisma);
+  constructor(private prisma: PrismaClient, githubToken?: string) {
+    this.githubService = new GitHubService(prisma, githubToken);
   }
 
   /**
@@ -164,11 +164,40 @@ export class GitHubSkillsService {
     added: number;
     updated: number;
     total: number;
+  }>;
+  async syncToMasterResume(options: {
+    userId?: string;
+    resumeId?: string;
+  }): Promise<{
+    added: number;
+    updated: number;
+    total: number;
+  }>;
+  async syncToMasterResume(options?: {
+    userId?: string;
+    resumeId?: string;
+  }): Promise<{
+    added: number;
+    updated: number;
+    total: number;
   }> {
     logger.info("Syncing GitHub skills to master resume");
 
     try {
-      const masterResume = await this.prisma.masterResume.findFirst();
+      const masterResume = options?.resumeId
+        ? await this.prisma.masterResume.findFirst({
+            where: {
+              id: options.resumeId,
+              ...(options.userId ? { userId: options.userId } : {}),
+            },
+          })
+        : await this.prisma.masterResume.findFirst({
+            where: {
+              ...(options?.userId ? { userId: options.userId } : {}),
+              tailoredFromId: null,
+            },
+            orderBy: { updatedAt: "desc" },
+          });
       if (!masterResume) {
         throw new Error("No master resume found");
       }
@@ -1784,19 +1813,21 @@ export class GitHubSkillsService {
   /**
    * Infer proficiency level based on skill usage patterns
    */
-  private inferProficiency(skill: GitHubSkill): Proficiency {
+  private inferProficiency(
+    skill: GitHubSkill,
+  ): "advanced" | "intermediate" | "beginner" {
     // High confidence + multiple repos = advanced
     if (skill.confidence >= 0.8 && skill.repositories.length >= 3) {
-      return Proficiency.advanced;
+      return "advanced";
     }
 
     // Medium confidence + several repos = intermediate
     if (skill.confidence >= 0.6 && skill.repositories.length >= 2) {
-      return Proficiency.intermediate;
+      return "intermediate";
     }
 
     // Low confidence or single repo = beginner
-    return Proficiency.beginner;
+    return "beginner";
   }
 
   /**
@@ -1878,5 +1909,6 @@ export class GitHubSkillsService {
   }
 }
 
-// Export singleton instance
-export const gitHubSkillsService = new GitHubSkillsService(new PrismaClient());
+export function getGitHubSkillsService(prisma: PrismaClient, token?: string) {
+  return new GitHubSkillsService(prisma, token);
+}

@@ -3985,6 +3985,95 @@ fastify.put(
   },
 );
 
+// Sync GitHub repositories, extract skills, and build a reusable skills bank JSON.
+fastify.post<{
+  Body: {
+    githubToken?: string;
+    resumeId?: string;
+    saveToResume?: boolean;
+  };
+}>(
+  "/api/github/sync-skills",
+  {
+    preHandler: [fastify.authenticate],
+  },
+  async (request: any, reply) => {
+    const githubToken = `${request.body?.githubToken || ""}`.trim();
+    const resumeId = `${request.body?.resumeId || ""}`.trim() || undefined;
+    const saveToResume = request.body?.saveToResume !== false;
+
+    const settings = await prisma.userSettings.findUnique({
+      where: { userId: request.user.id },
+      select: { enableGithubSync: true },
+    });
+
+    if (settings && settings.enableGithubSync === false) {
+      return reply.status(403).send({
+        message: "GitHub sync is disabled in Settings. Enable it to build a skills bank.",
+      });
+    }
+
+    if (!githubToken && !process.env.GITHUB_TOKEN) {
+      return reply.status(400).send({
+        message: "GitHub token is required. Add one in Settings or set GITHUB_TOKEN.",
+      });
+    }
+
+    try {
+      const [{ GitHubService }, { GitHubSkillsService }] = await Promise.all([
+        import("./services/github.service.js"),
+        import("./services/github-skills.service.js"),
+      ]);
+
+      const ghService = new GitHubService(prisma as any, githubToken || undefined);
+      const repoSync = await ghService.syncRepositories();
+
+      const skillsService = new GitHubSkillsService(
+        prisma as any,
+        githubToken || undefined,
+      );
+      const extractedSkills = await skillsService.extractSkills();
+
+      const resumeSync = saveToResume
+        ? await skillsService.syncToMasterResume({
+            userId: request.user.id,
+            resumeId,
+          })
+        : { added: 0, updated: 0, total: extractedSkills.length };
+
+      const outputsDir = OUTPUT_ROOTS[0];
+      mkdirSync(outputsDir, { recursive: true });
+      const timestamp = Date.now();
+      const bankPath = join(outputsDir, `github_skills_bank_${timestamp}.json`);
+      const payload = {
+        generatedAt: new Date().toISOString(),
+        userId: request.user.id,
+        repositorySync: repoSync,
+        extractedCount: extractedSkills.length,
+        resumeSync,
+        skills: extractedSkills,
+      };
+      writeFileSync(bankPath, JSON.stringify(payload, null, 2), "utf-8");
+
+      return {
+        result: {
+          repositoriesSynced: repoSync.total,
+          repositoriesProcessed: repoSync.added,
+          skillsExtracted: extractedSkills.length,
+          resumeSync,
+          skillsBankPath: bankPath,
+          topSkills: extractedSkills.slice(0, 25),
+        },
+      };
+    } catch (error: any) {
+      return reply.status(500).send({
+        message: "Failed to sync GitHub skills",
+        error: error?.message || "Unknown error",
+      });
+    }
+  },
+);
+
 // ==================== APPLICATION ROUTES ====================
 
 // Parse job posting from URL

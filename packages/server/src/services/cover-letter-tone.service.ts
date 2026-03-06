@@ -178,7 +178,8 @@ export function applyCoverLetterTonePostProcessing(
   return output
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
-    .replace(/\s{2,}/g, " ")
+    // Preserve paragraph/newline structure; only collapse extra inline spaces.
+    .replace(/[ \t]{2,}/g, " ")
     .trim();
 }
 

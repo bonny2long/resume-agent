@@ -432,7 +432,7 @@ export default function TailorPage() {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-7 xl:grid-cols-[minmax(0,1fr)_430px]">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,860px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,900px)_minmax(0,780px)]">
           {/* Input Section */}
           <div className="space-y-6">
             {/* Select Resume */}
@@ -600,7 +600,7 @@ export default function TailorPage() {
           </div>
 
           {/* Preview Section */}
-          <div className="ra-panel overflow-x-hidden p-6 xl:sticky xl:top-24 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto">
+          <div className="ra-panel overflow-x-hidden p-6 xl:sticky xl:top-24 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto xl:min-w-[520px]">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               Preview
             </h2>
