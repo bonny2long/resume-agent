@@ -1,6 +1,6 @@
 # Resume Agent
 
-An AI-powered job application assistant that helps you create custom resumes, cover letters, and LinkedIn outreach messages. Features elite career consultant-powered tools inspired by McKinsey, Harvard, Google, Bain, and other top firms.
+An AI-powered job application assistant that helps create custom resumes, cover letters, and LinkedIn outreach messages. Features elite career consultant-powered tools inspired by McKinsey, Harvard, Google, Bain, and other top firms.
 
 ## Features
 
@@ -16,31 +16,31 @@ Power your applications with prompts inspired by top career consulting firms:
 
 | Firm | Feature | Command |
 |------|---------|---------|
-| McKinsey & Co | Achievement Quantifier | `enhance quantify` |
+| McKinsey and Co | Achievement Quantifier | `enhance quantify` |
 | Google | ATS Optimizer | `enhance ats <job-id>` |
 | Harvard Business School | Summary Generator | `enhance summary <job-id>` |
-| Bain & Company | Cover Letter | `cover-letter <job-id>` |
+| Bain and Company | Cover Letter | `cover-letter <job-id>` |
 | Meta (FAANG) | Interview Coach | `enhance interview <role>` |
 | Spencer Stuart | LinkedIn Optimizer | `enhance linkedin <role>` |
 | Robert Half | Salary Negotiator | `enhance salary <job-id>` |
-| Heidrick & Struggles | Personal Brand | `enhance brand <role>` |
+| Heidrick and Struggles | Personal Brand | `enhance brand <role>` |
 | Korn Ferry | Career Pivot | `enhance pivot` |
 
 ### Technical Features
-- **RAG-Based Matching**: Semantic similarity matching for relevant experiences/projects
-- **Multi-Provider AI**: Supports Anthropic Claude, Google Gemini, Cohere, and Hugging Face
-- **Vector Search**: pgvector-powered semantic search
-- **Application Tracking**: Tracks all applications in PostgreSQL
-- **GitHub Integration**: Pulls project info and extracts engineering skills
+- RAG-Based Matching: Semantic similarity matching for relevant experiences/projects
+- Multi-Provider AI: Supports Anthropic Claude, Google Gemini, Cohere, and Hugging Face
+- Vector Search: pgvector-powered semantic search
+- Application Tracking: Tracks all applications in PostgreSQL
+- GitHub Integration: Pulls project info and extracts engineering skills
 
 ## Tech Stack
 
-- **Language**: TypeScript + Node.js
-- **Database**: PostgreSQL with pgvector
-- **AI/LLM**: Anthropic Claude, Google Gemini, Cohere, Hugging Face
-- **ORM**: Prisma
-- **CLI**: Commander.js + Inquirer.js
-- **Document Processing**: docx, pdf-lib, mammoth
+- Language: TypeScript + Node.js
+- Database: PostgreSQL with pgvector
+- AI/LLM: Anthropic Claude, Google Gemini, Cohere, Hugging Face
+- ORM: Prisma
+- CLI: Commander.js + Inquirer.js
+- Document Processing: docx, pdf-lib, mammoth
 
 ## Prerequisites
 
